@@ -113,6 +113,7 @@ flowchart LR
   Twilio["Twilio<br/>WhatsApp"]:::ext
   Seed["Seed script<br/>multiple simulated patients<br/>+ mock insurance coverage<br/>+ appointments"]:::ext
   GSearch["Google Search<br/>via Gemini grounding"]:::ext
+  MedFilter["Medical allowlist filter<br/>resolve redirects, keep<br/>USPSTF, CDC, NIH, societies..."]
 
   %% Clients
   Doc --> Web
@@ -156,8 +157,13 @@ flowchart LR
   EMRMCP --> Tiger
 
   %% Agents: Snowflake over REST, no MCP
-  research -->|"REST: search_guidelines"| Snow
-  screen -->|"REST: search_guidelines"| Snow
+  research -->|"REST: search_guidelines<br/>USPSTF + PubMed"| Snow
+  screen -->|"REST: search_guidelines<br/>USPSTF baseline + PubMed"| Snow
+  research -->|"search_medical_web"| MedFilter
+  screen -->|"search_medical_web"| MedFilter
+  MedFilter -->|"grounded search"| GSearch
+  research -.->|"verify_claims"| Gemini
+  screen -.->|"verify_claims"| Gemini
 
   %% Replies
   chart -->|"read-back if voice"| EL
@@ -224,7 +230,7 @@ flowchart LR
 | Caller | How | Searches |
 |---|---|---|
 | Research agent | `search_guidelines` function tool, Cortex Search REST via `httpx` | USPSTF guidelines, PubMed abstracts |
-| Reminder agent | `search_guidelines` function tool, Cortex Search REST via `httpx` | USPSTF guidelines |
+| Reminder agent | `search_guidelines` function tool, Cortex Search REST via `httpx` | USPSTF guidelines (the baseline), PubMed abstracts |
 | Secretary agent | `search_payer_docs` function tool, Cortex Search REST via `httpx` | Insurer internal documents, payer policy PDFs |
 | Eligibility endpoint | Cortex Search REST via `httpx` | Payer policy PDFs |
 
@@ -232,11 +238,23 @@ flowchart LR
 
 | Caller | How | Searches |
 |---|---|---|
-| Secretary agent | `web_search` function tool: a separate Gemini call with Google Search grounding | Public insurer pages: prior-auth rules, claim and appeal processes |
+| Research agent | `search_medical_web` function tool: a separate Gemini call with Google Search grounding, filtered to the medical allowlist | Guideline bodies and medical sources: USPSTF, CDC, NIH, specialty societies, Cochrane, WHO, NICE |
+| Reminder agent | `search_medical_web`, same filter | Same, to check whether a patient's history justifies departing from the USPSTF baseline |
+| Secretary agent | `web_search` function tool: a separate Gemini call with Google Search grounding, no filter | Public insurer pages: prior-auth rules, claim and appeal processes |
 
-`web_search` makes its own Gemini call instead of switching on Google Search inside the agent's main call, because some Gemini models can't combine built-in search with our own function tools in one request.
+`web_search` and `search_medical_web` each make their own Gemini call instead of switching on Google Search inside the agent's main call, because some Gemini models can't combine built-in search with our own function tools in one request.
 
 Snowflake and the web only ever receive de-identified descriptions, never patient records or identifiers.
+
+## Evidence guardrails
+
+USPSTF is the baseline, not the limit. The doctor's agents can reach past it to PubMed and to the live web, but only trusted sources can back a recommendation, and the doctor can click through to every source.
+
+- **Tiers.** Every citation carries a tier: `baseline` (USPSTF), `guideline` (live web, allowlisted medical domains only), `literature` (PubMed), `chart` (this patient's notes and observations), `payer`, or `web` (unfiltered, secretary only). `builder-contracts.md` lists what each tier may back.
+- **Allowlist filter in code, not in the prompt.** Gemini's grounded search returns sources as Google redirect links. The filter follows each redirect to the real page, keeps only pages on the medical allowlist, and drops any answer sentence that only a dropped page supports. The doctor sees the real page URL and can open it.
+- **Baseline first.** A reminder change always cites the USPSTF recommendation. If it departs from USPSTF, for example colonoscopy at 40 instead of 45 because of family history, it also cites the source that justifies the departure and says both in its reason.
+- **Second check.** Before a research answer or reminder change goes to the doctor, a second Gemini call checks every sentence against the passage it cites and removes what the passage does not support. If too little trusted evidence survives, the agent says so instead of guessing.
+- **The doctor still decides.** None of this writes to the chart. Approval does.
 
 The plain endpoints never use MCP: body view, photo upload, approvals, reminders, appointments, WhatsApp sending and webhooks call the database or vendor API directly.
 

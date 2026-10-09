@@ -84,10 +84,11 @@ Every error body is:
 ```json
 {
   "citation": {
-    "source_id": "uspstf:colorectal",
-    "title": "Colorectal cancer screening",
-    "passage": "Start screening at age 40 when a first-degree relative was diagnosed at 50.",
-    "locator": "USPSTF"
+    "source_id": "uspstf:colorectal-cancer-screening#2",
+    "title": "USPSTF Colorectal Cancer: Screening: Clinician Summary",
+    "passage": "For adults aged 45 to 49 years: Screen adults aged 45 to 49 years for colorectal cancer. Grade B",
+    "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening",
+    "tier": "baseline"
   },
   "suggestion": {
     "id": "uuid",
@@ -108,6 +109,8 @@ Every error body is:
   }
 }
 ```
+
+`tier` is `baseline`, `guideline`, `literature`, `chart`, `payer`, or `web`. See Evidence rules for what each means and what it may back. `locator` is a URL the doctor can click for every tier except `chart` (which uses `note:<id>` or `observation:<id>`) and `payer` (which names the fictional policy document).
 
 `unconfirmed` is a response-only flag. It is true when a tool is showing a `pending` suggestion to the research agent. It is not a database column.
 
@@ -388,25 +391,61 @@ Implemented in `backend/app/mcp/`. Agents call these functions. They do not quer
 
 `propose_change(patient_id, suggestion) ->` the stored suggestion.
 
-`propose_change` inserts one `pending` row and returns it. It refuses a `target_table` outside the allowlist, an `after` key outside that table's keys, and a `reminder_change` with an empty `citations` list. It does not update chart tables.
+`propose_change` inserts one `pending` row and returns it. It refuses a `target_table` outside the allowlist, an `after` key outside that table's keys, a `reminder_change` with no `baseline` citation, and any suggestion citing a `web` tier source. It does not update chart tables.
 
 ## Evidence tools
 
-`search_guidelines(text, corpus)` where `corpus` is `uspstf` or `pubmed`. Returns `{ "passages": [citation, ...] }`. The reminder agent may request `uspstf` only. The research agent may request either.
+Implemented in `backend/app/evidence/`.
 
-`search_payer_docs(text)` returns the same passage shape from insurer documents and payer policy PDFs. Used by the secretary agent and by the eligibility handler when `order_text` is present.
+`search_guidelines(text, corpus)` where `corpus` is `uspstf` or `pubmed`. Returns `{ "passages": [citation, ...] }`. `uspstf` passages have tier `baseline`. `pubmed` passages have tier `literature`. The research agent and the reminder agent may request either. The corpora are `backend/ingest/corpus/uspstf.jsonl` and `pubmed.jsonl`, loaded into Snowflake.
 
-`web_search(text)` is its own Gemini call with Google Search grounding. It returns `{ "text", "citations" }` where each citation `locator` is a URL. The secretary agent is the only caller.
+`search_medical_web(text)` is its own Gemini call with Google Search grounding, for the research agent and the reminder agent. It returns `{ "passages": [citation, ...] }` with tier `guideline`. It keeps only sources on the medical allowlist:
 
-Input `text` for all three is the de-identified description. These functions raise `ValueError` if the text contains a patient id, member id, phone number, or any full calendar date. Ages, bare years, and durations are allowed. Callers strip dates before calling.
+1. Read the response's grounding chunks. Each chunk's `uri` is a Google redirect link.
+2. Follow each redirect (GET, 5 second timeout) to the final URL. Drop a chunk whose redirect fails.
+3. Keep a chunk only if the final URL's host equals an allowlisted domain or ends with `.` plus one.
+4. Use the grounding supports to keep only answer segments backed by at least one kept chunk. Each kept segment becomes the `passage` of one citation per kept chunk that backs it, with `locator` set to the final URL and `title` set to the page title Gemini returned.
+5. If nothing survives, return `{ "passages": [] }`. The caller falls back to `search_guidelines`.
+
+The medical allowlist is a constant, `MEDICAL_DOMAINS`, in `backend/app/config.py`:
+
+`uspreventiveservicestaskforce.org`, `cdc.gov`, `nih.gov`, `cancer.gov`, `fda.gov`, `cancer.org`, `heart.org`, `ahajournals.org`, `acc.org`, `diabetesjournals.org`, `gastro.org`, `gi.org`, `asge.org`, `acog.org`, `auanet.org`, `aafp.org`, `acponline.org`, `cochranelibrary.com`, `who.int`, `nice.org.uk`
+
+`search_payer_docs(text)` returns the same passage shape from the fictional payer documents (`backend/ingest/corpus/payer_docs.jsonl`), tier `payer`. Used by the secretary agent and by the eligibility handler when `order_text` is present.
+
+`web_search(text)` is its own Gemini call with Google Search grounding and no allowlist. It returns `{ "text", "citations" }` where each citation `locator` is the resolved final URL and tier is `web`. The secretary agent is the only caller. Doctor agents never call it.
+
+Input `text` for all four is the de-identified description. These functions raise `ValueError` if the text contains a patient id, member id, phone number, or any full calendar date. Ages, bare years, and durations are allowed. Callers strip dates before calling.
+
+## Evidence rules
+
+USPSTF is the baseline. Other sources can extend or depart from it, but only trusted sources can back a recommendation, and every claim is checked against the passage it cites.
+
+| Tier | Source | Can back a recommendation |
+|---|---|---|
+| `baseline` | USPSTF corpus | yes |
+| `guideline` | `search_medical_web`, allowlisted domains only | yes |
+| `literature` | PubMed corpus | only alongside a `baseline` or `guideline` citation |
+| `chart` | this patient's notes and observations, from MCP | patient facts only |
+| `payer` | payer documents | coverage questions only |
+| `web` | unfiltered `web_search` | no; secretary answers only |
+
+1. A `reminder_change` always cites the `baseline` USPSTF passage for that screening. `propose_change` refuses one without it.
+2. When a `reminder_change` departs from the USPSTF baseline (a different start age or interval), it also cites the `guideline` or `literature` source that justifies the departure, and `reason` states both: the baseline, then why this patient differs. Example: "USPSTF baseline: start at 45 for average risk. Proposed 40 because a first-degree relative was diagnosed with colorectal cancer (US Multi-Society Task Force)."
+3. A research answer that recommends an action cites at least one `baseline` or `guideline` source. `literature` alone may describe evidence but may not back a recommendation.
+4. Patient-specific statements cite `chart` sources: `source_id` and `locator` are `note:<id>` or `observation:<id>`, and `passage` is the excerpt or value.
+5. No doctor-facing answer or suggestion cites a `web` source.
+6. Every research answer and every `reminder_change` passes `verify_claims` before it is returned or proposed.
+
+`verify_claims(text, citations) -> { "text", "citations", "removed" }` is a second Gemini call, owned by the Doctor agents worker in `backend/app/agents/doctor/verify.py`. It splits `text` into sentences and checks each against the `passage` of the citations it relies on. A sentence that no cited passage supports is removed and listed in `removed`. Citations no surviving sentence relies on are dropped. If the remaining citations no longer satisfy rules 1 to 3, the research agent returns an answer saying it could not find enough trusted evidence, and the reminder agent proposes nothing. For a `reminder_change`, `text` is the suggestion's `reason`.
 
 ## Features and invariants
 
 **Chart update.** `POST /requests` classified as `chart_update` reads context, proposes allowlisted changes, and stores suggestions. Voice input gets `spoken_text` describing those proposals. Approving is a separate call.
 
-**Research.** Classified as `clinical_question`. Read-only. Every clinical claim in `answer.text` has a citation in `answer.citations`. Patient-specific statements cite a note or observation. Guideline statements cite `search_guidelines`. `POST /suggestions` is how a sentence becomes a `plan_item`.
+**Research.** Classified as `clinical_question`. Read-only. May call `get_patient_context`, `search_patient_notes`, `search_guidelines` (either corpus), and `search_medical_web`. Every clinical claim in `answer.text` has a citation in `answer.citations` and follows the Evidence rules. The answer passes `verify_claims` before it is returned. `POST /suggestions` is how a sentence becomes a `plan_item`.
 
-**Reminder agent.** Runs in two cases: the doctor request was classified `check_screenings`, or `POST /suggestions/approve` finished writing the chart. It loads rules, context, and USPSTF passages. If the schedule already fits, it returns no suggestions. If it does not, it proposes a `reminder_change` with at least one citation. Approving a reminder change runs the agent again. That second run must return no suggestions when the schedule now matches, so approval cannot chain.
+**Reminder agent.** Runs in two cases: the doctor request was classified `check_screenings`, or `POST /suggestions/approve` finished writing the chart. It loads rules, context, and the USPSTF baseline for each scheduled screening, and may also call `search_guidelines` with `pubmed` and `search_medical_web` to check whether this patient's history justifies departing from the baseline. If the schedule already fits, it returns no suggestions. If it does not, it proposes a `reminder_change` that follows the Evidence rules and has passed `verify_claims`. Approving a reminder change runs the agent again. That second run must return no suggestions when the schedule now matches, so approval cannot chain.
 
 **Approval.** The only writer of `conditions`, `medications`, `family_history`, `observations`, `notes`, and `reminder_schedule`. One transaction marks the suggestions `approved`, applies `after` (or the edited `after`), and inserts `audit_log`. A `soap_note` or `plan_item` also embeds `after.body` or `after` text into `notes`. Reject writes `audit_log` and leaves chart tables unchanged. A second approve of the same id returns `409`.
 
@@ -420,7 +459,7 @@ Input `text` for all three is the de-identified description. These functions rai
 
 **Appointments.** Create, read, and update only. No agent is involved.
 
-**Secretary chat.** Read-only. May call `get_coverage`, `search_payer_docs`, and `web_search`. Must not call `propose_change`.
+**Secretary chat.** Read-only. May call `get_coverage`, `search_payer_docs`, and `web_search`. Must not call `propose_change`. Its answers may cite `payer` and `web` sources.
 
 ## File structure
 
@@ -456,6 +495,7 @@ Internal functions the API worker calls, and the other workers implement:
 |---|---|---|
 | `route_doctor_request(patient_id, text, channel)` | Doctor agents | the `POST /requests` body |
 | `run_reminder_agent(patient_id, trigger)` | Doctor agents | `{ "suggestions", "answer" }` |
+| `verify_claims(text, citations)` | Doctor agents | `{ "text", "citations", "removed" }` |
 | `approve_suggestions(ids, edits)` | Approval, which then calls `run_reminder_agent` | approved suggestions plus `reminder_review` |
 | `reject_suggestions(ids, reason)` | Approval | `{ "rejected" }` |
 | `list_suggestions(patient_id, status)` | Approval | `{ "suggestions" }` |
