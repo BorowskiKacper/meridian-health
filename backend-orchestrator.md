@@ -22,10 +22,23 @@ Work lands on `main` only after a finished phase branch is merged. Do not commit
 2. Spawn the test subagent. It creates its own branch from the tip of the phase branch, then makes at least two commits on that branch. One commit adds fixtures and fakes. A later commit adds the assertions. The branch stops with the tests failing because the behavior is missing.
 3. Merge each test branch into the phase branch with a merge commit (`--no-ff`). Do not squash and do not rebase the subagent commits away. Parallel test branches are cut from the same phase-branch tip, then merged back one at a time.
 4. Confirm the merged tests fail for the missing behavior. Then spawn implementation subagents. Each one creates its own branch from that updated phase-branch tip and makes at least two commits: the first wires the function or module so it can be imported, a later commit makes that worker's tests pass. Split further when the brief has distinct behaviors, one commit per behavior.
-5. Merge each implementation branch into the phase branch with `--no-ff`, one at a time. Run the phase tests on the phase branch. They must pass before the next phase starts.
+5. Merge each implementation branch into the phase branch with `--no-ff`, one at a time. Run the phase tests on the phase branch. If they fail, or the merge conflicts, enter the repair loop below. They must pass before the next phase starts.
 6. Merge the finished phase branch into `main` with `--no-ff`. Leave the phase commits and the subagent commits in the history.
 
-Do not force-push, amend, or squash these branches. A subagent never merges its own branch. You merge it. If two subagent branches conflict, stop and resolve the conflict on the phase branch. Do not have one subagent edit the other subagent's branch.
+Do not force-push, amend, or squash these branches. A subagent never merges its own branch. You merge it. Do not have one subagent edit another subagent's branch.
+
+## Repair loop
+
+The failing tests written before implementation are not part of this loop. The loop starts only after an implementation or fix branch has been merged, when the phase tests still fail or two branches conflict.
+
+Each pass of the loop is one new subagent, one new branch, one merge, and one test run:
+
+1. Spawn a fix subagent in a fresh context. Give it the phase, the worker paths, the contract sections, and the failure output. It creates `phase-N/fix-<worker>-<attempt>` from the current phase-branch tip. A behavior failure may change only that worker's source paths. A test that does not match the contract may change only that worker's test path. A merge conflict may change only the conflicting files. It must not weaken or delete a contract assertion. It makes at least two commits and does not merge.
+2. Merge that branch into the phase branch with `--no-ff` and run the phase tests again.
+
+You may run this loop at most 4 times for one phase. If the tests still fail after the 4th run, or a 4th merge still conflicts, stop. Do not spawn a 5th subagent. Do not start the next phase. Do not keep working in the background.
+
+Alert the user by ending your turn with a message whose first line is `ALERT: phase <N> still failing after 4 repairs`. The following lines name the branch, the four failure summaries, and that you are waiting. Ending the turn is what surfaces the alert in the Cursor app on the user's phone. Do not bury the alert inside another tool call.
 
 | Phase branch | Test branches | Implementation branches |
 |---|---|---|
@@ -50,7 +63,7 @@ Do not build UI. Do not call ElevenLabs. Do not take patient identifiers into ev
 Tests live under the test path in your brief. Application code lives under the source path.
 ```
 
-Spawn the test subagent first, in a fresh context. After its branch is merged and the new tests fail for the right reason, spawn the implementation subagents. Parallel implementation subagents are allowed only when the phase says so, each on its own branch from the same phase tip. When they return, merge those branches into the phase branch and run the phase tests yourself. Move on only when they pass.
+Spawn the test subagent first, in a fresh context. After its branch is merged and the new tests fail for the right reason, spawn the implementation subagents. Parallel implementation subagents are allowed only when the phase says so, each on its own branch from the same phase tip. When they return, merge those branches into the phase branch and run the phase tests yourself. If they fail, use the repair loop. Move on only when they pass.
 
 ## Phases
 
