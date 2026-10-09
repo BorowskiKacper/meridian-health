@@ -24,6 +24,7 @@ If two of them disagree, the one listed first for that topic wins. Neither you n
 - Every phase has its own branch. Every subagent that will change files creates its own branch from that phase branch before editing. A read-only subagent does not get a branch.
 - Run all phases back to back. Do not stop for the user's approval between phases. Stop only for `BLOCKED:` or `ALERT:` below, or when Phase 5 is done.
 - Never delete a branch, local or remote.
+- Commit messages carry no Claude or AI attribution. No `Co-Authored-By` trailer, no "Generated with" line, for you and every subagent.
 
 ## Postgres and anything else only the user can provide
 
@@ -86,6 +87,7 @@ Read builder-contracts.md for the sections named in your brief. Read system-desi
 Do not open, search, or follow any other design or markdown file in this repo. They are superseded drafts.
 Create your branch from the phase branch tip you were given before you edit anything.
 Stay on that branch. Commit your work. Do not merge, push, or rebase.
+Commit messages have no Co-Authored-By trailer and no Claude or AI attribution.
 Edit only the paths in your brief.
 Do not build UI. Do not call ElevenLabs. Do not take patient identifiers into evidence functions.
 Do not add dependencies. If you need one, stop and report it.
