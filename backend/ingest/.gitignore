@@ -1,0 +1,2 @@
+# Publisher-copyrighted abstracts. Regenerate with: python backend/ingest/fetch_corpus.py
+corpus/pubmed.jsonl

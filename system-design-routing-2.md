@@ -28,8 +28,8 @@ Changes from the first draft:
 Vendors in this build:
 
 - **Gemini:** `gemini-3.6-flash` for classification, agents, lab-photo vision, eligibility summaries and Google Search grounding. Note embeddings use `gemini-embedding-001` at 768 dimensions.
-- **Files:** lab photos are stored as bytes in Tiger (`documents.content`). There is no separate file store.
-- **Twilio:** reminders go out over WhatsApp when the sender number is a `whatsapp:` number, otherwise SMS. STOP replies work the same way on both.
+- **Files:** lab photos are saved on local disk under `backend/storage/`. Cloud storage comes later.
+- **Twilio:** reminders go out over WhatsApp only. A STOP reply on WhatsApp opts the patient out.
 - **ElevenLabs:** sits behind one speech hook on `POST /requests`. In this build the hook makes no network call.
 - **Patient-data tools are MCP.** Every time an agent reads or proposes something in Tiger, it goes through the EMR MCP server. Those calls are the **thick arrows**.
 
@@ -61,7 +61,7 @@ flowchart LR
     sugg["GET /suggestions<br/>POST /suggestions - add to plan<br/>POST /suggestions/approve, /reject"]
     rem["PUT /patients/id/reminders/rid<br/>doctor edits a reminder"]
     runrem["POST /demo/run-reminders<br/>demo button"]
-    twhook["POST /webhooks/twilio<br/>delivery status, STOP replies<br/>SMS or WhatsApp"]
+    twhook["POST /webhooks/twilio<br/>delivery status, STOP replies<br/>WhatsApp"]
     elig["POST /patients/id/eligibility<br/>shared: doctor + secretary, mock coverage"]
     appt["GET, POST, PUT /appointments<br/>appointment book"]
     secreq["POST /secretary/requests<br/>typed chat"]
@@ -106,9 +106,11 @@ flowchart LR
 
   Tiger[("Tiger Data")]:::db
   Snow[("Snowflake<br/>Cortex Search REST API<br/>guidelines, PubMed,<br/>insurer documents + payer policies")]:::db
+  Files[("Local disk<br/>backend/storage/")]:::db
+
   Gemini["Gemini API<br/>gemini-3.6-flash"]:::ext
   EL["ElevenLabs<br/>Scribe STT + TTS<br/>behind the speech hook"]:::ext
-  Twilio["Twilio<br/>WhatsApp or SMS"]:::ext
+  Twilio["Twilio<br/>WhatsApp"]:::ext
   Seed["Seed script<br/>multiple simulated patients<br/>+ mock insurance coverage<br/>+ appointments"]:::ext
   GSearch["Google Search<br/>via Gemini grounding"]:::ext
 
@@ -163,7 +165,7 @@ flowchart LR
   screen -->|"summary if voice"| EL
 
   %% Lab report photo: one Gemini call, no agent, no MCP
-  docs -->|"store photo bytes"| Tiger
+  docs -->|"save photo"| Files
   docs -->|"vision extraction"| Gemini
   docs -->|"insert suggestions"| Tiger
 
@@ -174,13 +176,13 @@ flowchart LR
   D3q -->|"yes: embed, store in Tiger"| Gemini
   sugg -->|"after every approved change:<br/>re-check reminder timing"| screen
 
-  %% Reminders + SMS
+  %% Reminders + WhatsApp
   rem --> Tiger
   runrem --> Tiger
   runrem --> D4box
   D4box --> D4
   D4q -->|"yes"| Twilio
-  Twilio -->|"WhatsApp or SMS, no health details"| Pt
+  Twilio -->|"WhatsApp, no health details"| Pt
   Pt -->|"replies"| Twilio
   Twilio --> twhook
   twhook --> Tiger
@@ -236,7 +238,7 @@ flowchart LR
 
 Snowflake and the web only ever receive de-identified descriptions, never patient records or identifiers.
 
-The plain endpoints never use MCP: body view, photo upload, approvals, reminders, appointments, SMS and webhooks call the database or vendor API directly.
+The plain endpoints never use MCP: body view, photo upload, approvals, reminders, appointments, WhatsApp sending and webhooks call the database or vendor API directly.
 
 `propose_change` can only insert into `ai_suggestions`. Lab-photo suggestions and "add to plan" suggestions are inserted by plain code, not MCP, and are checked against the same allowlist. The only thing that writes to the chart is `POST /suggestions/approve`, after the doctor clicks it. The one exception is a doctor editing a reminder by hand (`PUT /reminders`), which changes only `reminder_schedule`.
 

@@ -25,8 +25,8 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 - Snowflake and Google Search receive a de-identified string only. No name, date of birth, phone, member id, or patient id.
 - Gemini model is `gemini-3.6-flash` for classification, agents, vision, summaries, and Google Search grounding. It is one constant, `GEMINI_MODEL`, in `backend/app/config.py`.
 - Note embeddings use `gemini-embedding-001` with `output_dimensionality=768`, stored as `vector(768)`. The column is nullable. Seeded notes have no embedding because seed calls no vendor. `search_patient_notes` uses Postgres full-text search, not vector search.
-- Uploaded files are stored in Tiger, as bytes in `documents.content`. There is no separate file store.
-- Reminders are delivered through Twilio. When `TWILIO_FROM_NUMBER` starts with `whatsapp:`, messages go over WhatsApp and the recipient is `whatsapp:<phone_e164>`. Otherwise they go over SMS. Table and function names keep `sms` for both.
+- Uploaded files are saved on local disk under `backend/storage/`, which is gitignored. `documents.storage_key` is the file's path relative to that folder. Cloud storage comes later.
+- Reminders are sent over WhatsApp through Twilio. There is no SMS fallback. `TWILIO_FROM_NUMBER` is the WhatsApp sender in `whatsapp:+1...` form and the recipient is `whatsapp:<phone_e164>`. Table, column, and function names keep `sms` (`sms_messages`, `sms_opt_in`, `handle_sms_webhook`) to avoid a rename.
 - Snowflake is called over REST with a programmatic access token (`Authorization: Bearer <SNOWFLAKE_PAT>`). Cortex Search service names are `USPSTF_SEARCH`, `PUBMED_SEARCH`, and `PAYER_DOCS_SEARCH`.
 
 ## Workers
@@ -53,7 +53,7 @@ flowchart LR
   Web["web / mobile"] --> API
   API --> Doctor["doctor agents"]
   API --> Ins["insurance + secretary agent"]
-  API --> Rem["reminders + SMS"]
+  API --> Rem["reminders + WhatsApp"]
   API --> Data
   Doctor --> MCP
   Ins --> MCP
@@ -137,7 +137,7 @@ Tiger tables. Workers read and write them only through repositories in `backend/
 | `observations` | `id`, `patient_id`, `name`, `value`, `unit`, `observed_at`, `source`, `document_id`, `body_region_key` |
 | `encounters` | `id`, `patient_id`, `encounter_type`, `occurred_at`, `summary` |
 | `notes` | `id`, `patient_id`, `body`, `embedding` (nullable `vector(768)`), `source_suggestion_id`, `created_at` |
-| `documents` | `id`, `patient_id`, `media_type`, `content` (`bytea`), `uploaded_at` |
+| `documents` | `id`, `patient_id`, `storage_key`, `media_type`, `uploaded_at` |
 | `body_regions` | `region_key`, `display_name`, `mesh_name` |
 | `specialty_focus` | `specialty_key`, `region_key` |
 | `reminder_rules` | `id`, `name`, `baseline_age`, `guideline_source_id` |
@@ -282,9 +282,9 @@ Response is `{ "rejected": [] }`. Chart rows stay as they were.
 }
 ```
 
-`flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image bytes are stored in `documents.content`. Observations are not inserted until approval.
+`flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image is saved under `backend/storage/` and recorded in `documents`. Observations are not inserted until approval.
 
-### Reminders and SMS
+### Reminders and WhatsApp
 
 `PUT /patients/{patient_id}/reminders/{reminder_id}` role `doctor`.
 
@@ -309,7 +309,7 @@ Response is the updated reminder row: `id`, `patient_id`, `name`, `due_on`, `sta
 }
 ```
 
-`POST /webhooks/twilio` accepts Twilio's form fields `MessageSid`, `MessageStatus`, `From`, and `Body`, for both SMS and WhatsApp. A status update sets `sms_messages.status` for that `MessageSid`. A body of `STOP` (any case, surrounding spaces ignored) sets `sms_opt_in` to false on the patient whose `phone_e164` matches `From` with any `whatsapp:` prefix removed. The response is Twilio's empty `200`.
+`POST /webhooks/twilio` accepts Twilio's form fields `MessageSid`, `MessageStatus`, `From`, and `Body`, sent from WhatsApp. A status update sets `sms_messages.status` for that `MessageSid`. A body of `STOP` (any case, surrounding spaces ignored) sets `sms_opt_in` to false on the patient whose `phone_e164` matches `From` with any `whatsapp:` prefix removed. The response is Twilio's empty `200`.
 
 ### Insurance and secretary
 
@@ -412,9 +412,9 @@ Input `text` for all three is the de-identified description. These functions rai
 
 **Manual reminder edit.** Updates `due_on` or `status` only. Does not call the reminder agent.
 
-**SMS.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. Message body has no diagnosis, medication, or lab. Stores `twilio_sid` and marks the reminder `sent`. `STOP` flips `sms_opt_in` and does not change the chart.
+**WhatsApp reminders.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. Message body has no diagnosis, medication, or lab. Stores `twilio_sid` and marks the reminder `sent`. `STOP` flips `sms_opt_in` and does not change the chart.
 
-**Lab photo.** Stores the file bytes in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
+**Lab photo.** Saves the file under `backend/storage/`, records it in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
 
 **Eligibility.** Reads `coverages`. Does not call an outside payer. A non-empty `order_text` may attach a prior-auth note cited from `search_payer_docs`. The plain-English `summary` is generated after that read. Doctor and secretary share this route.
 
@@ -442,6 +442,7 @@ backend/app/services/approval.py      approval worker
 backend/app/services/labs.py          labs worker
 backend/app/speech/hook.py    api worker
 backend/app/evidence/         evidence worker
+backend/ingest/               pre-built corpora for Snowflake, no worker edits it
 web/src/doctor/               web worker
 web/src/secretary/            web worker
 mobile/                       mobile worker

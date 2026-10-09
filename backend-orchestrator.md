@@ -24,6 +24,7 @@ If two of them disagree, the one listed first for that topic wins. Neither you n
 - Every phase has its own branch. Every subagent that will change files creates its own branch from that phase branch before editing. A read-only subagent does not get a branch.
 - Run all phases back to back. Do not stop for the user's approval between phases. Stop only for `BLOCKED:` or `ALERT:` below, or when Phase 5 is done.
 - Never delete a branch, local or remote.
+- `backend/ingest/` already exists. It holds the evidence corpora (`corpus/*.jsonl`), the fictional payer documents, and the script that fetched them. No subagent edits it. Evidence tests may read the corpus files to back their fakes.
 - Commit messages carry no Claude or AI attribution. No `Co-Authored-By` trailer, no "Generated with" line, for you and every subagent.
 
 ## Postgres and anything else only the user can provide
@@ -126,7 +127,7 @@ Phase 3 holds the tools and plain services that need only the database and evide
 
 **Tests first:** `backend/tests/scaffold/`. Assert the paths below exist and import, each public stub raises `NotImplementedError`, `.env.example` lists the variable names below, `.env` is gitignored, and no committed file contains a real key. These tests are temporary. See "After Phase 0" below.
 
-**Implement:** `backend/pyproject.toml`, `backend/.gitignore`, `backend/.env.example`, `backend/app/config.py`, and the stub modules.
+**Implement:** `backend/pyproject.toml`, `backend/.gitignore`, `backend/.env.example`, `backend/app/config.py`, and the stub modules. `backend/.gitignore` covers `.env` and `storage/` (uploaded lab photos).
 
 `pyproject.toml` declares every runtime and test dependency for all phases:
 
@@ -142,7 +143,7 @@ Phase 3 holds the tools and plain services that need only the database and evide
 | `pgvector` | `notes.embedding` |
 | `httpx` | Snowflake Cortex Search REST, FastAPI test client |
 | `google-genai` | Gemini model, vision, embeddings, Google Search grounding |
-| `twilio` | SMS |
+| `twilio` | WhatsApp reminders |
 | `pytest` | tests (dev group) |
 
 Do not add an ElevenLabs package, a Snowflake connector, or a Stedi client. Snowflake is called over REST with `httpx`.
@@ -157,7 +158,7 @@ Do not add an ElevenLabs package, a Snowflake connector, or a Stedi client. Snow
 - `SNOWFLAKE_SCHEMA`
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM_NUMBER` (a `whatsapp:+1...` value sends over WhatsApp)
+- `TWILIO_FROM_NUMBER` (the WhatsApp sender, `whatsapp:+1...`)
 - `ELEVENLABS_API_KEY`
 
 `ELEVENLABS_API_KEY` is only a name in this phase. `config.py` also defines the constants from the contract's Locked choices: `GEMINI_MODEL = "gemini-3.6-flash"`, the embedding model and dimension, and the three Cortex Search service names. They are constants, not environment variables.
@@ -237,7 +238,7 @@ backend/app/speech/hook.py
   - a `db` fixture that gives each test a session inside a transaction that is rolled back afterward.
   - a `seeded_db` fixture that runs `backend/seed/seed.py` into the test schema and exposes the seeded patient ids.
   - if `DATABASE_URL` is missing or unreachable, the fixtures fail with a clear message naming `DATABASE_URL`. They do not skip and do not fall back.
-- `backend/tests/db/` — repositories round-trip the contract columns for every table. Repositories include the reads later workers need: rows by patient for each chart table, conditions/medications/observations by `body_region_key`, `specialty_focus` by specialty, appointments by patient and by calendar date, suggestions by patient and status, inserting a suggestion, inserting a `requests` row, and Postgres full-text search over a patient's notes. `documents.content` round-trips image bytes. `notes.embedding` is a nullable `vector(768)`. Seed loads several patients, each with conditions, medications, family history, observations, notes, a reminder schedule, one coverage row, and sample appointments. Seed also loads `body_regions`, `specialty_focus`, and `reminder_rules`. Seed does not call an agent or a vendor.
+- `backend/tests/db/` — repositories round-trip the contract columns for every table. Repositories include the reads later workers need: rows by patient for each chart table, conditions/medications/observations by `body_region_key`, `specialty_focus` by specialty, appointments by patient and by calendar date, suggestions by patient and status, inserting a suggestion, inserting a `requests` row, and Postgres full-text search over a patient's notes. `notes.embedding` is a nullable `vector(768)`. Seed loads several patients, each with conditions, medications, family history, observations, notes, a reminder schedule, one coverage row, and sample appointments. Seed also loads `body_regions`, `specialty_focus`, and `reminder_rules`. Seed does not call an agent or a vendor.
 - `backend/tests/evidence/` — `search_guidelines(text, corpus)` allows `uspstf` and `pubmed` and returns `{ "passages": [citation, ...] }`. `search_payer_docs(text)` returns the same passage shape. `web_search(text)` returns `{ "text", "citations" }` with a URL `locator`. None of them accepts `patient_id`. Tests use fakes for Snowflake and Gemini. They do not need the database.
   - Each function raises `ValueError` (not empty passages) when the text contains a UUID, a member id in the seed's format, a phone number, or a full calendar date (`2026-09-01`, `09/01/2026`, `Sept 1, 2026`). An age (`52-year-old`), a bare year (`since 2019`), and a duration (`for 6 weeks`) are allowed.
 
@@ -256,14 +257,14 @@ backend/app/speech/hook.py
 | Subagent | Branch | Owns | Contract sections |
 |---|---|---|---|
 | MCP | `phase-3/mcp` | `backend/app/mcp/` | MCP tools |
-| Reminders | `phase-3/reminders` | `backend/app/services/reminders.py`, `backend/app/services/sms.py` | Reminders and SMS, Manual reminder edit, SMS invariant. Functions `send_due_reminders`, `update_reminder`, `handle_sms_webhook` |
+| Reminders | `phase-3/reminders` | `backend/app/services/reminders.py`, `backend/app/services/sms.py` | Reminders and WhatsApp, Manual reminder edit, WhatsApp reminders invariant. Functions `send_due_reminders`, `update_reminder`, `handle_sms_webhook` |
 | Chart reads | `phase-3/chart-reads` | `backend/app/services/chart.py`, `backend/app/services/appointments.py` | Doctor chart and body, the appointment routes, Appointments invariant. Functions `get_body_state`, `get_region`, `list_appointments`, `create_appointment`, `update_appointment` |
 | Eligibility | `phase-3/eligibility` | `backend/app/services/eligibility.py` | Insurance and secretary (eligibility only), Eligibility invariant. Function `check_eligibility` |
 
 **Tests first:**
 
 - `backend/tests/mcp/` — `get_patient_context` returns the contract shape, including `pending_suggestions` with `unconfirmed: true`. `past_procedures` are encounters of type `procedure`. `search_patient_notes` returns excerpts and labs, found by full-text search, including seeded notes that have no embedding. `get_coverage` returns the coverage object or a not-found error. `propose_change` inserts one `pending` row, refuses a bad table or key, refuses a `reminder_change` with no citations, and does not update a chart table.
-- `backend/tests/reminders/` — `send_due_reminders` sends only rows with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. The message body has no diagnosis, medication, or lab. The row stores `twilio_sid` and the reminder becomes `sent`. With a `whatsapp:` sender, the recipient is `whatsapp:<phone_e164>`. With a plain sender, it is `phone_e164`. `handle_sms_webhook` with `STOP` from either `+1...` or `whatsapp:+1...` sets that patient's `sms_opt_in` false and does not change the chart. A status callback updates `sms_messages.status`. `update_reminder` changes only `due_on` or `status` and does not call the reminder agent. Twilio is a fake.
+- `backend/tests/reminders/` — `send_due_reminders` sends only rows with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. The message body has no diagnosis, medication, or lab. The row stores `twilio_sid` and the reminder becomes `sent`. Every message goes from the `whatsapp:` sender to `whatsapp:<phone_e164>`. `handle_sms_webhook` with `STOP` from `whatsapp:+1...` sets that patient's `sms_opt_in` false and does not change the chart. A status callback updates `sms_messages.status`. `update_reminder` changes only `due_on` or `status` and does not call the reminder agent. Twilio is a fake.
 - `backend/tests/services/test_chart.py` — `get_body_state` returns the contract shape with `age` computed from `date_of_birth`, regions in the selected specialty marked `focus` and the rest `dim`, `pulse` true only for a region with an active condition in that specialty, a timeline built from conditions, medications, and encounters, and trends grouped by observation name. `get_region` returns that region's conditions, medications, and observations. An unknown patient or region is a not-found error.
 - `backend/tests/services/test_appointments.py` — create, list by patient and by calendar date, and update any of `starts_at`, `ends_at`, `reason`, `status`. A bad `status` is rejected. No agent is imported.
 - `backend/tests/services/test_eligibility.py` — `check_eligibility` reads `coverages` through the repository, not through MCP, and never calls Stedi. It stores one `eligibility_checks` row. `prior_auth` is null when `order_text` does not raise a prior-auth question. A prior-auth note cites `search_payer_docs`. Gemini and Snowflake are fakes.
@@ -294,7 +295,7 @@ Approval calls `run_reminder_agent`, which the Doctor agents worker is building 
 - `backend/tests/agents/doctor/` — `route_doctor_request` stores one `requests` row and returns `chart_update` with pending suggestions and a null `answer`, or `clinical_question` with a cited `answer` and no suggestions, or `check_screenings` with either `reminder_change` suggestions or an up-to-date `answer`. Chart and reminder code call `propose_change` rather than chart tables. Research claims cite notes or `search_guidelines`. The reminder agent may request corpus `uspstf` only. Text passed to an evidence function contains no patient id, phone, member id, or full date. `run_reminder_agent` with trigger `post_approval` returns no suggestions when the schedule already matches, including the run that follows approval of a reminder change. Pending suggestions are labeled unconfirmed and are not treated as facts on the chart.
 - `backend/tests/agents/secretary/` — `answer_secretary` stores one `requests` row with role `secretary`, may call `get_coverage`, `search_payer_docs`, and `web_search`, returns no suggestions, and does not call `propose_change`.
 - `backend/tests/services/test_approval.py` — one transaction marks suggestions approved, applies `after` or the edited `after`, and writes `audit_log`. An edited key outside the allowlist is rejected. A `soap_note` or `plan_item` is written to `notes` with a 768-dimension embedding from the (faked) embedding call. Reject writes `audit_log` and leaves chart tables unchanged. Approving or rejecting something that is not `pending` is `invalid_state`. After the write, `run_reminder_agent(patient_id, "post_approval")` runs once (faked here). The suggestions it returns stay `pending`. `list_suggestions` defaults to `pending`. `create_plan_item` creates one pending `plan_item` with `source` `research_add_to_plan` through the suggestions repository, validated by the shared schema, and does not write the chart. Approval does not import `backend/app/mcp/`.
-- `backend/tests/services/test_labs.py` — `extract_lab_report(patient_id, content, media_type)` stores the bytes in `documents.content`, each analyte becomes one pending `observation` suggestion through the suggestions repository (validated by the shared schema, not `propose_change`), and `low_confidence` or `out_of_range` is copied onto `validation_flags`. `observations` gains no row until approval. Vision is a fake.
+- `backend/tests/services/test_labs.py` — `extract_lab_report(patient_id, content, media_type)` saves the file under `backend/storage/` (a temporary folder in tests) and records its `storage_key` in `documents`, each analyte becomes one pending `observation` suggestion through the suggestions repository (validated by the shared schema, not `propose_change`), and `low_confidence` or `out_of_range` is copied onto `validation_flags`. `observations` gains no row until approval. Vision is a fake.
 
 Model calls in tests are faked. `route_doctor_request` takes text that the test already produced. It does not transcribe audio.
 
@@ -341,5 +342,5 @@ Route functions call only the functions in the Calls column. They do not contain
 - Doctor and secretary screens, the Expo app, and any other UI.
 - A working ElevenLabs integration, audio streaming, and voice read-back quality.
 - Stedi, a nightly reminder-agent job, scheduled reminder sending (only the demo route sends), Dictate/Ask routes, and Snowflake MCP.
-- Loading the USPSTF, PubMed, and payer corpora into Snowflake and creating the Cortex Search services. Evidence code is tested against fakes.
+- Loading `backend/ingest/corpus/*.jsonl` into Snowflake and creating the Cortex Search services. Evidence code is tested against fakes.
 - Vector search over notes. Embeddings are stored, search is full-text.
