@@ -1,6 +1,16 @@
 # Builder contracts
 
-Parallel-work contract for the hackathon EMR. `system-design-routing-2.md` wins where an older graph disagrees. This file wins on names, payloads, tables, and invariants.
+Parallel-work contract for the hackathon EMR.
+
+Three files are the only sources of truth for the backend build:
+
+| File | Wins on |
+|---|---|
+| `backend-orchestrator.md` | phases, branches, who builds what and when, what is out of scope for this build |
+| `builder-contracts.md` (this file) | names, payloads, tables, owners, invariants |
+| `system-design-routing-2.md` | behavior this file does not specify |
+
+If two of them disagree, the one listed first for that topic wins. Do not open, search, or follow any other design file in this repo (`system-design-graph.md`, `system-design-routing.md`, `system-design-draft-1.md`, or anything else). They are superseded drafts.
 
 Workers implement only the paths they own. Shared shapes live in `backend/app/schemas/`. A worker that needs a new field adds it there first, in a separate change, before any caller or UI depends on it.
 
@@ -13,6 +23,11 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 - The research agent may see this visit's pending suggestions, each labeled `unconfirmed`.
 - Coverage is seeded mock data in Tiger. No Stedi client.
 - Snowflake and Google Search receive a de-identified string only. No name, date of birth, phone, member id, or patient id.
+- Gemini model is `gemini-3.6-flash` for classification, agents, vision, summaries, and Google Search grounding. It is one constant, `GEMINI_MODEL`, in `backend/app/config.py`.
+- Note embeddings use `gemini-embedding-001` with `output_dimensionality=768`, stored as `vector(768)`. The column is nullable. Seeded notes have no embedding because seed calls no vendor. `search_patient_notes` uses Postgres full-text search, not vector search.
+- Uploaded files are stored in Tiger, as bytes in `documents.content`. There is no separate file store.
+- Reminders are delivered through Twilio. When `TWILIO_FROM_NUMBER` starts with `whatsapp:`, messages go over WhatsApp and the recipient is `whatsapp:<phone_e164>`. Otherwise they go over SMS. Table and function names keep `sms` for both.
+- Snowflake is called over REST with a programmatic access token (`Authorization: Bearer <SNOWFLAKE_PAT>`). Cortex Search service names are `USPSTF_SEARCH`, `PUBMED_SEARCH`, and `PAYER_DOCS_SEARCH`.
 
 ## Workers
 
@@ -20,11 +35,15 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 |---|---|---|---|
 | Contracts | `backend/app/schemas/` | nothing | business logic |
 | Data | `backend/app/db/`, `backend/seed/` | nothing | routes, agents |
-| API | `backend/app/api/` | services below | agent prompts, SQL inside route functions |
+| API | `backend/app/api/`, `backend/app/main.py`, `backend/app/speech/hook.py` | services below | agent prompts, SQL or repositories inside route functions |
 | MCP | `backend/app/mcp/` | Data repositories | HTTP routes, Snowflake |
 | Doctor agents | `backend/app/agents/doctor/` | MCP, Evidence | write chart tables |
-| Insurance | `backend/app/services/eligibility.py`, `backend/app/agents/secretary/` | MCP `get_coverage`, Evidence | `propose_change`, Stedi |
+| Secretary | `backend/app/agents/secretary/` | MCP `get_coverage`, Evidence | `propose_change` |
+| Eligibility | `backend/app/services/eligibility.py` | Data, Evidence | MCP, Stedi |
 | Reminders | `backend/app/services/reminders.py`, `backend/app/services/sms.py` | Data, Twilio | call the reminder agent |
+| Chart reads | `backend/app/services/chart.py`, `backend/app/services/appointments.py` | Data | write chart tables, agents |
+| Approval | `backend/app/services/approval.py` | Data, Contracts, `run_reminder_agent`, Gemini embeddings | MCP |
+| Labs | `backend/app/services/labs.py` | Data, Contracts, Gemini vision | MCP, write `observations` |
 | Evidence | `backend/app/evidence/` | Snowflake REST, Gemini Google Search | patient rows |
 | Web | `web/` | HTTP API | database |
 | Mobile | `mobile/` | HTTP API | database |
@@ -117,8 +136,8 @@ Tiger tables. Workers read and write them only through repositories in `backend/
 | `family_history` | `id`, `patient_id`, `relationship`, `condition`, `age_at_diagnosis` |
 | `observations` | `id`, `patient_id`, `name`, `value`, `unit`, `observed_at`, `source`, `document_id`, `body_region_key` |
 | `encounters` | `id`, `patient_id`, `encounter_type`, `occurred_at`, `summary` |
-| `notes` | `id`, `patient_id`, `body`, `embedding`, `source_suggestion_id`, `created_at` |
-| `documents` | `id`, `patient_id`, `storage_key`, `media_type`, `uploaded_at` |
+| `notes` | `id`, `patient_id`, `body`, `embedding` (nullable `vector(768)`), `source_suggestion_id`, `created_at` |
+| `documents` | `id`, `patient_id`, `media_type`, `content` (`bytea`), `uploaded_at` |
 | `body_regions` | `region_key`, `display_name`, `mesh_name` |
 | `specialty_focus` | `specialty_key`, `region_key` |
 | `reminder_rules` | `id`, `name`, `baseline_age`, `guideline_source_id` |
@@ -263,7 +282,7 @@ Response is `{ "rejected": [] }`. Chart rows stay as they were.
 }
 ```
 
-`flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image is stored. Observations are not inserted until approval.
+`flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image bytes are stored in `documents.content`. Observations are not inserted until approval.
 
 ### Reminders and SMS
 
@@ -290,7 +309,7 @@ Response is the updated reminder row: `id`, `patient_id`, `name`, `due_on`, `sta
 }
 ```
 
-`POST /webhooks/twilio` accepts Twilio's form fields `MessageSid`, `MessageStatus`, and `Body`. A body of `STOP` sets that patient's `sms_opt_in` to false. The response is Twilio's empty `200`.
+`POST /webhooks/twilio` accepts Twilio's form fields `MessageSid`, `MessageStatus`, `From`, and `Body`, for both SMS and WhatsApp. A status update sets `sms_messages.status` for that `MessageSid`. A body of `STOP` (any case, surrounding spaces ignored) sets `sms_opt_in` to false on the patient whose `phone_e164` matches `From` with any `whatsapp:` prefix removed. The response is Twilio's empty `200`.
 
 ### Insurance and secretary
 
@@ -379,7 +398,7 @@ Implemented in `backend/app/mcp/`. Agents call these functions. They do not quer
 
 `web_search(text)` is its own Gemini call with Google Search grounding. It returns `{ "text", "citations" }` where each citation `locator` is a URL. The secretary agent is the only caller.
 
-Input `text` for all three is the de-identified description. These functions drop the request if the text contains a patient id, member id, phone number, or a date of birth.
+Input `text` for all three is the de-identified description. These functions raise `ValueError` if the text contains a patient id, member id, phone number, or any full calendar date. Ages, bare years, and durations are allowed. Callers strip dates before calling.
 
 ## Features and invariants
 
@@ -395,7 +414,7 @@ Input `text` for all three is the de-identified description. These functions dro
 
 **SMS.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. Message body has no diagnosis, medication, or lab. Stores `twilio_sid` and marks the reminder `sent`. `STOP` flips `sms_opt_in` and does not change the chart.
 
-**Lab photo.** Stores the file, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
+**Lab photo.** Stores the file bytes in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
 
 **Eligibility.** Reads `coverages`. Does not call an outside payer. A non-empty `order_text` may attach a prior-auth note cited from `search_payer_docs`. The plain-English `summary` is generated after that read. Doctor and secretary share this route.
 
@@ -413,10 +432,15 @@ backend/seed/seed.py          data worker
 backend/app/api/routes/       api worker, one module per group below
 backend/app/mcp/tools.py      mcp worker
 backend/app/agents/doctor/    doctor-agents worker
-backend/app/agents/secretary/ insurance worker
-backend/app/services/eligibility.py
-backend/app/services/reminders.py
-backend/app/services/sms.py
+backend/app/agents/secretary/ secretary worker
+backend/app/services/eligibility.py   eligibility worker
+backend/app/services/reminders.py     reminders worker
+backend/app/services/sms.py           reminders worker
+backend/app/services/chart.py         chart reads worker
+backend/app/services/appointments.py  chart reads worker
+backend/app/services/approval.py      approval worker
+backend/app/services/labs.py          labs worker
+backend/app/speech/hook.py    api worker
 backend/app/evidence/         evidence worker
 web/src/doctor/               web worker
 web/src/secretary/            web worker
@@ -430,18 +454,27 @@ Internal functions the API worker calls, and the other workers implement:
 | Function | Owner | Returns |
 |---|---|---|
 | `route_doctor_request(patient_id, text, channel)` | Doctor agents | the `POST /requests` body |
-| `approve_suggestions(ids, edits)` | API, then `run_reminder_agent` | approved suggestions plus `reminder_review` |
 | `run_reminder_agent(patient_id, trigger)` | Doctor agents | `{ "suggestions", "answer" }` |
-| `extract_lab_report(patient_id, storage_key)` | API | analytes and suggestions |
-| `check_eligibility(patient_id, order_text)` | Insurance | the eligibility response |
-| `answer_secretary(patient_id, text)` | Insurance | the secretary response |
+| `approve_suggestions(ids, edits)` | Approval, which then calls `run_reminder_agent` | approved suggestions plus `reminder_review` |
+| `reject_suggestions(ids, reason)` | Approval | `{ "rejected" }` |
+| `list_suggestions(patient_id, status)` | Approval | `{ "suggestions" }` |
+| `create_plan_item(patient_id, request_id, text, citations)` | Approval | the created suggestion |
+| `extract_lab_report(patient_id, content, media_type)` | Labs | the `POST /documents` body |
+| `check_eligibility(patient_id, order_text)` | Eligibility | the eligibility response |
+| `answer_secretary(patient_id, text)` | Secretary | the secretary response |
 | `send_due_reminders(as_of)` | Reminders | `{ "sent", "skipped" }` |
+| `update_reminder(patient_id, reminder_id, due_on, status)` | Reminders | the updated reminder row |
+| `handle_sms_webhook(form)` | Reminders | nothing |
+| `get_body_state(patient_id, specialty)` | Chart reads | the body-state response |
+| `get_region(patient_id, region_key)` | Chart reads | the region response |
+| `list_appointments(patient_id, on)` | Chart reads | `{ "appointments" }` |
+| `create_appointment(...)`, `update_appointment(appointment_id, ...)` | Chart reads | the appointment row |
 
 `trigger` is `doctor_request` or `post_approval`.
 
 ## Merge rules
 
 - A UI change that needs a new JSON field starts in `backend/app/schemas/` and the route that returns it. Clients consume the field only after that change is in.
-- Agents insert suggestions only through `propose_change`.
+- Agents insert suggestions only through `propose_change`. Services that are not agents (Labs, and Approval's `create_plan_item`) insert through the suggestions repository after validating with the shared suggestion schema, which enforces the same allowlist.
 - Chart tables change only inside `approve_suggestions`.
 - Evidence functions accept a string the caller has already stripped of identifiers. They do not take `patient_id`.

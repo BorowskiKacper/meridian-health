@@ -2,7 +2,11 @@
 
 Hackathon build only: no scaling, caching or queues. Each database is shown as a single node.
 
-Changes from v1 (`system-design-routing.md`):
+This is one of three sources of truth. `backend-orchestrator.md` wins on phases and scope, `builder-contracts.md` wins on names, payloads, tables, and owners, and this file covers behavior neither of them specifies. Do not open or follow any other design file in this repo. Older drafts are superseded.
+
+This file shows the full target design. The current backend build leaves some of it out (UI, a working ElevenLabs integration, scheduled sending, loading the Snowflake corpora). `backend-orchestrator.md` lists exactly what is out.
+
+Changes from v1:
 
 - **Snowflake is called through its REST API, not MCP.** The Snowflake MCP server is gone. `search_guidelines` is a plain Gemini function tool that sends a Cortex Search REST query with `httpx` and passes only a de-identified clinical description. The eligibility endpoint calls the same REST API.
 - **The reminder agent runs after every change to a patient's record.** Approving a suggestion (`POST /suggestions/approve`) is the only thing that changes the record, so every approval triggers the reminder agent. It checks whether reminder timing should change, for example family history moving a colonoscopy from 45 to 40. Like everything else, it can only propose a change that the doctor then approves. If the doctor approves a reminder change, the agent runs again, finds nothing more to change, and stops.
@@ -16,10 +20,17 @@ Changes from v1 (`system-design-routing.md`):
     - `search_payer_docs` (Snowflake REST): insurer internal documents loaded into Snowflake.
     - `web_search` (Google Search through Gemini): public information on how insurers handle prior auth, claims and appeals.
 
-Changes from draft-1:
+Changes from the first draft:
 
 - **No Dictate/Ask toggle.** There's one mic, and typed web chat goes to the same place. Every request works like Ask did: Gemini figures out what the doctor wants and routes it. Nothing writes to the chart directly. Chart updates become suggestions the doctor approves.
-- **No autonomous AI, with one exception.** Agents run only when the doctor asks. The one exception is the reminder agent, which also runs after every approval (see above). The nightly reminder-agent job is gone. SMS sending is still scheduled because it's plain code, not AI.
+- **No autonomous AI, with one exception.** Agents run only when the doctor asks. The one exception is the reminder agent, which also runs after every approval (see above). The nightly reminder-agent job is gone. Sending due reminders is plain code, not AI. In this build it runs only from the `POST /demo/run-reminders` button. A scheduler can call the same function later.
+
+Vendors in this build:
+
+- **Gemini:** `gemini-3.6-flash` for classification, agents, lab-photo vision, eligibility summaries and Google Search grounding. Note embeddings use `gemini-embedding-001` at 768 dimensions.
+- **Files:** lab photos are stored as bytes in Tiger (`documents.content`). There is no separate file store.
+- **Twilio:** reminders go out over WhatsApp when the sender number is a `whatsapp:` number, otherwise SMS. STOP replies work the same way on both.
+- **ElevenLabs:** sits behind one speech hook on `POST /requests`. In this build the hook makes no network call.
 - **Patient-data tools are MCP.** Every time an agent reads or proposes something in Tiger, it goes through the EMR MCP server. Those calls are the **thick arrows**.
 
 How to read it:
@@ -49,8 +60,8 @@ flowchart LR
     docs["POST /documents<br/>photo of a lab report"]
     sugg["GET /suggestions<br/>POST /suggestions - add to plan<br/>POST /suggestions/approve, /reject"]
     rem["PUT /patients/id/reminders/rid<br/>doctor edits a reminder"]
-    runrem["POST /demo/run-reminders<br/>APScheduler or demo button"]
-    twhook["POST /webhooks/twilio<br/>delivery status, STOP replies"]
+    runrem["POST /demo/run-reminders<br/>demo button"]
+    twhook["POST /webhooks/twilio<br/>delivery status, STOP replies<br/>SMS or WhatsApp"]
     elig["POST /patients/id/eligibility<br/>shared: doctor + secretary, mock coverage"]
     appt["GET, POST, PUT /appointments<br/>appointment book"]
     secreq["POST /secretary/requests<br/>typed chat"]
@@ -95,11 +106,9 @@ flowchart LR
 
   Tiger[("Tiger Data")]:::db
   Snow[("Snowflake<br/>Cortex Search REST API<br/>guidelines, PubMed,<br/>insurer documents + payer policies")]:::db
-  Files[("File storage")]:::db
-
-  Gemini["Gemini API"]:::ext
-  EL["ElevenLabs<br/>Scribe STT + TTS"]:::ext
-  Twilio["Twilio SMS"]:::ext
+  Gemini["Gemini API<br/>gemini-3.6-flash"]:::ext
+  EL["ElevenLabs<br/>Scribe STT + TTS<br/>behind the speech hook"]:::ext
+  Twilio["Twilio<br/>WhatsApp or SMS"]:::ext
   Seed["Seed script<br/>multiple simulated patients<br/>+ mock insurance coverage<br/>+ appointments"]:::ext
   GSearch["Google Search<br/>via Gemini grounding"]:::ext
 
@@ -154,7 +163,7 @@ flowchart LR
   screen -->|"summary if voice"| EL
 
   %% Lab report photo: one Gemini call, no agent, no MCP
-  docs --> Files
+  docs -->|"store photo bytes"| Tiger
   docs -->|"vision extraction"| Gemini
   docs -->|"insert suggestions"| Tiger
 
@@ -171,7 +180,7 @@ flowchart LR
   runrem --> D4box
   D4box --> D4
   D4q -->|"yes"| Twilio
-  Twilio -->|"SMS, no health details"| Pt
+  Twilio -->|"WhatsApp or SMS, no health details"| Pt
   Pt -->|"replies"| Twilio
   Twilio --> twhook
   twhook --> Tiger
@@ -229,4 +238,6 @@ Snowflake and the web only ever receive de-identified descriptions, never patien
 
 The plain endpoints never use MCP: body view, photo upload, approvals, reminders, appointments, SMS and webhooks call the database or vendor API directly.
 
-`propose_change` can only insert into `ai_suggestions`. The only thing that writes to the chart is `POST /suggestions/approve`, after the doctor clicks it.
+`propose_change` can only insert into `ai_suggestions`. Lab-photo suggestions and "add to plan" suggestions are inserted by plain code, not MCP, and are checked against the same allowlist. The only thing that writes to the chart is `POST /suggestions/approve`, after the doctor clicks it. The one exception is a doctor editing a reminder by hand (`PUT /reminders`), which changes only `reminder_schedule`.
+
+`search_patient_notes` uses Postgres full-text search in this build. Embeddings are written when a note is approved, but nothing searches by vector yet.
