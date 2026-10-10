@@ -1,7 +1,7 @@
 import pytest
 
 from app.db.repositories import list_appointments_by_patient
-from support import (
+from api_support import (
     DOCTOR,
     JANE_ID,
     JOHN_ID,

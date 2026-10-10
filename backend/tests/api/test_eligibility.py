@@ -1,6 +1,6 @@
 import pytest
 
-from support import DOCTOR, JANE_ID, SECRETARY, UNKNOWN_ID, assert_error, bind_session, call
+from api_support import DOCTOR, JANE_ID, SECRETARY, UNKNOWN_ID, assert_error, bind_session, call
 
 SUMMARY = "Coverage is active."
 

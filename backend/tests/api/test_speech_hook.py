@@ -1,7 +1,7 @@
 import socket
 
 from app.speech.hook import SpeechHook
-from support import REPO_ROOT
+from api_support import REPO_ROOT
 
 
 def test_speech_hook_returns_none_without_a_network_call(monkeypatch):

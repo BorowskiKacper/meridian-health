@@ -5,7 +5,7 @@ from app.db.repositories import (
     list_conditions_by_patient,
     list_notes_by_patient,
 )
-from support import JANE_ID, assert_error, bind_session, call, listed_ids
+from api_support import JANE_ID, assert_error, bind_session, call, listed_ids
 
 PLAN_TEXT = "Recheck lipids in 6 weeks"
 REJECT_REASON = "Not accurate"

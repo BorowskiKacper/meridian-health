@@ -1,5 +1,5 @@
 from app.db.repositories import list_reminders_by_patient
-from support import AMY_ID, JANE_ID, UNKNOWN_ID, assert_error, bind_session, call
+from api_support import AMY_ID, JANE_ID, UNKNOWN_ID, assert_error, bind_session, call
 
 TWILIO_FROM = "whatsapp:+15550001111"
 

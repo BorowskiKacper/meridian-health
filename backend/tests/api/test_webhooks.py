@@ -1,5 +1,5 @@
 from app.db.repositories import get_patient
-from support import JANE_ID, bind_session, call
+from api_support import JANE_ID, bind_session, call
 
 
 def test_stop_webhook_opts_jane_out(seeded_db, monkeypatch, client):

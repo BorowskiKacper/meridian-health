@@ -1,6 +1,6 @@
 import pytest
 
-from support import JANE_ID, assert_error, bind_session, call
+from api_support import JANE_ID, assert_error, bind_session, call
 
 TEXT = "Mark hypertension controlled."
 REQUEST_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"

@@ -1,7 +1,7 @@
 from datetime import date
 
 from app.db.repositories import list_conditions_by_patient, list_reminders_by_patient
-from support import JANE_ID, bind_session, call, listed_ids
+from api_support import JANE_ID, bind_session, call, listed_ids
 
 TEXT = "Mark hypertension controlled."
 BASELINE = {
