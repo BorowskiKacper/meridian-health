@@ -234,6 +234,7 @@ export default function App() {
     try {
       await visit.reject([id], reason);
       setHandled((current) => ({ ...current, [id]: "rejected" }));
+      append(forPatient, { id: nextId(), role: "note", text: "Suggestion rejected." });
     } catch (error) {
       append(forPatient, { id: nextId(), role: "note", text: messageOf(error) });
       setBusyId(null);
