@@ -20,7 +20,7 @@ export function Shell() {
 
   if (status !== "ready") {
     return (
-      <div className="grid h-full place-items-center bg-ivory px-6 text-ink">
+      <div className="grid h-full place-items-center bg-jade-50 px-6 text-ink">
         <div className="max-w-md text-center">
           <h1 className="font-serif text-3xl text-jade-900">
             Round<span className="text-jade-600">.</span>
@@ -41,8 +41,8 @@ export function Shell() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-ivory text-ink">
-      {notice && <p className="shrink-0 border-b border-hairline bg-white px-6 py-2 text-[13px] text-ink-soft">{notice}</p>}
+    <div className="flex h-full flex-col bg-jade-50 text-ink">
+      {notice && <p className="shrink-0 border-b border-jade-100 bg-jade-100 px-6 py-2 text-[13px] text-jade-900">{notice}</p>}
       <div className="flex min-h-0 flex-1">
         {layout !== "agent" && <Workspace />}
         {showAgent && <AgentWindow full={layout === "agent"} />}

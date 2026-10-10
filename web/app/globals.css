@@ -5,9 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Palette: Garner Health's jade scale, ivory and white surfaces.
- * Color is reserved for actions (jade) and clinical severity (muted red, amber).
- * Everything else is ink on ivory or white.
+ * Palette: Garner Health's jade scale.
+ * Jade is the product surface. White is reserved for the chart itself, so the
+ * record reads as a page and the chrome reads as the application.
+ * The agent window uses the deep jade scale with ivory text, so it is never
+ * mistaken for a chart tab.
+ * Colour inside the chart is reserved for actions (jade) and clinical severity.
  */
 :root {
   --jade-50: #e7faf6;
@@ -32,7 +35,7 @@
   --watch: #a7802f;
   --clear: #9aa49f;
 
-  --background: var(--ivory);
+  --background: var(--jade-50);
   --foreground: var(--ink);
   --card: var(--white);
   --card-foreground: var(--ink);
@@ -57,7 +60,7 @@
   --chart-3: var(--jade-900);
   --chart-4: var(--watch);
   --chart-5: var(--critical);
-  --sidebar: var(--ivory);
+  --sidebar: var(--jade-50);
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--jade-600);
   --sidebar-primary-foreground: var(--white);
@@ -144,6 +147,34 @@
     @apply font-serif font-normal text-jade-900;
   }
 }
+
+/* The agent window is the one dark surface. These overrides apply only inside it,
+   so the same conversation rendered as a chart tab stays on white. */
+.agent-window .eyebrow { color: rgb(250 248 243 / 0.5); }
+.agent-window h2 { color: var(--ivory); }
+.agent-window .agent-dim { color: rgb(250 248 243 / 0.65); }
+.agent-window .agent-text { color: var(--ivory); }
+.agent-window .agent-accent { color: var(--jade-300); }
+.agent-window .agent-rule { border-color: rgb(250 248 243 / 0.14); }
+.agent-window .agent-rule > li { border-color: rgb(250 248 243 / 0.14); }
+.agent-window .agent-bubble { background: rgb(250 248 243 / 0.1); color: var(--ivory); }
+.agent-window .agent-hover:hover { background: rgb(250 248 243 / 0.1); color: var(--ivory); }
+.agent-window .agent-card { background: rgb(250 248 243 / 0.06); border-color: rgb(250 248 243 / 0.14); }
+.agent-window .agent-card p,
+.agent-window .agent-card li { color: rgb(250 248 243 / 0.75); }
+.agent-window .agent-card .font-serif { color: var(--ivory); }
+.agent-window .agent-composer { background: rgb(250 248 243 / 0.08); border-color: rgb(250 248 243 / 0.2); box-shadow: none; }
+.agent-window .agent-composer:focus-within { border-color: var(--jade-300); }
+.agent-window .agent-composer textarea { color: var(--ivory); }
+.agent-window .agent-composer textarea::placeholder { color: rgb(250 248 243 / 0.4); }
+.agent-window .agent-mode { color: rgb(250 248 243 / 0.5); }
+.agent-window .agent-mode:hover { color: var(--ivory); }
+.agent-window .agent-mode-on { background: rgb(250 248 243 / 0.14); color: var(--ivory); }
+.agent-window .agent-send { background: var(--jade-300); color: var(--jade-900); }
+.agent-window .agent-send:hover { background: var(--jade-100); }
+.agent-window .agent-send:disabled { background: rgb(250 248 243 / 0.1); color: rgb(250 248 243 / 0.35); }
+.agent-window .agent-card button { color: var(--jade-300); }
+.agent-window .agent-card button:hover { color: var(--ivory); }
 
 @layer components {
   .eyebrow {

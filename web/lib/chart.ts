@@ -1,28 +1,21 @@
-import { labPanel, NOW_MINUTE } from "./data";
+import { placeOnAtlas } from "./atlas";
+import { formatMonth, labPanel, minuteAt, NOW_MINUTE } from "./data";
+import { isConcerning } from "./reference";
+import type { ChartPatient, ChartSeries, PatientChart, SuggestionRow } from "./api";
+import { getChart, listPatients, listSuggestions } from "./api";
 import type {
-  BodyState,
-  ChartPatient,
-  RegionChart,
-  ReminderRow,
-  SuggestionRow,
-  TimelineEvent,
-} from "./api";
-import {
-  getBodyState,
-  getRegion,
-  listPatients,
-  listReminders,
-  listSuggestions,
-} from "./api";
-import type { ChartNote, Finding, Patient, ProposedAction, Reminder, Specialty } from "./types";
-
-const CHART_SPECIALTIES = ["cardiology", "gastroenterology", "pulmonology"] as const;
-
-const ATLAS: Record<string, Pick<Finding, "structureId" | "outward" | "view">> = {
-  heart: { structureId: "cardiovascular.heart", outward: [0.35, 0.55, 0.85], view: "anterior" },
-  lung: { structureId: "visceral.left_lung", outward: [1, 0.15, 0.55], view: "left" },
-  colon: { structureId: "visceral.colon", outward: [0.25, -0.35, 0.95], view: "anterior" },
-};
+  Allergy,
+  ChartNote,
+  Finding,
+  Medication,
+  Observation,
+  Patient,
+  Problem,
+  ProposedAction,
+  Reminder,
+  Severity,
+  Trend,
+} from "./types";
 
 export interface WorkspaceChart {
   patients: Patient[];
@@ -46,50 +39,107 @@ export async function loadWorkspace(): Promise<WorkspaceChart> {
 }
 
 export async function loadPatient(directory: ChartPatient): Promise<{ patient: Patient; actions: ProposedAction[] }> {
-  const [states, reminders, suggestions] = await Promise.all([
-    Promise.all(CHART_SPECIALTIES.map((specialty) => getBodyState(directory.id, specialty))),
-    listReminders(directory.id),
-    listSuggestions(directory.id),
-  ]);
-  const bySpecialty = Object.fromEntries(CHART_SPECIALTIES.map((specialty, index) => [specialty, states[index]!])) as Record<
-    (typeof CHART_SPECIALTIES)[number],
-    BodyState
-  >;
-  const focus = new Map<string, Exclude<Specialty, "all">[]>();
-  for (const specialty of CHART_SPECIALTIES) {
-    for (const region of bySpecialty[specialty].regions) {
-      if (region.emphasis !== "focus") continue;
-      const current = focus.get(region.region_key) ?? [];
-      current.push(specialty);
-      focus.set(region.region_key, current);
-    }
-  }
-  const regions = bySpecialty.cardiology.regions;
-  const details = await Promise.all(regions.map((region) => getRegion(directory.id, region.region_key)));
-  const timeline = bySpecialty.cardiology.timeline;
-  const span = timeSpan(timeline);
-  const findings = regions
-    .map((region, index) => findingFromRegion(region.region_key, region.mesh_name, details[index]!, focus.get(region.region_key) ?? [], span))
-    .filter((finding): finding is Finding => finding !== null);
-  const notes = timeline
-    .filter((event) => event.kind !== "condition")
-    .map((event) => noteFromEvent(event, span));
-  const patient: Patient = {
+  const [chart, suggestions] = await Promise.all([getChart(directory.id), listSuggestions(directory.id)]);
+  return { patient: patientFromChart(chart), actions: suggestions.map((row) => suggestionAction(row)) };
+}
+
+export function patientFromChart(chart: PatientChart): Patient {
+  const { patient: directory } = chart;
+  const span = timeSpan(chart);
+  const problems: Problem[] = chart.conditions.map((row) => ({
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    onset: row.onset_date ?? undefined,
+    regionKey: row.body_region_key,
+  }));
+  const medications: Medication[] = chart.medications.map((row) => ({
+    id: row.id,
+    name: row.name,
+    dose: row.dose,
+    route: row.route,
+    frequency: row.frequency,
+    status: row.status,
+    start: row.start_date ?? undefined,
+    regionKey: row.body_region_key,
+  }));
+  const specialties = uniqueSpecialties(chart);
+  const findings = chart.regions
+    .map((region) =>
+      findingFromRegion(
+        region,
+        problems.filter((problem) => problem.regionKey === region.region_key),
+        medications.filter((medication) => medication.regionKey === region.region_key),
+        chart.series.filter((series) => series.body_region_key === region.region_key),
+        span,
+      ),
+    )
+    .filter((finding): finding is Finding => finding !== null)
+    .sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || a.title.localeCompare(b.title));
+
+  const notes: ChartNote[] = [
+    ...chart.encounters.map<ChartNote>((row) => ({
+      id: row.id,
+      minute: minuteAt(row.occurred_at, span),
+      at: row.occurred_at,
+      when: formatMonth(row.occurred_at),
+      text: row.summary,
+      kind: row.encounter_type === "procedure" ? "procedure" : "visit",
+    })),
+    ...chart.notes.map<ChartNote>((row) => ({
+      id: row.id,
+      minute: minuteAt(row.created_at, span),
+      at: row.created_at,
+      when: formatMonth(row.created_at),
+      text: row.body,
+      kind: "note",
+    })),
+    ...chart.medications
+      .filter((row) => row.start_date)
+      .map<ChartNote>((row) => ({
+        id: `med-${row.id}`,
+        minute: minuteAt(row.start_date!, span),
+        at: row.start_date!,
+        when: formatMonth(row.start_date!),
+        text: `${row.name} ${row.dose} ${row.frequency} started${row.status === "stopped" ? ", since stopped" : ""}`,
+        kind: "medication",
+        findingId: findings.some((finding) => finding.regionKey === row.body_region_key) ? row.body_region_key : undefined,
+      })),
+  ];
+
+  const upcoming = chart.appointments.find((row) => row.status === "scheduled" && Date.parse(row.starts_at) >= Date.now() - 86_400_000);
+
+  return {
     id: directory.id,
     name: directory.display_name,
     age: directory.age,
     sex: directory.sex === "male" ? "M" : "F",
-    mrn: directory.id.slice(0, 8).toUpperCase(),
-    summary: summaryFor(findings),
+    dob: directory.date_of_birth ?? undefined,
+    mrn: `R-${directory.id.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+    summary: summaryFor(problems, chart),
     family: directory.family_history.map(familyLine),
+    allergies: directory.allergies.map(allergyFromRow),
+    problems,
+    medications,
     findings,
     notes,
-    reminders: reminders.reminders.map(reminderFromRow),
+    reminders: chart.reminders.map(reminderFromRow),
+    nextAppointment: upcoming ? { at: upcoming.starts_at, reason: upcoming.reason } : undefined,
+    coverage: chart.coverage
+      ? {
+          payer: chart.coverage.payer_name,
+          plan: chart.coverage.plan_name,
+          active: chart.coverage.active,
+          copay: chart.coverage.copay,
+          deductibleRemaining: chart.coverage.deductible_remaining,
+        }
+      : undefined,
+    pendingCount: chart.pending_suggestions,
+    span,
     smsOptIn: directory.sms_opt_in,
     phone: directory.phone_e164,
-    specialties: [...CHART_SPECIALTIES],
+    specialties,
   };
-  return { patient, actions: suggestions.map((row) => suggestionAction(row)) };
 }
 
 export function suggestionAction(row: SuggestionRow, link?: { conversationId: string; messageId: string }): ProposedAction {
@@ -125,9 +175,22 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function summaryFor(findings: Finding[]): string {
-  if (!findings.length) return "No conditions on the chart.";
-  return findings.map((finding) => finding.condition).join(". ") + ".";
+function uniqueSpecialties(chart: PatientChart): string[] {
+  const seen = new Set<string>();
+  for (const region of chart.regions) for (const specialty of region.specialties) seen.add(specialty);
+  const others = [...seen].filter((specialty) => specialty !== "primary_care").sort();
+  // The practice's own view leads.
+  return seen.has("primary_care") ? ["primary_care", ...others] : others;
+}
+
+function summaryFor(problems: Problem[], chart: PatientChart): string {
+  const active = problems.filter((problem) => problem.status !== "resolved").map((problem) => problem.name);
+  const lastVisit = chart.encounters.at(-1);
+  const parts: string[] = [];
+  if (active.length) parts.push(active.join(", ") + ".");
+  else parts.push("No active problems on the chart.");
+  if (lastVisit) parts.push(`Last seen ${formatMonth(lastVisit.occurred_at)}: ${lastVisit.summary}`);
+  return parts.join(" ");
 }
 
 function familyLine(row: ChartPatient["family_history"][number]): string {
@@ -135,65 +198,105 @@ function familyLine(row: ChartPatient["family_history"][number]): string {
   return `${who}: ${row.condition} at ${row.age_at_diagnosis}`;
 }
 
+function allergyFromRow(row: ChartPatient["allergies"][number]): Allergy {
+  return {
+    id: row.id,
+    substance: row.substance,
+    category: row.category,
+    reaction: row.reaction,
+    severity: row.severity,
+    recordedOn: row.recorded_on ?? undefined,
+  };
+}
+
+function severityRank(severity: Severity): number {
+  return severity === "critical" ? 0 : severity === "watch" ? 1 : 2;
+}
+
 function findingFromRegion(
-  regionKey: string,
-  meshName: string,
-  detail: RegionChart,
-  specialties: Exclude<Specialty, "all">[],
+  region: PatientChart["regions"][number],
+  problems: Problem[],
+  medications: Medication[],
+  series: ChartSeries[],
   span: { start: number; end: number },
 ): Finding | null {
-  if (!detail.conditions.length && !detail.medications.length && !detail.observations.length) return null;
-  const atlas = ATLAS[regionKey] ?? {
-    structureId: regionKey,
-    outward: [0, 0.2, 1] as [number, number, number],
-    view: "anterior" as const,
-  };
-  const active = detail.conditions.some((condition) => condition.status === "active");
+  if (!problems.length && !medications.length && !series.length) return null;
+  const placement = placeOnAtlas(region.mesh_name, region.region_key);
+  const trends: Trend[] = series.map((item) => ({
+    name: item.name,
+    unit: item.unit,
+    points: item.points.map((point) => ({ at: point.at, value: point.value })),
+  }));
+  const latest: Observation[] = trends.flatMap((trend) => {
+    const point = trend.points.at(-1);
+    return point ? [{ label: trend.name, value: `${point.value} ${trend.unit}`.trim(), at: point.at }] : [];
+  });
   const dated = [
-    ...detail.conditions.map((condition) => condition.onset_date),
-    ...detail.observations.map((observation) => observation.observed_at),
+    ...problems.map((problem) => problem.onset),
+    ...series.flatMap((item) => item.points.map((point) => point.at)),
+    ...medications.map((medication) => medication.start),
   ].filter((value): value is string => Boolean(value));
   const earliest = dated.sort()[0];
+  const active = problems.filter((problem) => problem.status === "active");
+  const concerning = trends.some((trend) => {
+    const last = trend.points.at(-1);
+    return last ? isConcerning(trend.name, last.value) : false;
+  });
+  const severity: Severity = concerning && active.length ? "critical" : active.length || concerning ? "watch" : "clear";
+  const title = problems.find((problem) => problem.status === "active")?.name ?? problems[0]?.name ?? region.display_name;
   return {
-    id: regionKey,
-    structureId: atlas.structureId,
-    title: detail.conditions[0]?.name ?? meshName,
-    condition: detail.conditions.map((condition) => condition.name).join(", ") || meshName,
-    note: detail.conditions.map((condition) => `${condition.name} is ${condition.status}.`).join(" ") || "Charted on this region.",
-    severity: active || detail.observations.length > 0 ? "watch" : "clear",
-    kind: detail.conditions.length ? "disease" : "lab",
+    id: region.region_key,
+    regionKey: region.region_key,
+    structureId: placement.structureId,
+    title,
+    condition: problems.map((problem) => problem.name).join(", ") || `${region.display_name} · labs only`,
+    note: noteFor(problems, trends),
+    severity,
+    kind: problems.length ? "disease" : "lab",
     minute: earliest ? minuteAt(earliest, span) : NOW_MINUTE,
-    when: earliest ? formatWhen(earliest) : undefined,
-    specialties,
-    meds: detail.medications.map((medication) =>
-      [medication.name, medication.dose, medication.route, medication.frequency].filter(Boolean).join(" "),
-    ),
-    observations: detail.observations.map((observation) => ({
-      label: observation.name,
-      value: `${observation.value} ${observation.unit}`.trim(),
-    })),
-    outward: atlas.outward,
-    view: atlas.view,
+    at: earliest ?? new Date(span.end).toISOString(),
+    when: earliest ? formatMonth(earliest) : undefined,
+    specialties: region.specialties,
+    problems,
+    meds: medications
+      .filter((medication) => medication.status === "active")
+      .map((medication) => [medication.name, medication.dose, medication.route, medication.frequency].filter(Boolean).join(" ")),
+    observations: latest,
+    trends,
+    outward: placement.outward,
+    view: placement.view,
   };
 }
 
-function noteFromEvent(event: TimelineEvent, span: { start: number; end: number }): ChartNote {
-  return {
-    id: `${event.kind}-${event.at}-${event.label}`,
-    minute: minuteAt(event.at, span),
-    when: formatWhen(event.at),
-    text: event.label,
-  };
+function noteFor(problems: Problem[], trends: Trend[]): string {
+  const parts = problems.map((problem) => `${problem.name} is ${problem.status}${problem.onset ? ` since ${formatMonth(problem.onset)}` : ""}.`);
+  for (const trend of trends) {
+    const points = trend.points;
+    if (points.length < 2) continue;
+    const first = points[0]!.value;
+    const last = points.at(-1)!.value;
+    const direction = last > first ? "rising" : last < first ? "falling" : "flat";
+    parts.push(`${trend.name} ${direction}, ${first} to ${last} ${trend.unit} over ${points.length} results.`);
+  }
+  return parts.join(" ") || "Charted on this region.";
 }
 
-function reminderFromRow(row: ReminderRow): Reminder {
-  const due = row.due_on.slice(0, 10) <= todayIso();
-  const status = row.status === "scheduled" && due ? "due" : row.status;
+function reminderFromRow(row: PatientChart["reminders"][number]): Reminder {
+  const overdue = row.due_on <= todayIso();
+  const status = row.status === "scheduled" && overdue ? "due" : row.status;
+  const detail =
+    row.status === "sent" && overdue
+      ? `Reminded, not yet scheduled · was due ${row.due_on}`
+      : overdue && row.status === "scheduled"
+        ? `Overdue since ${row.due_on}`
+        : `Due ${row.due_on}`;
   return {
     id: row.id,
     title: row.name,
-    detail: `Due ${row.due_on.slice(0, 10)}`,
+    detail,
+    dueOn: row.due_on,
     status: status as Reminder["status"],
+    rule: row.rule ? { name: row.rule.name, baselineAge: row.rule.baseline_age, source: row.rule.guideline_source_id } : undefined,
   };
 }
 
@@ -204,21 +307,17 @@ function formatPatch(patch: Record<string, unknown> | undefined): string | undef
     .join(", ");
 }
 
-function timeSpan(events: TimelineEvent[]): { start: number; end: number } {
-  const stamps = events.map((event) => Date.parse(event.at)).filter((value) => !Number.isNaN(value));
+function timeSpan(chart: PatientChart): { start: number; end: number } {
+  const stamps = [
+    ...chart.conditions.map((row) => row.onset_date),
+    ...chart.medications.map((row) => row.start_date),
+    ...chart.encounters.map((row) => row.occurred_at),
+    ...chart.notes.map((row) => row.created_at),
+    ...chart.series.flatMap((row) => row.points.map((point) => point.at)),
+  ]
+    .map((value) => (value ? Date.parse(value) : Number.NaN))
+    .filter((value) => !Number.isNaN(value));
   const now = Date.now();
   if (!stamps.length) return { start: now, end: now };
   return { start: Math.min(...stamps), end: Math.max(...stamps, now) };
-}
-
-function minuteAt(iso: string, span: { start: number; end: number }): number {
-  const at = Date.parse(iso);
-  if (Number.isNaN(at) || span.end <= span.start) return NOW_MINUTE;
-  return Math.max(0, Math.min(NOW_MINUTE, Math.round(((at - span.start) / (span.end - span.start)) * NOW_MINUTE)));
-}
-
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }

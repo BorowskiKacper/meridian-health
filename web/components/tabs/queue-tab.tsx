@@ -22,7 +22,7 @@ export function QueueTab({ patientId }: { patientId: string }) {
         eyebrow={patient.name}
         title="Approvals"
         actions={
-          pending.length > 1 && (
+          pending.length > 1 && pending.every((a) => a.payload.kind !== "chart_change") && (
             <Button className="rounded-full px-4" onClick={() => pending.forEach((a) => approve(a.id))}>
               Approve all {pending.length}
             </Button>

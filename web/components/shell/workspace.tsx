@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { IconButton } from "@/components/system/icon-button";
 import { TabContent } from "@/components/tabs/tab-content";
+import { PatientBanner } from "./patient-banner";
+import { initials, patientHue } from "@/lib/data";
 
 export function Workspace() {
   const tabs = useStore((s) => s.tabs);
@@ -56,8 +58,9 @@ export function Workspace() {
         </div>
       </header>
       <section className="min-h-0 flex-1 px-3 pb-3">
-        <div className="h-full overflow-auto rounded-xl border border-hairline bg-white">
-          {active ? <TabContent tab={active} /> : <EmptyWorkspace />}
+        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-hairline bg-white">
+          {active && <PatientBanner tab={active} />}
+          <div className="min-h-0 flex-1 overflow-auto">{active ? <TabContent tab={active} /> : <EmptyWorkspace />}</div>
         </div>
       </section>
     </main>
@@ -110,7 +113,8 @@ function TabStrip() {
             overIndex === index && dragId !== tab.id && "before:absolute before:top-2 before:bottom-2 before:-left-0.5 before:w-0.5 before:bg-jade-600",
           )}
         >
-          <button type="button" className="flex items-baseline gap-1.5 outline-none" onClick={() => activateTab(tab.id)}>
+          <button type="button" className="flex items-center gap-1.5 outline-none" onClick={() => activateTab(tab.id)}>
+            <PatientMark patientId={tab.patientId} />
             <TabTitle tab={tab} />
           </button>
           <button
@@ -140,6 +144,21 @@ function TabTitle({ tab }: { tab: WorkTab }) {
       <span className="whitespace-nowrap">{title}</span>
       <span className="text-[11px] whitespace-nowrap text-ink-faint">{surname}</span>
     </>
+  );
+}
+
+function PatientMark({ patientId }: { patientId: string }) {
+  const patient = useStore((s) => s.patients[patientId]);
+  if (!patient) return null;
+  return (
+    <span
+      aria-hidden
+      title={patient.name}
+      className="grid size-4 place-items-center rounded-full text-[8px] font-semibold text-jade-900"
+      style={{ background: patientHue(patient.id) }}
+    >
+      {initials(patient.name)}
+    </span>
   );
 }
 

@@ -22,13 +22,13 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
   return (
     <article
       className={cn(
-        "rounded-lg px-4 py-3.5 transition-colors",
+        "agent-card rounded-lg px-4 py-3.5 transition-colors",
         pending ? "border border-dashed border-jade-600/45 bg-white" : "border border-hairline bg-transparent",
         action.status === "rejected" && "opacity-55",
       )}
     >
       <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
-        <span className={pending ? "text-jade-700" : "text-ink-faint"}>{kindLabel[payload.kind]}</span>
+        <span className={cn("agent-accent", pending ? "text-jade-700" : "text-ink-faint")}>{kindLabel[payload.kind]}</span>
         {detailed && <span className="font-normal tracking-normal normal-case text-ink-faint">· {patientName}</span>}
         {!pending && (
           <span className="ml-auto flex items-center gap-1 font-normal tracking-normal normal-case text-ink-faint">
@@ -38,7 +38,7 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
         )}
       </div>
 
-      <h3 className={cn("mt-1.5 font-sans text-[15px] font-semibold text-ink", action.status === "rejected" && "line-through")}>
+      <h3 className={cn("agent-text mt-1.5 font-sans text-[15px] font-semibold text-ink", action.status === "rejected" && "line-through")}>
         {action.title}
       </h3>
 

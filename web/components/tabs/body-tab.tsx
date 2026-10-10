@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo } from "react";
 import { ArrowUpRight, Footprints, Square } from "lucide-react";
-import { findingVisible, kindLabel, severityLabel, shownWhen, specialtyLabel, whenLabel, NOW_MINUTE } from "@/lib/data";
+import { dateAtMinute, findingVisible, formatDate, formatMonth, kindLabel, severityLabel, specialtyLabel, NOW_MINUTE } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import type { Finding, Specialty } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Page, PageHeader, SeverityDot } from "@/components/system/primitives";
+import { TrendArrow } from "@/components/charts/trend-arrow";
 import { BodyStage } from "@/components/body/body-stage";
 import { useBodyScene } from "@/components/body/use-body-scene";
 import type { BodyScene } from "@/components/body/scene/controller";
@@ -22,7 +23,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
   const visible = useMemo(
     () =>
       patient && view
-        ? patient.findings.filter((f) => findingVisible(f, view.minute, view.specialty)).sort((a, b) => b.minute - a.minute)
+        ? patient.findings.filter((f) => findingVisible(f, view.minute, view.specialty))
         : [],
     [patient, view],
   );
@@ -32,11 +33,14 @@ export function BodyTab({ patientId }: { patientId: string }) {
   if (!patient || !view) return null;
   const specialties: Specialty[] = ["all", ...patient.specialties];
   const ready = snapshot.status === "ready";
+  const atNow = view.minute >= NOW_MINUTE;
+  const sliderDate = dateAtMinute(patient, view.minute);
+  const changedSince = patient.findings.filter((f) => f.trends.some((t) => t.points.length > 1)).length;
 
   return (
     <Page wide>
       <PageHeader
-        eyebrow={`${patient.mrn} · ${patient.age} ${patient.sex}`}
+        eyebrow={`${patient.mrn} · ${patient.age} ${patient.sex}${patient.dob ? ` · born ${formatDate(patient.dob)}` : ""}`}
         title={patient.name}
         actions={
           <button
@@ -58,7 +62,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
           <span className="eyebrow">Specialty</span>
           <Select
             value={view.specialty}
-            items={specialties.map((s) => ({ value: s, label: specialtyLabel[s] }))}
+            items={specialties.map((s) => ({ value: s, label: specialtyLabel(s) }))}
             onValueChange={(value) => value && setView(patientId, { specialty: value as Specialty })}
           >
             <SelectTrigger className="h-9 min-w-44 bg-white">
@@ -67,7 +71,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
             <SelectContent>
               {specialties.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {specialtyLabel[s]}
+                  {specialtyLabel(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -75,19 +79,25 @@ export function BodyTab({ patientId }: { patientId: string }) {
         </label>
         <div className="grid min-w-64 flex-1 gap-3">
           <span className="eyebrow flex justify-between">
-            <span>Timeline</span>
-            <span className="font-normal tracking-normal normal-case text-ink-soft">{whenLabel(view.minute)}</span>
+            <span>Chart as of</span>
+            <span className="numeric font-normal tracking-normal normal-case text-ink-soft">
+              {atNow ? `Today · ${formatDate(sliderDate)}` : formatDate(sliderDate)}
+            </span>
           </span>
           <Slider
             value={[view.minute]}
             max={NOW_MINUTE}
             onValueChange={(value) => setView(patientId, { minute: Array.isArray(value) ? value[0]! : value })}
-            aria-label="Timeline"
+            aria-label="Chart as of"
           />
+          <span className="flex justify-between text-[11px] text-ink-faint">
+            <span>{formatMonth(patient.span.start)}</span>
+            <span>Now</span>
+          </span>
         </div>
       </div>
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <BodyStage
           viewRef={viewRef}
           labelsRef={labelsRef}
@@ -99,15 +109,17 @@ export function BodyTab({ patientId }: { patientId: string }) {
 
         <div>
           <p className="eyebrow">
-            {visible.length} {visible.length === 1 ? "finding" : "findings"} · {specialtyLabel[view.specialty]}
+            {visible.length} {visible.length === 1 ? "region" : "regions"} · {specialtyLabel(view.specialty)}
+            {changedSince > 0 && atNow && <span className="ml-2 font-normal tracking-normal normal-case text-ink-faint">{changedSince} with trends</span>}
           </p>
           {visible.length === 0 ? (
-            <p className="mt-4 text-sm text-ink-soft">Nothing for this time and specialty. Move the timeline forward or choose All findings.</p>
+            <p className="mt-4 text-sm text-ink-soft">Nothing on the chart for this date and specialty. Move the slider toward today or choose All findings.</p>
           ) : (
             <ol className="mt-3 divide-y divide-hairline">
               {visible.map((finding, index) => {
                 const active = ready && finding.id === snapshot.activeId;
                 const latin = active ? scene?.latin(finding.structureId) : undefined;
+                const headline = finding.trends.find((t) => t.points.length > 1) ?? finding.trends[0];
                 return (
                   <li key={finding.id}>
                     <button
@@ -127,10 +139,21 @@ export function BodyTab({ patientId }: { patientId: string }) {
                       </span>
                       {index < 9 && <kbd className="numeric font-sans text-[11px] text-ink-faint">{index + 1}</kbd>}
                       <span />
-                      <span className="col-span-2 mt-0.5 text-[13px] text-ink-soft">{finding.condition}</span>
+                      <span className="col-span-2 mt-0.5 flex items-center gap-2 text-[13px] text-ink-soft">
+                        {headline ? (
+                          <>
+                            <TrendArrow trend={headline} />
+                            <span className="numeric">
+                              {headline.name} {headline.points.at(-1)!.value} {headline.unit}
+                            </span>
+                          </>
+                        ) : (
+                          finding.condition
+                        )}
+                      </span>
                       <span />
                       <span className="col-span-2 mt-1 text-[11px] tracking-[0.1em] text-ink-faint uppercase">
-                        {kindLabel[finding.kind]} · {severityLabel[finding.severity]} · {shownWhen(finding.minute, finding.when)}
+                        {kindLabel[finding.kind]} · {severityLabel[finding.severity]} · {finding.when ? `since ${finding.when}` : "today"}
                       </span>
                     </button>
                     {active && (
@@ -153,7 +176,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
             </ol>
           )}
           <p className="mt-8 text-[12px] leading-relaxed text-ink-faint">
-            Drag to orbit. Numbers jump to a finding; O, P, M and N switch tools; I toggles impacts and C the cutaway.
+            Drag to orbit. Numbers jump to a region; O, P, M and N switch tools; I toggles impacts and C the cutaway.
           </p>
         </div>
       </div>

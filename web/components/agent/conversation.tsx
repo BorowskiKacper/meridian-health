@@ -52,10 +52,10 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
             <h2 className={cn("mt-3 leading-tight", wide ? "text-[34px]" : "text-[26px]")}>
               What do you need for {patient.name.split(" ")[0]}?
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+            <p className="agent-dim mt-3 text-sm leading-relaxed text-ink-soft">
               Dictate a change or ask a question. Searches, new tabs, and chart changes wait for your approval.
             </p>
-            <ul className="mt-6 divide-y divide-hairline border-y border-hairline">
+            <ul className="agent-rule mt-6 divide-y divide-hairline border-y border-hairline">
               {starters.map((starter) => (
                 <li key={starter}>
                   <button
@@ -64,7 +64,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
                       activate(conversation.id);
                       send(starter);
                     }}
-                    className="group flex w-full items-center justify-between gap-4 py-3 text-left text-sm text-ink-soft hover:text-ink"
+                    className="agent-dim group flex w-full items-center justify-between gap-4 py-3 text-left text-sm text-ink-soft hover:text-ink"
                   >
                     {starter}
                     <ArrowUpRight className="size-4 shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
@@ -92,7 +92,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
 
 function DoctorMessage({ message }: { message: Message }) {
   return (
-    <div className="ml-auto w-fit max-w-[85%] rounded-2xl bg-ivory-deep px-4 py-2.5 text-[14px] leading-relaxed text-ink">
+    <div className="agent-bubble ml-auto w-fit max-w-[85%] rounded-2xl bg-ivory-deep px-4 py-2.5 text-[14px] leading-relaxed text-ink">
       {message.text}
     </div>
   );
@@ -116,14 +116,14 @@ function AgentMessage({ message }: { message: Message }) {
   return (
     <div>
       {message.route && <RouteLine message={message} />}
-      <p className="mt-1.5 text-[14px] leading-relaxed text-ink">{message.text}</p>
+      <p className="agent-text mt-1.5 text-[14px] leading-relaxed text-ink">{message.text}</p>
       {message.researchId && <ResearchBlock researchId={message.researchId} />}
       {actions.length > 0 && (
         <div className="mt-4 space-y-2.5">
           {actions.map((action) => (
             <ActionCard key={action.id} action={action} />
           ))}
-          {pendingCount > 1 && (
+          {pendingCount > 1 && actions.every((a) => a.payload.kind !== "chart_change") && (
             <Button size="sm" variant="outline" className="rounded-full px-3.5" onClick={() => approveMessage(message.id)}>
               Approve all {pendingCount}
             </Button>
@@ -141,12 +141,12 @@ function RouteLine({ message }: { message: Message }) {
   const canReroute = Boolean(message.requestText);
 
   return (
-    <div className="flex items-center gap-2 text-[12px] text-ink-faint">
-      <span className="font-semibold tracking-[0.12em] text-jade-700 uppercase">{routeLabel[route]}</span>
+    <div className="agent-dim flex items-center gap-2 text-[12px] text-ink-faint">
+      <span className="agent-accent font-semibold tracking-[0.12em] text-jade-700 uppercase">{routeLabel[route]}</span>
       <span>{message.routedBy === "manual" ? "chosen by you" : "routed automatically"}</span>
       {canReroute && (
         <DropdownMenu>
-          <DropdownMenuTrigger className="ml-1 flex items-center gap-0.5 rounded px-1 outline-none hover:bg-ivory-deep hover:text-ink">
+          <DropdownMenuTrigger className="agent-hover ml-1 flex items-center gap-0.5 rounded px-1 outline-none hover:bg-ivory-deep hover:text-ink">
             Re-route <ChevronDown className="size-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-60">
@@ -171,7 +171,7 @@ function ResearchBlock({ researchId }: { researchId: string }) {
   const openTab = useStore((s) => s.openTab);
   if (!result) return null;
   return (
-    <div className="mt-4 rounded-lg border border-hairline bg-white px-4 py-3.5">
+    <div className="agent-card mt-4 rounded-lg border border-hairline bg-white px-4 py-3.5">
       <p className="text-[12px] text-ink-faint italic">{result.basis}</p>
       <p className="mt-2 font-serif text-[16px] leading-relaxed text-jade-900">{result.answer}</p>
       {result.citations.length > 0 && (

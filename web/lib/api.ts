@@ -9,14 +9,111 @@ export class ApiError extends Error {
   }
 }
 
+export interface AllergyRow {
+  id: string;
+  substance: string;
+  category: "drug" | "food" | "environmental" | "nkda" | string;
+  reaction: string;
+  severity: "anaphylaxis" | "severe" | "moderate" | "mild" | "none" | string;
+  status: string;
+  recorded_on: string | null;
+}
+
 export interface ChartPatient {
   id: string;
   display_name: string;
+  date_of_birth: string | null;
   age: number;
   sex: string;
   sms_opt_in: boolean;
   phone_e164: string;
   family_history: { relationship: string; condition: string; age_at_diagnosis: number }[];
+  allergies: AllergyRow[];
+}
+
+export interface ChartRegion {
+  region_key: string;
+  display_name: string;
+  mesh_name: string;
+  specialties: string[];
+}
+
+export interface ChartCondition {
+  id: string;
+  name: string;
+  status: string;
+  onset_date: string | null;
+  body_region_key: string;
+}
+
+export interface ChartMedication {
+  id: string;
+  name: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  status: string;
+  start_date: string | null;
+  body_region_key: string;
+}
+
+export interface ChartSeries {
+  name: string;
+  unit: string;
+  body_region_key: string;
+  points: { id: string; at: string; value: number; source: string; document_id: string | null }[];
+}
+
+export interface ChartEncounter {
+  id: string;
+  encounter_type: string;
+  occurred_at: string;
+  summary: string;
+}
+
+export interface ChartNoteRow {
+  id: string;
+  body: string;
+  created_at: string;
+  source_suggestion_id: string | null;
+}
+
+export interface ChartReminder {
+  id: string;
+  name: string;
+  due_on: string;
+  status: string;
+  rule: { name: string; baseline_age: number; guideline_source_id: string } | null;
+}
+
+export interface ChartAppointment {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  reason: string;
+  status: string;
+}
+
+export interface ChartCoverage {
+  payer_name: string;
+  plan_name: string;
+  active: boolean;
+  copay: number;
+  deductible_remaining: number;
+}
+
+export interface PatientChart {
+  patient: ChartPatient;
+  regions: ChartRegion[];
+  conditions: ChartCondition[];
+  medications: ChartMedication[];
+  series: ChartSeries[];
+  encounters: ChartEncounter[];
+  notes: ChartNoteRow[];
+  reminders: ChartReminder[];
+  appointments: ChartAppointment[];
+  coverage: ChartCoverage | null;
+  pending_suggestions: number;
 }
 
 export interface BodyRegionState {
@@ -124,6 +221,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function listPatients() {
   return api<{ patients: ChartPatient[] }>("/patients");
+}
+
+export function getChart(patientId: string) {
+  return api<PatientChart>(`/patients/${patientId}/chart`);
 }
 
 export function getBodyState(patientId: string, specialty: string) {

@@ -61,7 +61,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
         event.preventDefault();
         submit();
       }}
-      className="rounded-2xl border border-hairline-strong bg-white shadow-[0_1px_2px_rgb(0_54_45/0.04),0_8px_24px_-12px_rgb(0_54_45/0.12)] focus-within:border-jade-600/50"
+      className="agent-composer rounded-2xl border border-hairline-strong bg-white shadow-[0_1px_2px_rgb(0_54_45/0.04),0_8px_24px_-12px_rgb(0_54_45/0.12)] focus-within:border-jade-600/50"
     >
       <textarea
         ref={field}
@@ -88,7 +88,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
                 onClick={() => setMode(item.id)}
                 className={cn(
                   "rounded-full px-2.5 py-1 text-[12px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                  mode === item.id ? "bg-jade-50 font-semibold text-jade-900" : "text-ink-faint hover:text-ink",
+                  mode === item.id ? "agent-mode-on bg-jade-50 font-semibold text-jade-900" : "agent-mode text-ink-faint hover:text-ink",
                 )}
               >
                 {item.label}
@@ -106,7 +106,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
               onClick={() => setListening((value) => !value)}
               className={cn(
                 "relative grid size-8 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                listening ? "bg-jade-50 text-jade-700" : "text-ink-faint hover:bg-ivory-deep hover:text-ink",
+                listening ? "agent-mode-on bg-jade-50 text-jade-700" : "agent-mode text-ink-faint hover:bg-ivory-deep hover:text-ink",
               )}
             >
               {listening && <span className="listening-ring absolute inset-0 rounded-full bg-jade-300/50" />}
@@ -118,7 +118,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
             type="submit"
             aria-label="Send"
             disabled={!text.trim()}
-            className="grid size-8 place-items-center rounded-full bg-jade-600 text-white transition-colors hover:bg-jade-700 disabled:bg-ivory-deep disabled:text-ink-faint"
+            className="agent-send grid size-8 place-items-center rounded-full bg-jade-600 text-white transition-colors hover:bg-jade-700 disabled:bg-ivory-deep disabled:text-ink-faint"
           >
             <ArrowUp className="size-4" />
           </button>

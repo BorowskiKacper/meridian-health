@@ -1,5 +1,109 @@
 # Round: product and clinical recommendations
 
+## Status as of 2026-10-10
+
+Work in progress on branch `cursor/merge-design-web-backend-573f`. The team chose
+primary care as the first setting. The gap-closing work below is partly done;
+the rest is still open. Nothing has been merged to `main`.
+
+### Done
+
+- **Allergies.** New `allergies` table (`backend/app/db/models.py`), repository
+  functions, seed rows (Jane: penicillin and shellfish; John: verified NKDA;
+  Amy: sulfonamides), and `allergies` added to `get_patient_context` so every
+  agent draft sees them. Tests in `tests/api/test_body.py` and
+  `tests/mcp/test_patient_tools.py`.
+- **Full chart endpoint.** `GET /patients/{id}/chart`
+  (`app/services/chart.py`, `app/api/routes/body.py`) returns the patient with
+  real dates, regions with their specialties, conditions, medications,
+  observation series grouped by analyte, encounters, notes, reminders with the
+  rule and guideline source, appointments, coverage and the pending count.
+  `GET /patients` now also carries `date_of_birth` and `allergies`.
+- **Primary care demo data.** `backend/seed/seed.py` stays the base contract
+  the existing tests pin. `backend/seed/demo.py` layers depth on top and
+  `app/bootstrap.py` runs both, so the live clinic has: nine body regions,
+  a `primary_care` specialty focus, Jane's diabetes and CKD with A1c, eGFR,
+  creatinine, UACR and blood pressure series, office visits, and care-gap
+  reminders. Verified by `tests/db/test_demo_seed.py`. The clinic schema was
+  reseeded; the API serves the new data.
+- **Web reads the chart.** `web/lib/chart.ts` loads each patient from the chart
+  endpoint instead of three specialty calls plus per-region fetches. Findings
+  carry trends, problems and real onset dates; the body slider is a real date
+  axis (`Chart as of`, spanning the chart's oldest event to today); severity
+  is derived from active problems plus out-of-range trends; atlas placement
+  comes from `body_regions.mesh_name` via `web/lib/atlas.ts` (pancreas, kidney,
+  liver, thyroid, breast, cervix added).
+- **Region tab.** Trend charts with a reference band and goal line, medication
+  start markers on the curve, problem status with onset, medication history,
+  a "look at together" section (diabetes links kidney and heart) and an
+  "Ask about this" button that opens the agent with the region attached.
+  Reference ranges live in `web/lib/reference.ts`.
+- **Timeline tab.** Real dates, grouped by year, with visits, procedures,
+  medication starts and notes as distinct kinds, plus a problem list that
+  opens the region.
+- **Care gaps.** The reminders tab leads with open gaps (overdue or reminded
+  but not scheduled) and shows the guideline source and baseline age per rule.
+- **Patient banner.** Persistent above every tab: initials, name, age, sex,
+  MRN (`R-` plus six characters), date of birth, allergy chips with the severe
+  ones in red, and links for active problems, medications, pending approvals,
+  the next care gap and coverage. Each tab carries a patient colour mark.
+- **Approvals.** "Approve all" no longer appears when any pending item is a
+  chart change, in both the queue and the conversation.
+- **Colour.** Jade is the application surface (`--background` is jade-50); white
+  is reserved for the chart page. The agent window is deep jade with ivory text
+  (scoped under `.agent-window` in `web/app/globals.css`, so a conversation
+  opened as a tab stays on white). The two no longer blend.
+- **Backend tests: 246 pass. Web `tsc --noEmit` and eslint are clean.**
+
+### Verified in the browser
+
+Headless Chrome against the running dev server, screenshots in
+`/opt/cursor/artifacts/`:
+
+- `body-jane-doe.png`: Jane's banner with Shellfish and Penicillin, three
+  regions pinned on the model (heart, pancreas, kidney), trend arrows and
+  values beside each, the dark agent panel beside the white chart.
+- `region-diabetes-trends.png`: A1c chart, 7.9 down to 7.1 then up to 8.4,
+  goal band below 7%, metformin start marked, latest point in red.
+- `timeline.png`: real dates grouped under 2019–2025, lisinopril, metformin,
+  atorvastatin starts, the colonoscopy, visit summaries.
+- `care-gaps.png`: Amy's overdue follow-up labs with the USPSTF source line.
+- `agent-contrast.png`: a sent message and the agent's reply on the dark panel.
+
+### Known issues found while verifying
+
+- The 3D scene labels overlap. Jane's heart carries both "Hypertension" and
+  "Chronic kidney disease, stage 3a" because the kidney finding sorts first and
+  the scene places the active label by list order rather than by the clicked
+  structure. The kidney mark itself sits low, over the abdomen. Label placement
+  in `web/components/body/scene/` needs work before this view is shown to anyone.
+- Breast and cervix map to surface regions (`regions.mammary_region_l`,
+  `regions.hypogastric_region_l`) because the atlas is a male model and has no
+  mesh for them. Noted in `web/lib/atlas.ts`.
+- The chart model is still unconfigured, so requests, research and approvals
+  fail and roll back. Lab extraction still returns no analytes.
+- Reference ranges are adult defaults hardcoded in `web/lib/reference.ts`, not
+  per-patient or per-lab.
+
+### Still open, in the order the roadmap below gives
+
+1. Wire and evaluate the chart model (section 7.1). Blocks everything agent-side.
+2. Medication list with allergy and interaction checks before any suggestion.
+3. Lab extraction with side-by-side verification and auto-pinning to a region.
+4. Results inbox and the encounter note editor.
+5. Roster and schedule view; eligibility surfaced for the front desk.
+6. Alembic migrations, indexes, terminology codes (ICD-10, SNOMED, RxNorm, LOINC).
+7. Timescale hypertables and continuous aggregates; panel analytics.
+8. Hybrid note and document search on the pgvector column.
+9. Semantic query layer where an answer opens a tab.
+10. Risk scores and the care-gap view across the whole panel.
+11. FHIR R4 and real authentication. `X-Role` is still the only access control.
+12. The 3D label placement bug above, and the atlas licence decision.
+
+---
+
+
+
 This document reviews the merged product (the `web` workspace, the FastAPI
 backend, and the design notes in `system-design-graph.md`,
 `system-design-routing-2.md` and `builder-contracts.md`) and recommends how to

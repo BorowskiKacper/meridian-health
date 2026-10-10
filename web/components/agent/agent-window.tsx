@@ -27,15 +27,15 @@ export function AgentWindow({ full }: { full: boolean }) {
   return (
     <aside
       className={cn(
-        "flex min-h-0 flex-col",
-        full ? "flex-1" : "w-[440px] shrink-0 border-l border-hairline",
+        "agent-window flex min-h-0 flex-col bg-jade-900 text-ivory",
+        full ? "flex-1" : "w-[440px] shrink-0",
       )}
       aria-label="Assistant"
     >
       <header className="flex h-12 shrink-0 items-end gap-1 px-4">
         {full && (
-          <span className="mr-5 mb-3.5 shrink-0 font-serif text-[17px] text-jade-900">
-            Round<span className="text-jade-600">.</span>
+          <span className="mr-5 mb-3.5 shrink-0 font-serif text-[17px] text-ivory">
+            Round<span className="text-jade-300">.</span>
           </span>
         )}
         <nav className="flex min-w-0 items-end gap-1 overflow-x-auto" aria-label="Conversations">
@@ -44,7 +44,7 @@ export function AgentWindow({ full }: { full: boolean }) {
               key={conversation.id}
               className={cn(
                 "group flex h-9 shrink-0 items-center gap-1 border-b-2 pr-1 pl-2.5 text-[13px]",
-                conversation.id === activeId ? "border-jade-600 text-ink" : "border-transparent text-ink-faint hover:text-ink-soft",
+                conversation.id === activeId ? "border-jade-300 text-ivory" : "border-transparent text-ivory/45 hover:text-ivory/80",
               )}
             >
               <button type="button" className="whitespace-nowrap outline-none" onClick={() => activate(conversation.id)}>
@@ -54,7 +54,7 @@ export function AgentWindow({ full }: { full: boolean }) {
                 type="button"
                 aria-label="Close conversation"
                 onClick={() => close(conversation.id)}
-                className="grid size-5 place-items-center rounded text-ink-faint opacity-0 group-hover:opacity-100 hover:bg-ivory-deep hover:text-ink focus-visible:opacity-100"
+                className="grid size-5 place-items-center rounded text-ivory/45 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-ivory focus-visible:opacity-100"
               >
                 <X className="size-3" />
               </button>
@@ -89,7 +89,7 @@ export function AgentWindow({ full }: { full: boolean }) {
         {active ? (
           <ConversationView conversationId={active.id} wide={full} />
         ) : (
-          <div className="grid h-full place-items-center px-8 text-center text-sm text-ink-soft">
+          <div className="grid h-full place-items-center px-8 text-center text-sm text-ivory/60">
             Start a conversation with the plus button.
           </div>
         )}
@@ -105,7 +105,7 @@ function NewConversationMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="New conversation"
-        className="mb-1.5 grid size-7 shrink-0 place-items-center rounded-md text-ink-faint outline-none hover:bg-ivory-deep hover:text-ink"
+        className="mb-1.5 grid size-7 shrink-0 place-items-center rounded-md text-ivory/45 outline-none hover:bg-white/10 hover:text-ivory"
       >
         <Plus className="size-4" />
       </DropdownMenuTrigger>

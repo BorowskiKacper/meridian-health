@@ -1,33 +1,73 @@
 export type Severity = "critical" | "watch" | "clear";
 export type FindingKind = "injury" | "disease" | "lab";
-export type Specialty =
-  | "all"
-  | "trauma"
-  | "cardiology"
-  | "gi"
-  | "gastroenterology"
-  | "primary"
-  | "pulmonology"
-  | "nephrology";
+/** Specialty keys come from the clinic's specialty_focus table; "all" is the unfiltered view. */
+export type Specialty = string;
 
 export interface Observation {
   label: string;
   value: string;
+  at?: string;
+}
+
+export interface TrendPoint {
+  at: string;
+  value: number;
+}
+
+export interface Trend {
+  name: string;
+  unit: string;
+  points: TrendPoint[];
+}
+
+export interface Problem {
+  id: string;
+  name: string;
+  status: string;
+  onset?: string;
+  regionKey: string;
+}
+
+export interface Medication {
+  id: string;
+  name: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  status: string;
+  start?: string;
+  regionKey: string;
+}
+
+export interface Allergy {
+  id: string;
+  substance: string;
+  category: string;
+  reaction: string;
+  severity: string;
+  recordedOn?: string;
 }
 
 export interface Finding {
   id: string;
+  /** Chart region key; also the finding id. */
+  regionKey: string;
   structureId: string;
   title: string;
   condition: string;
   note: string;
   severity: Severity;
   kind: FindingKind;
-  /** Position on the history slider, 0 (oldest) to 100 (now). */
+  /** Position on the history slider, 0 (oldest in the chart) to 100 (now). */
   minute: number;
-  specialties: Exclude<Specialty, "all">[];
+  /** When this region first entered the chart, ISO 8601. */
+  at: string;
+  specialties: Specialty[];
+  problems: Problem[];
   meds: string[];
+  /** Latest value of each series on this region. */
   observations: Observation[];
+  trends: Trend[];
   /** Where the pin leaves the surface, in patient space: +X is the patient's left, +Y up, +Z anterior. */
   outward: [number, number, number];
   view: "anterior" | "posterior" | "left" | "right" | "superior" | "inferior";
@@ -41,15 +81,27 @@ export interface Reminder {
   id: string;
   title: string;
   detail: string;
+  dueOn: string;
   status: "scheduled" | "due" | "sent" | "paused" | "done";
+  rule?: { name: string; baselineAge: number; source: string };
 }
 
 export interface ChartNote {
   id: string;
   minute: number;
+  at: string;
   text: string;
+  kind: "note" | "visit" | "procedure" | "medication";
   findingId?: string;
   when?: string;
+}
+
+export interface Coverage {
+  payer: string;
+  plan: string;
+  active: boolean;
+  copay: number;
+  deductibleRemaining: number;
 }
 
 export interface Patient {
@@ -57,15 +109,24 @@ export interface Patient {
   name: string;
   age: number;
   sex: "F" | "M";
+  dob?: string;
   mrn: string;
   summary: string;
   family: string[];
+  allergies: Allergy[];
+  problems: Problem[];
+  medications: Medication[];
   findings: Finding[];
   notes: ChartNote[];
   reminders: Reminder[];
+  nextAppointment?: { at: string; reason: string };
+  coverage?: Coverage;
+  pendingCount: number;
+  /** Oldest and newest instant on the chart, ms since epoch. The slider maps 0..100 onto this. */
+  span: { start: number; end: number };
   smsOptIn: boolean;
   phone?: string;
-  specialties: Exclude<Specialty, "all">[];
+  specialties: Specialty[];
 }
 
 export type TabKind = "body" | "region" | "timeline" | "queue" | "research" | "lab" | "reminders" | "chat";
