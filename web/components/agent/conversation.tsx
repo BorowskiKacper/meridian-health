@@ -25,19 +25,7 @@ export const routeLabel: Record<Route, string> = {
   navigate: "Workspace",
 };
 
-const starters: Record<string, string[]> = {
-  nora: [
-    "Are her screenings up to date?",
-    "Should she start a statin given her history?",
-    "LDL is 190. Her father had an MI at 55. Start lisinopril 10 mg.",
-    "Open the timeline",
-  ],
-  marcus: [
-    "Should we add an SGLT2 inhibitor given his kidneys?",
-    "Is he due for any screenings?",
-    "Open the reminders",
-  ],
-};
+const starters = ["Are screenings up to date?", "What is on the chart?", "Open the timeline"];
 
 export function ConversationView({ conversationId, wide = false }: { conversationId: string; wide?: boolean }) {
   const conversation = useStore((s) => s.conversations.find((c) => c.id === conversationId));
@@ -68,7 +56,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
               Dictate a change or ask a question. Searches, new tabs, and chart changes wait for your approval.
             </p>
             <ul className="mt-6 divide-y divide-hairline border-y border-hairline">
-              {(starters[patient.id] ?? []).map((starter) => (
+              {starters.map((starter) => (
                 <li key={starter}>
                   <button
                     type="button"

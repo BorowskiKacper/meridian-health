@@ -33,7 +33,7 @@ export function ResearchTab({ researchId }: { researchId: string }) {
           <p className="text-[14px] text-ink-faint">No cited passage was found.</p>
         )}
       </Section>
-      <p className="mt-12 text-[12px] text-ink-faint">Cached passages for the demo. A live search goes through Cortex Search.</p>
+      <p className="mt-12 text-[12px] text-ink-faint">Citations returned by the clinic API.</p>
     </Page>
   );
 }

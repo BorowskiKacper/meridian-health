@@ -1,6 +1,6 @@
 "use client";
 
-import { kindLabel, whenLabel } from "@/lib/data";
+import { kindLabel, shownWhen } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import { Page, PageHeader, SeverityDot } from "@/components/system/primitives";
 import type { Severity } from "@/lib/types";
@@ -8,6 +8,7 @@ import type { Severity } from "@/lib/types";
 interface Entry {
   id: string;
   minute: number;
+  when: string;
   title: string;
   detail: string;
   kind: string;
@@ -24,17 +25,18 @@ export function TimelineTab({ patientId }: { patientId: string }) {
     ...patient.findings.map((f) => ({
       id: f.id,
       minute: f.minute,
+      when: shownWhen(f.minute, f.when),
       title: f.title,
       detail: f.condition,
       kind: kindLabel[f.kind],
       severity: f.severity,
       findingId: f.id,
     })),
-    ...patient.notes.map((n) => ({ id: n.id, minute: n.minute, title: "Note", detail: n.text, kind: "Note" })),
+    ...patient.notes.map((n) => ({ id: n.id, minute: n.minute, when: shownWhen(n.minute, n.when), title: "Note", detail: n.text, kind: "Note" })),
   ].sort((a, b) => b.minute - a.minute);
 
   const groups = entries.reduce<Record<string, Entry[]>>((acc, entry) => {
-    (acc[whenLabel(entry.minute)] ??= []).push(entry);
+    (acc[entry.when] ??= []).push(entry);
     return acc;
   }, {});
 

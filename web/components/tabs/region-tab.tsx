@@ -1,6 +1,6 @@
 "use client";
 
-import { kindLabel, severityLabel, whenLabel } from "@/lib/data";
+import { kindLabel, severityLabel, shownWhen } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import { Page, PageHeader, Section, SeverityDot } from "@/components/system/primitives";
 
@@ -21,7 +21,7 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
 
       <p className="mt-8 max-w-2xl font-serif text-[19px] leading-relaxed text-jade-900">{finding.note}</p>
       <p className="mt-3 text-[13px] text-ink-faint">
-        {severityLabel[finding.severity]} · {whenLabel(finding.minute)} · {finding.structureId}
+        {severityLabel[finding.severity]} · {shownWhen(finding.minute, finding.when)} · {finding.structureId}
       </p>
 
       <div className="grid gap-x-16 md:grid-cols-2">
@@ -51,11 +51,15 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
       </div>
 
       <Section title="Family history">
-        <ul className="space-y-1.5 text-[14px] text-ink">
-          {patient.family.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
+        {patient.family.length ? (
+          <ul className="space-y-1.5 text-[14px] text-ink">
+            {patient.family.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[14px] text-ink-faint">None recorded</p>
+        )}
       </Section>
 
       {notes.length > 0 && (

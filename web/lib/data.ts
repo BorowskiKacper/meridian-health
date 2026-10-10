@@ -257,9 +257,15 @@ export const specialtyLabel: Record<Specialty, string> = {
   trauma: "Trauma",
   cardiology: "Cardiology",
   gi: "GI",
+  gastroenterology: "Gastroenterology",
   primary: "Primary care",
+  pulmonology: "Pulmonology",
   nephrology: "Nephrology",
 };
+
+export function shownWhen(minute: number, when?: string): string {
+  return when ?? whenLabel(minute);
+}
 
 export const severityLabel = { critical: "Critical", watch: "Watch", clear: "Clear" } as const;
 export const kindLabel = { injury: "Injury", disease: "Disease", lab: "Lab" } as const;

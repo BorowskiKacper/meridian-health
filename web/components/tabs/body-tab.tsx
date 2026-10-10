@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { ArrowUpRight, Footprints, Square } from "lucide-react";
-import { findingVisible, kindLabel, severityLabel, specialtyLabel, whenLabel, NOW_MINUTE } from "@/lib/data";
+import { findingVisible, kindLabel, severityLabel, shownWhen, specialtyLabel, whenLabel, NOW_MINUTE } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import type { Finding, Specialty } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -130,7 +130,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
                       <span className="col-span-2 mt-0.5 text-[13px] text-ink-soft">{finding.condition}</span>
                       <span />
                       <span className="col-span-2 mt-1 text-[11px] tracking-[0.1em] text-ink-faint uppercase">
-                        {kindLabel[finding.kind]} · {severityLabel[finding.severity]} · {whenLabel(finding.minute)}
+                        {kindLabel[finding.kind]} · {severityLabel[finding.severity]} · {shownWhen(finding.minute, finding.when)}
                       </span>
                     </button>
                     {active && (

@@ -14,20 +14,12 @@ const modes: { id: Mode; label: string; hint: string }[] = [
   { id: "screening", label: "Screening", hint: "Reviews screenings and reminders" },
 ];
 
-/** Stand-in for speech-to-text until Scribe is connected. */
-const transcripts: Record<string, Record<Mode, string>> = {
-  nora: {
-    auto: "The left fibula is tender after the kerb strike. Watch it.",
-    chart: "LDL is 190. Her father had an MI at 55. Start lisinopril 10 mg.",
-    research: "Should she start a statin given her history?",
-    screening: "Are her screenings up to date?",
-  },
-  marcus: {
-    auto: "A1c is 8.4 today. Continue metformin and recheck in three months.",
-    chart: "A1c is 8.4 today. Continue metformin and recheck in three months.",
-    research: "Should we add an SGLT2 inhibitor given his kidneys?",
-    screening: "Is he due for any screenings?",
-  },
+/** Stand-in for speech-to-text. The text is sent to the clinic API after you review it. */
+const transcripts: Record<Mode, string> = {
+  auto: "Mark the active condition controlled.",
+  chart: "Mark the active condition controlled.",
+  research: "What does the chart say about screening for this patient?",
+  screening: "Are screenings up to date?",
 };
 
 const LISTEN_MS = 1600;
@@ -48,7 +40,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
   useEffect(() => {
     if (!listening || !patient) return;
     const timer = setTimeout(() => {
-      setText(transcripts[patient.id]?.[mode] ?? "");
+      setText(transcripts[mode]);
       setListening(false);
       field.current?.focus();
     }, LISTEN_MS);

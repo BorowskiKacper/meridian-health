@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Page, PageHeader, Section } from "@/components/system/primitives";
 
-const statusLabel = { scheduled: "Scheduled", due: "Due", sent: "Sent" } as const;
+const statusLabel = { scheduled: "Scheduled", due: "Due", sent: "Sent", paused: "Paused", done: "Done" } as const;
 
 export function RemindersTab({ patientId }: { patientId: string }) {
   const patient = useStore((s) => s.patients[patientId]);
@@ -20,6 +20,9 @@ export function RemindersTab({ patientId }: { patientId: string }) {
       </PageHeader>
 
       <Section title="Schedule">
+        {patient.reminders.length === 0 ? (
+          <p className="text-[14px] text-ink-faint">No reminders on the chart.</p>
+        ) : (
         <ul className="divide-y divide-hairline border-t border-hairline">
           {patient.reminders.map((r) => (
             <li key={r.id} className="flex items-baseline gap-6 py-4">
@@ -33,6 +36,7 @@ export function RemindersTab({ patientId }: { patientId: string }) {
             </li>
           ))}
         </ul>
+        )}
       </Section>
 
       <Section title="SMS">

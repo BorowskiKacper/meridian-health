@@ -7,7 +7,7 @@ import { Page, PageHeader } from "@/components/system/primitives";
 
 export function LabTab({ patientId }: { patientId: string }) {
   const patient = useStore((s) => s.patients[patientId]);
-  const extracted = useStore((s) => s.actions.some((a) => a.patientId === patientId && a.source.startsWith("Lab photo")));
+  const extracted = useStore((s) => Boolean(s.uploadedLabs[patientId]));
   const extractLab = useStore((s) => s.extractLab);
   if (!patient) return null;
 
@@ -57,7 +57,7 @@ export function LabTab({ patientId }: { patientId: string }) {
             </tbody>
           </table>
         </div>
-        <figcaption className="mt-4 text-center text-[12px] text-ink-faint">Filler document for the demo</figcaption>
+        <figcaption className="mt-4 text-center text-[12px] text-ink-faint">This page is uploaded to the chart when you extract values.</figcaption>
       </figure>
     </Page>
   );

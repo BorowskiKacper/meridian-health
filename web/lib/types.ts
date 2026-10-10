@@ -1,6 +1,14 @@
 export type Severity = "critical" | "watch" | "clear";
 export type FindingKind = "injury" | "disease" | "lab";
-export type Specialty = "all" | "trauma" | "cardiology" | "gi" | "primary" | "nephrology";
+export type Specialty =
+  | "all"
+  | "trauma"
+  | "cardiology"
+  | "gi"
+  | "gastroenterology"
+  | "primary"
+  | "pulmonology"
+  | "nephrology";
 
 export interface Observation {
   label: string;
@@ -25,13 +33,15 @@ export interface Finding {
   view: "anterior" | "posterior" | "left" | "right" | "superior" | "inferior";
   /** Draws an impact arrow on the pin, for injuries with a known strike direction. */
   impact?: boolean;
+  /** Calendar label from the chart. The slider still uses `minute`. */
+  when?: string;
 }
 
 export interface Reminder {
   id: string;
   title: string;
   detail: string;
-  status: "scheduled" | "due" | "sent";
+  status: "scheduled" | "due" | "sent" | "paused" | "done";
 }
 
 export interface ChartNote {
@@ -39,6 +49,7 @@ export interface ChartNote {
   minute: number;
   text: string;
   findingId?: string;
+  when?: string;
 }
 
 export interface Patient {
@@ -53,6 +64,7 @@ export interface Patient {
   notes: ChartNote[];
   reminders: Reminder[];
   smsOptIn: boolean;
+  phone?: string;
   specialties: Exclude<Specialty, "all">[];
 }
 
