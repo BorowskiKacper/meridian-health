@@ -2,6 +2,7 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   async rewrites() {
     const origin = process.env.BACKEND_ORIGIN ?? "http://127.0.0.1:8000";
     return [{ source: "/backend-api/:path*", destination: `${origin}/:path*` }];
