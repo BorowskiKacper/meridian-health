@@ -133,6 +133,40 @@ def test_audio_request_transcribes_and_synthesizes(
     assert fields["session"] is seeded_db.session
 
 
+def test_audio_request_rejects_when_transcription_is_empty(monkeypatch, client):
+    transcribe_calls, synthesize_calls = _install_speech(monkeypatch, transcript=None)
+    recorded = _install_route(monkeypatch, _chart_body())
+
+    response = call(
+        client,
+        "POST",
+        "/requests",
+        data={"patient_id": JANE_ID},
+        files={"audio": ("request.webm", b"audio-bytes", "audio/webm")},
+    )
+
+    assert_error(response, 400, "validation_error")
+    assert response.json()["error"]["message"] == "Audio could not be transcribed."
+    assert recorded == []
+    assert transcribe_calls == [b"audio-bytes"]
+    assert synthesize_calls == []
+
+
+def test_browser_preflight_allows_the_doctor_role_header(client):
+    response = client.options(
+        "/requests",
+        headers={
+            "Origin": "http://localhost:8081",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "x-role",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "x-role" in response.headers["access-control-allow-headers"].lower()
+
+
 @pytest.mark.parametrize(
     "data,files",
     [

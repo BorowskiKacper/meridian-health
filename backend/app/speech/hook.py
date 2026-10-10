@@ -28,12 +28,29 @@ def _voice(key):
     return voices[0]["voice_id"]
 
 
+def _mime(audio):
+    if audio.startswith(b"\x1aE\xdf\xa3"):
+        return "audio/webm"
+    if audio.startswith(b"OggS"):
+        return "audio/ogg"
+    if audio.startswith(b"RIFF"):
+        return "audio/wav"
+    # Phone recordings are M4A, an MP4 container whose type sits after the size field.
+    if len(audio) >= 8 and audio[4:8] == b"ftyp":
+        return "audio/mp4"
+    return "audio/mpeg"
+
+
 class SpeechHook:
     def transcribe(self, audio):
         if not audio or len(audio) > 20 * 1024 * 1024:
             raise IntegrationError("ElevenLabs", "Provide a nonempty recording under 20 MB.")
-        mime = "audio/webm" if audio.startswith(b"\x1aE\xdf\xa3") else "audio/ogg" if audio.startswith(b"OggS") else "audio/wav" if audio.startswith(b"RIFF") else "audio/mpeg"
-        response = _request("POST", "/speech-to-text", data={"model_id": "scribe_v2", "tag_audio_events": "false"}, files={"file": ("dictation", audio, mime)})
+        response = _request(
+            "POST",
+            "/speech-to-text",
+            data={"model_id": "scribe_v2", "tag_audio_events": "false"},
+            files={"file": ("dictation", audio, _mime(audio))},
+        )
         text = response.json().get("text", "").strip()
         if not text:
             raise IntegrationError("ElevenLabs", "No speech was recognized. Record again or type your request.")

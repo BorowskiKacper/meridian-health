@@ -24,15 +24,20 @@ async def create_request(request: Request):
         )
 
     audio_bytes = await audio.read() if audio_present else None
-    return await run_in_threadpool(_process_request, patient_id, text, audio_bytes)
+    return await run_in_threadpool(
+        _process_request,
+        patient_id,
+        text if text_present else None,
+        audio_bytes,
+    )
 
 
 def _process_request(patient_id: str, text: str | None, audio_bytes: bytes | None):
     import app.api.db as api_db
     import app.agents.doctor as doctor
 
-    with api_db.get_session() as session:
-        if audio_bytes is None:
+    if audio_bytes is None:
+        with api_db.get_session() as session:
             result = doctor.route_doctor_request(
                 patient_id,
                 text,
@@ -41,9 +46,17 @@ def _process_request(patient_id: str, text: str | None, audio_bytes: bytes | Non
             )
             return finish(result)
 
-        from app.speech.hook import SpeechHook
+    from app.speech.hook import SpeechHook
 
-        transcript = SpeechHook().transcribe(audio_bytes)
+    # A blank transcript is a validation error. Provider failures raise
+    # IntegrationError and become 503 before the chart route runs.
+    transcript = SpeechHook().transcribe(audio_bytes)
+    if not isinstance(transcript, str) or not transcript.strip():
+        return error_response(
+            "validation_error",
+            "Audio could not be transcribed.",
+        )
+    with api_db.get_session() as session:
         result = doctor.route_doctor_request(
             patient_id,
             transcript,

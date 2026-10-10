@@ -32,6 +32,8 @@ def capabilities():
 @app.exception_handler(IntegrationError)
 async def provider_error(request: Request, exc: IntegrationError):
     return JSONResponse(status_code=503, content={"error": {"code": "service_unavailable", "message": str(exc), "service": exc.service}})
+
+
 app.include_router(body.router)
 app.include_router(chart_entries.router)
 app.include_router(requests.router)
@@ -61,6 +63,13 @@ async def request_session(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# Added last so it is the outer middleware. The Expo browser client is not limited to port 3000.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
