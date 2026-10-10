@@ -9,7 +9,9 @@ import {
   confidenceText,
   formatPatch,
   patientMrn,
+  phoneReply,
   replyText,
+  WEB_HANDOFF,
 } from "./chat";
 
 test("mrn matches the web chart prefix", () => {
@@ -49,12 +51,22 @@ test("action cards format patches the way the web chat does", () => {
   assert.equal(confidenceText(null), undefined);
 });
 
-test("starters stay inside the chat", () => {
-  assert.deepEqual([...STARTERS], ["Are screenings up to date?", "What is on the chart?"]);
-  assert.equal(
-    STARTERS.some((starter) => starter.toLowerCase().startsWith("open ")),
-    false,
-  );
+test("starters are questions, and chart work points to the web app", () => {
+  assert.deepEqual([...STARTERS], ["Are screenings up to date?", "What does the guideline recommend?"]);
+  const answer = phoneReply({
+    route: "clinical_question",
+    answer: { text: "LDL is high.", citations: [] },
+    suggestions: [],
+  });
+  assert.equal(answer.text, "LDL is high.");
+  assert.equal(answer.answer?.text, "LDL is high.");
+  const chart = phoneReply({
+    route: "chart_update",
+    answer: null,
+    suggestions: [suggestion()],
+  });
+  assert.equal(chart.text, WEB_HANDOFF);
+  assert.equal(chart.answer, null);
 });
 
 function suggestion() {

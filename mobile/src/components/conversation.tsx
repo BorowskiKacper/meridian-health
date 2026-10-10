@@ -1,52 +1,37 @@
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { STARTERS, chatRouteLabel, type AgentTurn, type ChatConversation, type Turn } from "../chat";
+import { STARTERS, chatRouteLabel, type AgentTurn, type Turn } from "../chat";
 import { serif, theme } from "../theme";
-import { ActionCard } from "./action-card";
 import { ResearchCard } from "./research-card";
 
 type Props = {
-  conversation: ChatConversation;
-  patientName: string;
-  busyId: string | null;
+  messages: Turn[];
   onStarter: (text: string) => void;
-  onApprove: (messageId: string, suggestionId: string) => void;
-  onReject: (messageId: string, suggestionId: string) => void;
   onPlay: (audioBase64: string) => void;
 };
 
-export function Conversation({
-  conversation,
-  patientName,
-  busyId,
-  onStarter,
-  onApprove,
-  onReject,
-  onPlay,
-}: Props) {
+export function Conversation({ messages, onStarter, onPlay }: Props) {
   const scroller = useRef<ScrollView>(null);
-  const count = conversation.messages.length;
-  const last = conversation.messages.at(-1);
+  const count = messages.length;
+  const last = messages.at(-1);
   const lastText = last && "text" in last ? last.text : "";
 
   useEffect(() => {
     scroller.current?.scrollToEnd({ animated: true });
   }, [count, lastText]);
 
-  const first = patientName.split(" ")[0] ?? patientName;
-
   return (
     <ScrollView
-      contentContainerStyle={conversation.messages.length === 0 ? styles.emptyContent : styles.thread}
+      contentContainerStyle={messages.length === 0 ? styles.emptyContent : styles.thread}
       ref={scroller}
       style={styles.scroll}
     >
-      {conversation.messages.length === 0 ? (
+      {messages.length === 0 ? (
         <View>
-          <Text style={styles.heading}>How can I help with {first}’s care?</Text>
+          <Text style={styles.heading}>How can I help?</Text>
           <Text style={styles.lead}>
-            Review the chart, ask a question, or draft a change. Review proposed chart changes before approving them.
+            Ask a question here. Chart changes and the rest of the visit stay on the web app.
           </Text>
           <View style={styles.starters}>
             {STARTERS.map((starter) => (
@@ -58,18 +43,12 @@ export function Conversation({
           </View>
         </View>
       ) : (
-        conversation.messages.map((message) => (
+        messages.map((message) => (
           <View key={message.id}>
             {message.role === "doctor" ? (
               <DoctorMessage message={message} />
             ) : (
-              <AgentMessage
-                busyId={busyId}
-                message={message}
-                onApprove={(suggestionId) => onApprove(message.id, suggestionId)}
-                onPlay={onPlay}
-                onReject={(suggestionId) => onReject(message.id, suggestionId)}
-              />
+              <AgentMessage message={message} onPlay={onPlay} />
             )}
           </View>
         ))
@@ -86,19 +65,7 @@ function DoctorMessage({ message }: { message: Turn & { role: "doctor" } }) {
   );
 }
 
-function AgentMessage({
-  message,
-  busyId,
-  onApprove,
-  onReject,
-  onPlay,
-}: {
-  message: AgentTurn;
-  busyId: string | null;
-  onApprove: (suggestionId: string) => void;
-  onReject: (suggestionId: string) => void;
-  onPlay: (audioBase64: string) => void;
-}) {
+function AgentMessage({ message, onPlay }: { message: AgentTurn; onPlay: (audioBase64: string) => void }) {
   if (message.pending) return <Working />;
   return (
     <View>
@@ -115,15 +82,6 @@ function AgentMessage({
       ) : null}
       {message.text ? <Text style={styles.body}>{message.text}</Text> : null}
       {message.answer ? <ResearchCard answer={message.answer} /> : null}
-      {message.suggestions.map((suggestion) => (
-        <ActionCard
-          busy={busyId === suggestion.id}
-          key={suggestion.id}
-          onApprove={onApprove}
-          onReject={onReject}
-          suggestion={suggestion}
-        />
-      ))}
     </View>
   );
 }

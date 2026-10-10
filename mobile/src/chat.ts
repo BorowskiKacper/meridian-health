@@ -25,12 +25,14 @@ export type ChatConversation = {
   messages: Turn[];
 };
 
-/** Same prompts as the web assistant, without workspace commands such as opening the timeline. */
-export const STARTERS = ["Are screenings up to date?", "What is on the chart?"] as const;
+/** Questions the phone can answer. Chart review stays on the web app. */
+export const STARTERS = ["Are screenings up to date?", "What does the guideline recommend?"] as const;
+
+export const WEB_HANDOFF = "Open the web app to review the chart and approve changes.";
 
 export const MODES: { id: ChatMode; label: string; hint: string }[] = [
   { id: "auto", label: "Auto", hint: "Routes each request to the right agent" },
-  { id: "chart", label: "Chart", hint: "Dictation becomes chart changes to approve" },
+  { id: "chart", label: "Chart", hint: "Chart changes continue on the web app" },
   { id: "research", label: "Ask", hint: "Clinical questions, answered with citations" },
   { id: "screening", label: "Screening", hint: "Reviews screenings and reminders" },
 ];
@@ -54,6 +56,18 @@ export function chatRoute(route: string): ChatRoute | null {
 
 export function chatRouteLabel(route: ChatRoute): string {
   return ROUTE_LABEL[route];
+}
+
+/** Questions stay in the thread. Chart updates and other chart work point to the web app. */
+export function phoneReply(result: Pick<DoctorRequest, "route" | "answer" | "suggestions">): {
+  text: string;
+  answer: Answer | null;
+} {
+  const answer = result.answer?.text ? result.answer : null;
+  const chartWork = result.route === "chart_update" || (result.suggestions.length > 0 && result.route !== "clinical_question");
+  if (answer && !chartWork) return { text: answer.text, answer };
+  if (answer && chartWork) return { text: `${answer.text}\n\n${WEB_HANDOFF}`, answer };
+  return { text: WEB_HANDOFF, answer: null };
 }
 
 export function replyText(result: Pick<DoctorRequest, "answer" | "suggestions">): string {

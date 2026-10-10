@@ -5,7 +5,6 @@ import { MODES, type ChatMode } from "../chat";
 import { theme } from "../theme";
 
 type Props = {
-  patientName: string;
   mode: ChatMode;
   text: string;
   listening: boolean;
@@ -18,7 +17,6 @@ type Props = {
 };
 
 export function Composer({
-  patientName,
   mode,
   text,
   listening,
@@ -53,12 +51,12 @@ export function Composer({
     <View style={styles.wrap}>
       <View style={styles.card}>
         <TextInput
-          accessibilityLabel={`Message about ${patientName}`}
+          accessibilityLabel="Message"
           editable={!busy && !listening}
           multiline
           onChangeText={onText}
           onSubmitEditing={onSend}
-          placeholder={listening ? "Listening…" : `Message about ${patientName}`}
+          placeholder={listening ? "Listening…" : "Ask a question"}
           placeholderTextColor={theme.ivory65}
           style={styles.field}
           value={listening ? "" : text}
