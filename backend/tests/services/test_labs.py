@@ -58,16 +58,17 @@ def invoke(fn, *args, session, **kwargs):
     return fn(*args, **kwargs)
 
 
-def install_seams(monkeypatch, tmp_path):
+def install_seams(monkeypatch):
     analyte_calls = []
     propose_calls = []
+    saved = {}
 
     def extract_analytes(content, media_type):
         analyte_calls.append((content, media_type))
         return copy.deepcopy(ANALYTES)
 
-    def storage_root():
-        return tmp_path
+    def save_object(storage_key, content):
+        saved[storage_key] = content
 
     def propose_change(*args, **kwargs):
         propose_calls.append((args, kwargs))
@@ -79,8 +80,8 @@ def install_seams(monkeypatch, tmp_path):
         raising=False,
     )
     monkeypatch.setattr(
-        "app.services.labs.storage_root",
-        storage_root,
+        "app.services.labs.save_object",
+        save_object,
         raising=False,
     )
     monkeypatch.setattr(
@@ -88,7 +89,7 @@ def install_seams(monkeypatch, tmp_path):
         propose_change,
         raising=False,
     )
-    return analyte_calls, propose_calls, storage_root
+    return analyte_calls, propose_calls, saved
 
 
 def rows_by_id(rows):
@@ -130,10 +131,10 @@ def assert_stored_suggestion(stored, analyte):
 
 
 def test_extract_lab_report_saves_photo_and_inserts_suggestions(
-    seeded_db, tmp_path, monkeypatch
+    seeded_db, monkeypatch
 ):
     session = seeded_db.session
-    analyte_calls, propose_calls, storage_root = install_seams(monkeypatch, tmp_path)
+    analyte_calls, propose_calls, saved = install_seams(monkeypatch)
     observations_before = list_observations_by_patient(session, JANE_ID)
     suggestions_before = list_suggestions(session, JANE_ID)
 
@@ -161,10 +162,7 @@ def test_extract_lab_report_saves_photo_and_inserts_suggestions(
     storage_key = document["storage_key"]
     assert isinstance(storage_key, str) and storage_key
     assert not Path(storage_key).is_absolute()
-    assert str(tmp_path) not in storage_key
-    saved = Path(storage_root()) / storage_key
-    assert saved.is_file()
-    assert saved.read_bytes() == IMAGE
+    assert saved == {storage_key: IMAGE}
 
     observations = list_observations_by_patient(session, JANE_ID)
     assert rows_by_id(observations) == rows_by_id(observations_before)

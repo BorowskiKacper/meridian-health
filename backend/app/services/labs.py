@@ -1,15 +1,23 @@
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import uuid4
 
+import boto3
+
+from app.config import S3_BUCKET, S3_REGION
 from app.db.repositories import insert_document, insert_suggestion
 from app.schemas import Suggestion
 
 _FLAGGED = frozenset({"low_confidence", "out_of_range"})
 
 
-def storage_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "storage"
+def save_object(storage_key, content):
+    if not S3_BUCKET:
+        raise RuntimeError("S3_BUCKET is not set.")
+    client_kwargs = {}
+    if S3_REGION:
+        client_kwargs["region_name"] = S3_REGION
+    client = boto3.client("s3", **client_kwargs)
+    client.put_object(Bucket=S3_BUCKET, Key=storage_key, Body=content)
 
 
 def extract_analytes(content, media_type) -> list:
@@ -49,9 +57,7 @@ def _suggestion_payload(patient_id, analyte):
 def extract_lab_report(patient_id, content, media_type, *, session):
     document_id = str(uuid4())
     storage_key = f"{patient_id}/{document_id}.bin"
-    destination = storage_root() / storage_key
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(content)
+    save_object(storage_key, content)
 
     document = insert_document(
         session,

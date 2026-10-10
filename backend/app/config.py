@@ -49,6 +49,8 @@ _ENV_NAMES = (
     "TWILIO_AUTH_TOKEN",
     "TWILIO_FROM_NUMBER",
     "ELEVENLABS_API_KEY",
+    "S3_BUCKET",
+    "S3_REGION",
 )
 
 

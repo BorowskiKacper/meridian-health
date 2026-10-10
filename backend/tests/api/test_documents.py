@@ -11,7 +11,7 @@ LDL = {
 }
 
 
-def test_lab_photo_returns_a_pending_observation(seeded_db, monkeypatch, client, tmp_path):
+def test_lab_photo_returns_a_pending_observation(seeded_db, monkeypatch, client):
     bind_session(monkeypatch, seeded_db.session)
     session = seeded_db.session
 
@@ -19,7 +19,7 @@ def test_lab_photo_returns_a_pending_observation(seeded_db, monkeypatch, client,
         return [dict(LDL)]
 
     monkeypatch.setattr("app.services.labs.extract_analytes", extract_analytes)
-    monkeypatch.setattr("app.services.labs.storage_root", lambda: tmp_path)
+    monkeypatch.setattr("app.services.labs.save_object", lambda storage_key, content: None)
     monkeypatch.setattr(
         "app.api.routes.documents.extract_analytes",
         extract_analytes,
