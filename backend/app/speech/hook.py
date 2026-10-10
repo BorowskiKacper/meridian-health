@@ -1,6 +1,6 @@
 class SpeechHook:
     def transcribe(self, audio):
-        raise NotImplementedError
+        return None
 
     def synthesize(self, text):
-        raise NotImplementedError
+        return None
