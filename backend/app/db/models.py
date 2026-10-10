@@ -129,6 +129,22 @@ class Medication(Base):
     body_region_key: Mapped[str] = _region_fk()
 
 
+class Allergy(Base):
+    __tablename__ = "allergies"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    patient_id: Mapped[uuid.UUID] = _uuid_fk("patients")
+    substance: Mapped[str] = _required_string()
+    # drug, food, environmental, or nkda for a verified "no known drug allergies".
+    category: Mapped[str] = _required_string()
+    reaction: Mapped[str] = _required_string()
+    # none, mild, moderate, severe, anaphylaxis
+    severity: Mapped[str] = _required_string()
+    status: Mapped[str] = _required_string()
+    recorded_on: Mapped[object] = mapped_column(Date, nullable=False)
+    verified_by: Mapped[str] = _required_string()
+
+
 class FamilyHistory(Base):
     __tablename__ = "family_history"
 

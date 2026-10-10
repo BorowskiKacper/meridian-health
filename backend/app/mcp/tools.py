@@ -9,6 +9,7 @@ from app.db.repositories import (
     get_coverage_by_patient,
     get_patient,
     insert_suggestion,
+    list_allergies_by_patient,
     list_conditions_by_patient,
     list_encounters_by_patient,
     list_family_history_by_patient,
@@ -20,7 +21,7 @@ from app.db.repositories import (
 )
 from app.schemas import Suggestion
 
-_DATE_FIELDS = ("onset_date", "start_date", "due_on")
+_DATE_FIELDS = ("onset_date", "start_date", "due_on", "recorded_on")
 _TIMESTAMP_FIELDS = ("observed_at", "occurred_at")
 _COVERAGE_FIELDS = (
     "payer_name",
@@ -42,6 +43,7 @@ def get_patient_context(patient_id, *, session):
     return {
         "patient_id": str(patient["id"]),
         "age": _age(patient["date_of_birth"]),
+        "allergies": _rows(list_allergies_by_patient(session, patient_id)),
         "conditions": _rows(list_conditions_by_patient(session, patient_id)),
         "medications": _rows(list_medications_by_patient(session, patient_id)),
         "recent_observations": _rows(list_observations_by_patient(session, patient_id)),

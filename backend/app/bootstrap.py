@@ -9,15 +9,22 @@ from app.runtime import get_engine
 from app.db.models import Base
 from app.db.repositories import list_patients
 
+_SEED_DIR = Path(__file__).resolve().parents[1] / "seed"
 
-def _seed():
-    path = Path(__file__).resolve().parents[1] / "seed" / "seed.py"
-    spec = importlib.util.spec_from_file_location("emr_seed_module", path)
+
+def _load(name):
+    path = _SEED_DIR / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"emr_{name}_module", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"could not load seed from {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.seed
+    return module
+
+
+def _seed(session):
+    base = _load("seed").seed
+    return _load("demo").seed_demo(session, base)
 
 
 def prepare_database():
@@ -27,7 +34,7 @@ def prepare_database():
     try:
         if list_patients(session):
             return False
-        _seed()(session)
+        _seed(session)
         session.commit()
         return True
     except Exception:

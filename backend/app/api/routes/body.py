@@ -15,6 +15,16 @@ def list_patients():
     return finish(result)
 
 
+@router.get("/patients/{patient_id}/chart")
+def get_chart(patient_id: str):
+    import app.api.db as api_db
+    import app.services.chart as chart
+
+    session = api_db.get_session()
+    result = chart.get_chart(patient_id, session=session)
+    return finish(result)
+
+
 @router.get("/patients/{patient_id}/body-state")
 def get_body_state(patient_id: str, specialty: str):
     import app.api.db as api_db
