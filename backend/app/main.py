@@ -9,6 +9,7 @@ from app.api.errors import validation_message
 from app.api.routes import (
     appointments,
     body,
+    chart_entries,
     documents,
     eligibility,
     reminders,
@@ -20,6 +21,7 @@ from app.api.routes import (
 
 app = FastAPI()
 app.include_router(body.router)
+app.include_router(chart_entries.router)
 app.include_router(requests.router)
 app.include_router(suggestions.router)
 app.include_router(documents.router)

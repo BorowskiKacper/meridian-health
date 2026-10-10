@@ -1,6 +1,8 @@
 .env
 storage/
 .venv/
+.local/
+.pytest_cache/
 __pycache__/
 *.pyc
 *.egg-info/

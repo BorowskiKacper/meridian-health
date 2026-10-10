@@ -66,6 +66,6 @@ export const severityColor: Record<Severity, string> = {
 
 export const severityLabel: Record<Severity, string> = {
   critical: "Critical",
-  watch: "Watch",
-  clear: "Clear",
+  watch: "Review",
+  clear: "Recorded",
 };

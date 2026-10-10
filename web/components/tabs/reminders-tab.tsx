@@ -1,78 +1,55 @@
 "use client";
 
+import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { Button } from "@/components/ui/button";
-import { Page, PageHeader, Section } from "@/components/system/primitives";
+import { formatDate } from "@/lib/data";
+import type { Reminder } from "@/lib/types";
+import { Page, PageHeader } from "@/components/system/primitives";
+import { EntryForm, Field, entryButton, entryInput, startChartEntry } from "@/components/chart-entry/entry-form";
 
-const statusLabel = { scheduled: "Scheduled", due: "Due", sent: "Reminded", paused: "Paused", done: "Done" } as const;
+const statusLabel = { scheduled: "Scheduled", due: "Due", sent: "Reminder sent", paused: "Paused", done: "Completed" } as const;
 
 export function RemindersTab({ patientId }: { patientId: string }) {
   const patient = useStore((s) => s.patients[patientId]);
-  const sms = useStore((s) => s.sms[patientId]);
-  const runReminders = useStore((s) => s.runReminders);
-  const optOut = useStore((s) => s.optOut);
+  const [editingId, setEditingId] = useState<string | null>(null);
   if (!patient) return null;
+  const active = patient.reminders.filter((r) => r.status !== "done" && r.status !== "paused").sort((a, b) => a.dueOn.localeCompare(b.dueOn));
+  const history = patient.reminders.filter((r) => r.status === "done" || r.status === "paused").sort((a, b) => b.dueOn.localeCompare(a.dueOn));
 
-  const open = patient.reminders.filter((r) => r.status === "due" || r.status === "sent");
-  const upcoming = patient.reminders.filter((r) => r.status !== "due" && r.status !== "sent");
-
-  return (
-    <Page>
-      <PageHeader eyebrow={patient.name} title="Care gaps">
-        Screenings and monitoring the guidelines say are due. A reminder that was sent and not yet scheduled stays here until the visit happens.
-      </PageHeader>
-
-      <Section title={`Open · ${open.length}`}>
-        {open.length === 0 ? (
-          <p className="text-[14px] text-ink-faint">Nothing overdue.</p>
-        ) : (
-          <ReminderList items={open} />
-        )}
-      </Section>
-
-      {upcoming.length > 0 && (
-        <Section title="Upcoming">
-          <ReminderList items={upcoming} />
-        </Section>
-      )}
-
-      <Section title="SMS">
-        <div className="flex flex-wrap gap-2">
-          <Button className="rounded-full px-4" onClick={() => runReminders(patientId)}>
-            Run on a simulated date
-          </Button>
-          <Button variant="outline" className="rounded-full px-4" disabled={!patient.smsOptIn} onClick={() => optOut(patientId)}>
-            Patient replies STOP
-          </Button>
+  const taskRow = (task: Reminder) => <li key={task.id} className="py-6">
+    <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+      <div className="min-w-0 flex-1 basis-56">
+        <h3 className="font-sans text-[15px] font-semibold leading-relaxed text-ink">{task.title}</h3>
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-ink-soft">
+          <span>Due <time dateTime={task.dueOn}>{formatDate(task.dueOn)}</time></span>
+          <span className={task.status === "due" ? "font-medium text-jade-700" : ""}>{statusLabel[task.status]}</span>
         </div>
-        <div className="mt-6 max-w-md rounded-2xl rounded-bl-sm bg-ivory px-4 py-3 text-[14px] text-ink">
-          {sms ?? (patient.smsOptIn ? "No message sent yet." : "SMS is off for this patient.")}
-        </div>
-        <p className="mt-3 text-[12px] text-ink-faint">Messages never include health details. A real send goes through Twilio.</p>
-      </Section>
-    </Page>
-  );
-}
+        {task.rule && <details className="mt-3 text-[12px] text-ink-faint">
+          <summary className="w-fit cursor-pointer hover:text-jade-700">Task source</summary>
+          <p className="mt-2 break-words leading-relaxed">Recorded source: {task.rule.source}</p>
+        </details>}
+      </div>
+      <button type="button" className={`${entryButton} shrink-0`} aria-expanded={editingId === task.id} onClick={() => {
+        if (editingId !== task.id) startChartEntry(patientId, `follow-up/${task.id}`);
+        setEditingId(editingId === task.id ? null : task.id);
+      }}>{editingId === task.id ? "Close editor" : "Update task"}</button>
+    </div>
+    {editingId === task.id && <EntryForm key={task.id} patientId={patientId} title="Update follow-up" path={`follow-up/${task.id}`} method="PUT" initial={{ due_on: task.dueOn, status: task.status === "sent" ? "scheduled" : task.status }} build={(values) => values} onSaved={() => setEditingId(null)} defaultOpen>{(values, change) => <>
+      <Field label="Due date"><input className={entryInput} type="date" required value={values.due_on} onChange={(event) => change("due_on", event.target.value)} /></Field>
+      <Field label="Task status"><select className={entryInput} value={values.status} onChange={(event) => change("status", event.target.value)}>{["scheduled", "due", "paused", "done"].map((status) => <option key={status} value={status}>{statusLabel[status as keyof typeof statusLabel]}</option>)}</select></Field>
+      <p className="text-[12px] leading-relaxed text-ink-soft @min-[700px]:col-span-2">Mark Completed once this follow-up has been completed.</p>
+    </>}</EntryForm>}
+  </li>;
 
-function ReminderList({ items }: { items: { id: string; title: string; detail: string; status: keyof typeof statusLabel; rule?: { name: string; baselineAge: number; source: string } }[] }) {
-  return (
-    <ul className="divide-y divide-hairline border-t border-hairline">
-      {items.map((r) => (
-        <li key={r.id} className="flex items-baseline gap-6 py-4">
-          <div className="min-w-0 flex-1">
-            <p className="font-serif text-[18px] text-jade-900">{r.title}</p>
-            <p className="mt-1 text-[13px] text-ink-soft">{r.detail}</p>
-            {r.rule && (
-              <p className="mt-1 text-[12px] text-ink-faint">
-                {r.rule.source.replace(":", " · ")} · baseline age {r.rule.baselineAge}
-              </p>
-            )}
-          </div>
-          <span className={r.status === "due" ? "text-[13px] font-semibold text-critical" : "text-[13px] text-ink-faint"}>
-            {statusLabel[r.status]}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
+  return <Page>
+    <PageHeader eyebrow={patient.name} title="Follow-up">Screening and monitoring tasks on this chart.</PageHeader>
+    <section className="mt-9" aria-label="Open follow-up tasks">
+      <h2 className="mb-3 font-sans text-[13px] font-semibold text-ink-soft">Open tasks <span className="ml-2 font-normal text-ink-faint">{active.length}</span></h2>
+      {active.length ? <ul className="divide-y divide-hairline border-y border-hairline">{active.map(taskRow)}</ul> : <p className="border-y border-hairline py-6 text-[13px] text-ink-soft">No open follow-up tasks recorded.</p>}
+    </section>
+    {history.length > 0 && <details className="mt-8">
+      <summary className="w-fit cursor-pointer text-[13px] font-medium text-ink-soft hover:text-jade-700">Completed & paused <span className="ml-2 text-ink-faint">{history.length}</span></summary>
+      <ul className="mt-4 divide-y divide-hairline border-y border-hairline">{history.map(taskRow)}</ul>
+    </details>}
+  </Page>;
 }

@@ -25,17 +25,22 @@ export const bodyContext = [
 ];
 
 export const tabLabel: Record<TabKind, string> = {
-  body: "Body",
+  overview: "Overview",
+  visit: "Visit draft",
+  vitals: "Vitals & trends",
+  problems: "Problems",
+  medications: "Medications",
+  allergies: "Allergies",
+  body: "Anatomy",
   region: "Region",
   timeline: "Timeline",
   queue: "Approvals",
   research: "Research",
   lab: "Lab document",
-  reminders: "Reminders",
-  chat: "Conversation",
+  reminders: "Follow-up",
 };
 
-export const openableTabs: TabKind[] = ["body", "timeline", "queue", "lab", "reminders"];
+export const openableTabs: TabKind[] = ["overview", "visit", "vitals", "problems", "medications", "allergies", "timeline", "body", "queue", "lab", "reminders"];
 
 const SPECIALTY_NAMES: Record<string, string> = {
   all: "All findings",
@@ -54,7 +59,7 @@ export function specialtyLabel(specialty: Specialty): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export const severityLabel = { critical: "Critical", watch: "Watch", clear: "Clear" } as const;
+export const severityLabel = { critical: "Critical", watch: "Review", clear: "Recorded" } as const;
 export const kindLabel = { injury: "Injury", disease: "Disease", lab: "Lab" } as const;
 
 const MONTH_YEAR: Intl.DateTimeFormatOptions = { month: "short", year: "numeric", timeZone: "UTC" };
@@ -93,8 +98,8 @@ export function findingVisible(finding: Finding, minute: number, specialty: Spec
   return specialty === "all" || finding.specialties.includes(specialty);
 }
 
-/** A stable accent per patient so two open charts never look alike. */
-const PATIENT_HUES = ["#33cab1", "#e9b949", "#7fb3f0", "#f08c7d", "#c59cf0", "#8fd694"];
+/** Subtle accents supplement the explicit patient names and initials. */
+const PATIENT_HUES = ["#c4d9cb", "#dce8e1", "#b7d0c5", "#d4dfd4", "#c7dcd6", "#dfe7d9"];
 
 export function patientHue(patientId: string): string {
   let hash = 0;

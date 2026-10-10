@@ -40,8 +40,8 @@ export function BodyTab({ patientId }: { patientId: string }) {
   return (
     <Page wide>
       <PageHeader
-        eyebrow={`${patient.mrn} · ${patient.age} ${patient.sex}${patient.dob ? ` · born ${formatDate(patient.dob)}` : ""}`}
-        title={patient.name}
+        eyebrow="Optional spatial view"
+        title="Anatomy explorer"
         actions={
           <button
             type="button"
@@ -50,14 +50,14 @@ export function BodyTab({ patientId }: { patientId: string }) {
             className="flex h-9 items-center gap-2 rounded-md border border-hairline-strong bg-white px-3.5 text-[13px] text-jade-900 hover:bg-jade-50 disabled:opacity-40"
           >
             {snapshot.walking ? <Square className="size-3.5" /> : <Footprints className="size-3.5" />}
-            {snapshot.walking ? "Stop the walk" : "Walk the marks"}
+            {snapshot.walking ? "Stop tour" : "Review regions"}
           </button>
         }
       >
-        {patient.summary}
+        Illustrative anatomy linked to chart findings. Measurements below are the latest recorded values; the map does not establish patient-specific anatomy or laterality.
       </PageHeader>
 
-      <div className="mt-10 flex flex-wrap items-end gap-10 border-b border-hairline pb-6">
+      <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-5 border-b border-hairline pb-5">
         <label className="grid gap-2">
           <span className="eyebrow">Specialty</span>
           <Select
@@ -77,9 +77,9 @@ export function BodyTab({ patientId }: { patientId: string }) {
             </SelectContent>
           </Select>
         </label>
-        <div className="grid min-w-64 flex-1 gap-3">
+        <div className="grid min-w-0 basis-64 flex-1 gap-3">
           <span className="eyebrow flex justify-between">
-            <span>Chart as of</span>
+            <span>Findings recorded by</span>
             <span className="numeric font-normal tracking-normal normal-case text-ink-soft">
               {atNow ? `Today · ${formatDate(sliderDate)}` : formatDate(sliderDate)}
             </span>
@@ -88,7 +88,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
             value={[view.minute]}
             max={NOW_MINUTE}
             onValueChange={(value) => setView(patientId, { minute: Array.isArray(value) ? value[0]! : value })}
-            aria-label="Chart as of"
+            aria-label="Findings recorded by"
           />
           <span className="flex justify-between text-[11px] text-ink-faint">
             <span>{formatMonth(patient.span.start)}</span>
@@ -97,14 +97,14 @@ export function BodyTab({ patientId }: { patientId: string }) {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="body-overview mt-6">
         <BodyStage
           viewRef={viewRef}
           labelsRef={labelsRef}
           scene={scene}
           snapshot={snapshot}
           retry={retry}
-          className="h-[min(72vh,720px)] min-h-[460px]"
+          className="anatomy-stage"
         />
 
         <div>

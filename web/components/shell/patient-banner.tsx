@@ -1,98 +1,50 @@
 "use client";
 
-import { formatDate, initials, patientHue } from "@/lib/data";
+import { ChevronRight, ShieldAlert } from "lucide-react";
+import { formatDate, initials } from "@/lib/data";
+import { allergySummary, currentAllergies } from "@/lib/clinical";
 import { useStore } from "@/lib/store";
-import type { Allergy, Patient, WorkTab } from "@/lib/types";
-
-const SEVERE = new Set(["severe", "anaphylaxis"]);
+import type { WorkTab } from "@/lib/types";
+import { PatientSearch } from "./patient-search";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export function PatientBanner({ tab }: { tab: WorkTab }) {
-  const patient = useStore((s) => s.patients[tab.patientId]);
+  const patients = useStore((s) => s.patients);
+  const patient = patients[tab.patientId];
   const openTab = useStore((s) => s.openTab);
   if (!patient) return null;
-
-  const activeProblems = patient.problems.filter((p) => p.status === "active").length;
-  const activeMeds = patient.medications.filter((m) => m.status === "active").length;
-  const nextDue = [...patient.reminders].sort((a, b) => a.dueOn.localeCompare(b.dueOn)).find((r) => r.status === "due" || r.status === "sent");
-  const hue = patientHue(patient.id);
+  const problems = patient.problems.filter((p) => p.status !== "resolved").length;
+  const meds = patient.medications.filter((m) => m.status === "active").length;
+  const severe = currentAllergies(patient.allergies).some((a) => ["severe", "anaphylaxis"].includes(a.severity));
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-hairline bg-ivory px-8 py-2.5 text-[13px]">
-      <span className="flex items-center gap-2.5">
-        <span
-          aria-hidden
-          className="grid size-7 place-items-center rounded-full text-[11px] font-semibold text-jade-900"
-          style={{ background: hue }}
-        >
-          {initials(patient.name)}
-        </span>
-        <span>
-          <span className="font-semibold text-jade-900">{patient.name}</span>
-          <span className="ml-2 text-ink-faint">
-            {patient.age} {patient.sex} · {patient.mrn}
-            {patient.dob ? ` · ${formatDate(patient.dob)}` : ""}
-          </span>
-        </span>
-      </span>
-
-      <AllergyList allergies={patient.allergies} />
-
-      <span className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1 text-ink-soft">
-        <BannerLink onClick={() => openTab("body", patient.id)} label={`${activeProblems} active problem${activeProblems === 1 ? "" : "s"}`} />
-        <BannerLink onClick={() => openTab("body", patient.id)} label={`${activeMeds} medication${activeMeds === 1 ? "" : "s"}`} />
-        {patient.pendingCount > 0 && (
-          <BannerLink onClick={() => openTab("queue", patient.id)} label={`${patient.pendingCount} pending approval${patient.pendingCount === 1 ? "" : "s"}`} accent />
-        )}
-        {nextDue && <BannerLink onClick={() => openTab("reminders", patient.id)} label={`${nextDue.title} · ${nextDue.status === "due" ? "due" : "reminded"}`} />}
-        {patient.coverage && (
-          <span className="text-ink-faint">
-            {patient.coverage.payer} {patient.coverage.plan}
-            {patient.coverage.active ? "" : " · inactive"}
-          </span>
-        )}
-      </span>
+    <div className="shrink-0 border-b border-hairline bg-ivory text-[13px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-3 @min-[600px]:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-md bg-jade-100 font-semibold text-jade-900">{initials(patient.name)}</span>
+          <div className="min-w-0">
+            <PatientSearch variant="name" patientName={patient.name} />
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">DOB {patient.dob ? formatDate(patient.dob) : "not recorded"} · {patient.age} years · <span className="capitalize">{patient.sex}</span></p>
+            <p className="text-[11px] text-ink-faint" title={`Full record ID: ${patient.id}`}>Record {patient.mrn}</p>
+          </div>
+        </div>
+        <button type="button" onClick={() => openTab("allergies", patient.id)} aria-label="Review allergies"
+          className="flex max-w-sm items-start gap-2.5 rounded-md border border-hairline px-3 py-2 text-left hover:bg-white">
+          <ShieldAlert className={`mt-0.5 size-4 shrink-0 ${severe ? "text-critical" : "text-ink-soft"}`} />
+          <span><span className="block text-[11px] font-semibold text-ink-soft">Allergies{severe ? " · Severe reaction recorded" : ""}</span><span className={`mt-0.5 block text-[12px] ${severe ? "text-critical" : "text-ink"}`}>{allergySummary(patient.allergies)}</span></span>
+          <ChevronRight className="mt-1 size-3.5 shrink-0 text-ink-faint" />
+        </button>
+      </div>
+      <nav aria-label="Patient chart sections" className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline px-5 py-2 text-[12px] text-ink-soft @min-[600px]:px-8">
+        <button type="button" onClick={() => openTab("overview", patient.id)} className="hover:text-jade-700">Overview</button>
+        <button type="button" onClick={() => openTab("problems", patient.id)} className="hover:text-jade-700">Problems <span className="numeric font-semibold">{problems}</span></button>
+        <button type="button" onClick={() => openTab("medications", patient.id)} className="hover:text-jade-700">Medications <span className="numeric font-semibold">{meds}</span></button>
+        <button type="button" onClick={() => openTab("vitals", patient.id)} className="hover:text-jade-700">Vitals & trends</button>
+        <button type="button" onClick={() => openTab("visit", patient.id)} className="hover:text-jade-700">Visit draft</button>
+        <button type="button" onClick={() => openTab("reminders", patient.id)} className="hover:text-jade-700">Follow-up</button>
+        <DropdownMenu><DropdownMenuTrigger aria-label="More chart views" className="hover:text-jade-700">More</DropdownMenuTrigger><DropdownMenuContent className="w-44"><DropdownMenuGroup>{([ ["timeline", "Timeline"], ["lab", "Lab document"], ["body", "Anatomy"], ["queue", "Approvals"] ] as const).map(([kind, label]) => <DropdownMenuItem key={kind} closeOnClick onClick={() => openTab(kind, patient.id)}>{label}</DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
+        {patient.pendingCount > 0 && <button type="button" onClick={() => openTab("queue", patient.id)} className="font-semibold text-jade-700">{patient.pendingCount} pending approvals</button>}
+      </nav>
     </div>
   );
-}
-
-function BannerLink({ onClick, label, accent }: { onClick: () => void; label: string; accent?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} className={accent ? "font-semibold text-jade-700 hover:text-jade-900" : "hover:text-ink"}>
-      {label}
-    </button>
-  );
-}
-
-function AllergyList({ allergies }: { allergies: Allergy[] }) {
-  const recorded = allergies.filter((a) => a.category !== "nkda");
-  if (!recorded.length) {
-    const verified = allergies.some((a) => a.category === "nkda");
-    return <span className="text-ink-faint">{verified ? "No known drug allergies" : "Allergies not recorded"}</span>;
-  }
-  return (
-    <span className="flex flex-wrap items-center gap-1.5" aria-label="Allergies">
-      {recorded.map((allergy) => {
-        const severe = SEVERE.has(allergy.severity);
-        return (
-          <span
-            key={allergy.id}
-            title={`${allergy.category} · ${allergy.reaction} · recorded ${allergy.recordedOn ?? "unknown"}`}
-            className={
-              severe
-                ? "rounded-full bg-critical/10 px-2 py-0.5 font-semibold text-critical"
-                : "rounded-full bg-watch/15 px-2 py-0.5 text-watch"
-            }
-          >
-            {allergy.substance}
-            <span className="ml-1 font-normal opacity-75">{allergy.reaction}</span>
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-/** Used by the tab strip to show whose chart a tab belongs to. */
-export function patientOf(patient: Patient | undefined) {
-  return patient?.name.split(" ").at(-1);
 }

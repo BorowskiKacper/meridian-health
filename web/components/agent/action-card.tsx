@@ -22,12 +22,13 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
   return (
     <article
       className={cn(
-        "agent-card rounded-lg px-4 py-3.5 transition-colors",
+        "agent-card min-w-0 rounded-lg transition-colors",
+        detailed ? "px-5 py-5" : "px-4 py-3.5",
         pending ? "border border-dashed border-jade-600/45 bg-white" : "border border-hairline bg-transparent",
         action.status === "rejected" && "opacity-55",
       )}
     >
-      <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
         <span className={cn("agent-accent", pending ? "text-jade-700" : "text-ink-faint")}>{kindLabel[payload.kind]}</span>
         {detailed && <span className="font-normal tracking-normal normal-case text-ink-faint">· {patientName}</span>}
         {!pending && (
@@ -38,7 +39,7 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
         )}
       </div>
 
-      <h3 className={cn("agent-text mt-1.5 font-sans text-[15px] font-semibold text-ink", action.status === "rejected" && "line-through")}>
+      <h3 className={cn("agent-text mt-3 break-words font-sans text-[15px] font-semibold text-ink", action.status === "rejected" && "line-through")}>
         {action.title}
       </h3>
 
@@ -49,17 +50,17 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
           <p className="text-ink-faint">Only this de-identified query is sent. No name, MRN, or dates.</p>
         </div>
       ) : action.before || action.after ? (
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
+        <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-[13px] leading-relaxed">
           {action.before && (
             <>
               <dt className="text-ink-faint">Before</dt>
-              <dd className="text-ink-soft">{action.before}</dd>
+              <dd className="min-w-0 break-words text-ink-soft">{action.before}</dd>
             </>
           )}
           {action.after && (
             <>
               <dt className="text-ink-faint">After</dt>
-              <dd className="text-ink">{action.after}</dd>
+              <dd className="min-w-0 break-words text-ink">{action.after}</dd>
             </>
           )}
         </dl>
@@ -68,17 +69,17 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
       )}
 
       {(detailed || action.confidence || action.citations?.length) && (
-        <p className="mt-2.5 text-[12px] leading-relaxed text-ink-faint">
+        <p className="mt-4 break-words text-[12px] leading-relaxed text-ink-faint">
           {[action.source, action.confidence, ...(action.citations ?? [])].filter(Boolean).join(" · ")}
         </p>
       )}
 
       {pending && (
-        <div className="mt-3 flex gap-2">
-          <Button size="sm" className="rounded-full px-3.5" onClick={() => approve(action.id)}>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button size="sm" className="rounded-md px-3.5" onClick={() => approve(action.id)}>
             Approve
           </Button>
-          <Button size="sm" variant="ghost" className="rounded-full px-3 text-ink-soft" onClick={() => reject(action.id)}>
+          <Button size="sm" variant="ghost" className="rounded-md px-3 text-ink-soft" onClick={() => reject(action.id)}>
             Reject
           </Button>
         </div>

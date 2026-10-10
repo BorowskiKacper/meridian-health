@@ -1,66 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { Maximize2, Minimize2, MessageSquare, Plus, X } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import { openableTabs, tabLabel } from "@/lib/data";
+import { tabLabel } from "@/lib/data";
 import type { WorkTab } from "@/lib/types";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/components/system/icon-button";
+import { PatientSearch } from "./patient-search";
 import { TabContent } from "@/components/tabs/tab-content";
 import { PatientBanner } from "./patient-banner";
 import { initials, patientHue } from "@/lib/data";
 
-export function Workspace() {
+export function Workspace({ hidden }: { hidden: boolean }) {
   const tabs = useStore((s) => s.tabs);
   const activeTabId = useStore((s) => s.activeTabId);
-  const layout = useStore((s) => s.layout);
-  const agentOpen = useStore((s) => s.agentOpen);
-  const setLayout = useStore((s) => s.setLayout);
-  const setAgentOpen = useStore((s) => s.setAgentOpen);
   const active = tabs.find((t) => t.id === activeTabId);
-  const assistantHidden = layout === "workspace" || !agentOpen;
+  const content = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { if (content.current) content.current.scrollTop = 0; }, [activeTabId]);
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-end gap-6 px-6">
-        <span className="mb-3.5 shrink-0 font-serif text-[17px] text-jade-900">
-          Round<span className="text-jade-600">.</span>
-        </span>
+    <main className={cn("chart-workspace min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-hairline-strong bg-white", hidden ? "hidden" : "flex")}>
+      <header className="flex h-12 shrink-0 items-end gap-3 border-b border-hairline px-3">
         <TabStrip />
-        <div className="mb-2 ml-auto flex shrink-0 items-center gap-1">
-          <IconButton
-            label={layout === "workspace" ? "Exit full screen" : "Full screen"}
-            onClick={() => setLayout(layout === "workspace" ? "split" : "workspace")}
-          >
-            {layout === "workspace" ? <Minimize2 /> : <Maximize2 />}
-          </IconButton>
-          {assistantHidden && (
-            <IconButton
-              label="Show assistant"
-              onClick={() => {
-                setLayout("split");
-                setAgentOpen(true);
-              }}
-            >
-              <MessageSquare />
-            </IconButton>
-          )}
-        </div>
+        <PatientSearch />
       </header>
-      <section className="min-h-0 flex-1 px-3 pb-3">
-        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-hairline bg-white">
+      <section className="min-h-0 flex-1">
+        <div className="flex h-full flex-col overflow-hidden">
           {active && <PatientBanner tab={active} />}
-          <div className="min-h-0 flex-1 overflow-auto">{active ? <TabContent tab={active} /> : <EmptyWorkspace />}</div>
+          <div ref={content} className="min-h-0 flex-1 overflow-auto">{active ? <TabContent tab={active} /> : <EmptyWorkspace />}</div>
         </div>
       </section>
     </main>
@@ -77,7 +44,7 @@ function TabStrip() {
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
   return (
-    <nav className="flex min-w-0 items-end gap-1 overflow-x-auto" aria-label="Open tabs">
+    <nav className="flex min-w-0 flex-1 items-end gap-1 overflow-x-auto" aria-label="Open tabs">
       {tabs.map((tab, index) => (
         <div
           key={tab.id}
@@ -113,7 +80,7 @@ function TabStrip() {
             overIndex === index && dragId !== tab.id && "before:absolute before:top-2 before:bottom-2 before:-left-0.5 before:w-0.5 before:bg-jade-600",
           )}
         >
-          <button type="button" className="flex items-center gap-1.5 outline-none" onClick={() => activateTab(tab.id)}>
+          <button type="button" aria-current={tab.id === activeTabId ? "page" : undefined} className="flex items-center gap-1.5 outline-none" onClick={() => activateTab(tab.id)}>
             <PatientMark patientId={tab.patientId} />
             <TabTitle tab={tab} />
           </button>
@@ -127,7 +94,6 @@ function TabStrip() {
           </button>
         </div>
       ))}
-      <NewTabMenu />
     </nav>
   );
 }
@@ -135,9 +101,8 @@ function TabStrip() {
 function TabTitle({ tab }: { tab: WorkTab }) {
   const patient = useStore((s) => s.patients[tab.patientId]);
   const finding = patient?.findings.find((f) => f.id === tab.refId);
-  const conversation = useStore((s) => s.conversations.find((c) => c.id === tab.refId));
   const title =
-    tab.kind === "region" && finding ? finding.title : tab.kind === "chat" && conversation ? "Conversation" : tabLabel[tab.kind];
+    tab.kind === "region" && finding ? finding.title : tabLabel[tab.kind];
   const surname = patient?.name.split(" ").at(-1);
   return (
     <>
@@ -159,34 +124,6 @@ function PatientMark({ patientId }: { patientId: string }) {
     >
       {initials(patient.name)}
     </span>
-  );
-}
-
-function NewTabMenu() {
-  const patients = useStore((s) => s.patients);
-  const openTab = useStore((s) => s.openTab);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Open a tab"
-        className="mb-1.5 grid size-7 shrink-0 place-items-center rounded-md text-ink-faint outline-none hover:bg-ivory-deep hover:text-ink"
-      >
-        <Plus className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        {Object.values(patients).map((patient, index) => (
-          <DropdownMenuGroup key={patient.id}>
-            {index > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuLabel>{patient.name}</DropdownMenuLabel>
-            {openableTabs.map((kind) => (
-              <DropdownMenuItem key={kind} onClick={() => openTab(kind, patient.id)}>
-                {tabLabel[kind]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

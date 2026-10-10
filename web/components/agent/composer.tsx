@@ -61,7 +61,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
         event.preventDefault();
         submit();
       }}
-      className="agent-composer rounded-2xl border border-hairline-strong bg-white shadow-[0_1px_2px_rgb(0_54_45/0.04),0_8px_24px_-12px_rgb(0_54_45/0.12)] focus-within:border-jade-600/50"
+      className="agent-composer rounded-lg border border-hairline-strong bg-white focus-within:border-jade-600/50"
     >
       <textarea
         ref={field}
@@ -74,10 +74,11 @@ export function Composer({ conversationId }: { conversationId: string }) {
           }
         }}
         rows={1}
+        aria-label={`Message about ${patient?.name ?? "this patient"}`}
         placeholder={listening ? "Listening…" : `Message about ${patient?.name ?? "this patient"}`}
         className="field-sizing-content block max-h-48 min-h-12 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-relaxed text-ink outline-none placeholder:text-ink-faint"
       />
-      <div className="flex items-center gap-2 px-2 pb-2">
+      <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
         <div role="radiogroup" aria-label="Mode" className="flex items-center gap-0.5">
           {modes.map((item) => (
             <Tooltip key={item.id}>
@@ -87,7 +88,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
                 aria-checked={mode === item.id}
                 onClick={() => setMode(item.id)}
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[12px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                  "rounded-md px-2 py-1 text-[12px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                   mode === item.id ? "agent-mode-on bg-jade-50 font-semibold text-jade-900" : "agent-mode text-ink-faint hover:text-ink",
                 )}
               >

@@ -1,8 +1,16 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.errors import finish
 
 router = APIRouter()
+
+
+@router.get("/patients/search")
+def search_patients(q: str = Query(default="", max_length=200), limit: int = Query(default=20, ge=1, le=20)):
+    import app.api.db as api_db
+    import app.services.patient_search as patient_search
+
+    return finish(patient_search.search_patients(q, limit, session=api_db.get_session()))
 
 
 @router.get("/patients")

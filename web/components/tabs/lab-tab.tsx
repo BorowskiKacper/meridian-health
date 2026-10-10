@@ -14,27 +14,27 @@ export function LabTab({ patientId }: { patientId: string }) {
   return (
     <Page>
       <PageHeader
-        eyebrow={`${patient.name} · Photographed document`}
+        eyebrow={`${patient.name} · Synthetic sample document`}
         title="Lab report"
         actions={
-          <Button className="rounded-full px-4" disabled={extracted} onClick={() => extractLab(patientId)}>
+          <Button className="max-w-full whitespace-normal rounded-md px-4" disabled={extracted} onClick={() => extractLab(patientId)}>
             {extracted ? "Drafts sent to the assistant" : "Extract values"}
           </Button>
         }
       >
-        A photo of a paper report. Extraction drafts the flagged values as chart changes for you to approve.
+        Sample report preview for the extraction workflow.
       </PageHeader>
 
-      <figure className="mt-10 rounded-lg border border-hairline bg-ivory p-10">
-        <div className="mx-auto max-w-2xl bg-white px-10 py-9 shadow-[0_1px_3px_rgb(0_0_0/0.06)]">
-          <div className="flex items-baseline justify-between border-b border-ink/80 pb-3">
+      <figure className="mt-8 rounded-lg border border-hairline bg-ivory p-3 @min-[700px]:p-6">
+        <div className="mx-auto max-w-3xl bg-white px-4 py-6 @min-[700px]:px-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-ink/80 pb-4">
             <p className="font-serif text-[18px] text-ink">{labPanel.lab}</p>
             <p className="text-[12px] text-ink-soft">{labPanel.collected}</p>
           </div>
           <p className="mt-4 text-[13px] text-ink-soft">
             {labPanel.title} · Patient: {patient.name}
           </p>
-          <table className="numeric mt-5 w-full text-[13px]">
+          <div className="mt-6 overflow-x-auto" role="region" aria-label="Sample lab results" tabIndex={0}><table className="numeric w-full min-w-[540px] text-left text-[13px]">
             <thead>
               <tr className="border-b border-hairline-strong text-left text-ink-faint">
                 <th className="py-2 font-normal">Test</th>
@@ -55,9 +55,9 @@ export function LabTab({ patientId }: { patientId: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
-        <figcaption className="mt-4 text-center text-[12px] text-ink-faint">This page is uploaded to the chart when you extract values.</figcaption>
+        <figcaption className="mt-4 text-[12px] leading-relaxed text-ink-faint">Synthetic preview. Extracted values require review before entering the chart.</figcaption>
       </figure>
     </Page>
   );

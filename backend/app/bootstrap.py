@@ -45,5 +45,15 @@ def prepare_database():
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--demo-vitals", action="store_true", help="Add labeled synthetic vital signs to the three demo patients only.")
+    args = parser.parse_args()
     created = prepare_database()
     print("seeded" if created else "already seeded")
+    if args.demo_vitals:
+        with Session(get_engine()) as session:
+            added = _load("vitals").seed_vitals(session)
+            session.commit()
+            print(f"added {added} synthetic demo vital-sign records")

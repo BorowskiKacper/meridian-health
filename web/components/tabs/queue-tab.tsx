@@ -23,18 +23,18 @@ export function QueueTab({ patientId }: { patientId: string }) {
         title="Approvals"
         actions={
           pending.length > 1 && pending.every((a) => a.payload.kind !== "chart_change") && (
-            <Button className="rounded-full px-4" onClick={() => pending.forEach((a) => approve(a.id))}>
+            <Button className="rounded-md px-4" onClick={() => pending.forEach((a) => approve(a.id))}>
               Approve all {pending.length}
             </Button>
           )
         }
       >
-        Every search, new tab, and chart change the assistant proposes waits here. Nothing happens until you approve it.
+        Review proposed changes before they enter the chart.
       </PageHeader>
 
       <Section title={`Waiting · ${pending.length}`}>
         {pending.length ? (
-          <div className="grid gap-3">
+          <div className="grid gap-5">
             {pending.map((action) => (
               <ActionCard key={action.id} action={action} detailed />
             ))}
@@ -45,29 +45,27 @@ export function QueueTab({ patientId }: { patientId: string }) {
       </Section>
 
       {decided.length > 0 && (
-        <Section title="Decided">
-          <div className="grid gap-3">
+        <details className="mt-8 border-t border-hairline pt-4">
+          <summary className="w-fit cursor-pointer text-[13px] font-medium text-jade-700">Previous decisions · {decided.length}</summary>
+          <div className="mt-5 grid gap-5">
             {decided.map((action) => (
               <ActionCard key={action.id} action={action} detailed />
             ))}
           </div>
-        </Section>
+        </details>
       )}
 
-      <Section title="Audit log">
-        {audit.length ? (
-          <ol className="divide-y divide-hairline border-t border-hairline">
+      {audit.length > 0 && <details className="mt-8 border-t border-hairline pt-4">
+        <summary className="w-fit cursor-pointer text-[13px] font-medium text-jade-700">Session activity · {audit.length}</summary>
+          <ol className="mt-4 divide-y divide-hairline">
             {[...audit].reverse().map((row) => (
-              <li key={row.id} className="flex gap-6 py-2.5 text-[13px]">
-                <span className="w-20 shrink-0 text-ink-faint">{row.action}</span>
-                <span className="text-ink">{row.detail}</span>
+              <li key={row.id} className="grid gap-y-2 py-4 text-[13px] @min-[700px]:grid-cols-[6rem_1fr] @min-[700px]:gap-x-6">
+                <span className="text-ink-faint">{row.action}</span>
+                <span className="min-w-0 break-words leading-relaxed text-ink">{row.detail}</span>
               </li>
             ))}
           </ol>
-        ) : (
-          <p className="text-[14px] text-ink-faint">No decisions yet.</p>
-        )}
-      </Section>
+      </details>}
     </Page>
   );
 }

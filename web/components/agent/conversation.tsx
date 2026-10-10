@@ -41,19 +41,22 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
   }, [count, lastText]);
 
   if (!conversation || !patient) return null;
-  const column = wide ? "mx-auto w-full max-w-3xl px-8" : "px-6";
+  const column = wide ? "mx-auto w-full max-w-3xl px-6" : "px-6";
 
   return (
     <div className="flex h-full flex-col">
+      <div className={cn(column, "agent-rule flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-hairline py-4")}>
+        <span className="agent-accent text-[12px] font-semibold text-jade-700">Assistant</span>
+        <span className="agent-dim text-[12px] text-ink-soft">{patient.name} · {patient.mrn}</span>
+      </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
         {conversation.messages.length === 0 ? (
-          <div className={cn(column, "flex min-h-full flex-col justify-end pb-6")}>
-            <p className="eyebrow">{patient.mrn}</p>
-            <h2 className={cn("mt-3 leading-tight", wide ? "text-[34px]" : "text-[26px]")}>
-              What do you need for {patient.name.split(" ")[0]}?
+          <div className={cn(column, "flex min-h-full flex-col py-8")}>
+            <h2 className="text-[25px] leading-tight">
+              How can I help with {patient.name.split(" ")[0]}’s care?
             </h2>
             <p className="agent-dim mt-3 text-sm leading-relaxed text-ink-soft">
-              Dictate a change or ask a question. Searches, new tabs, and chart changes wait for your approval.
+              Review the chart, ask a question, or draft a change. Review proposed chart changes before approving them.
             </p>
             <ul className="agent-rule mt-6 divide-y divide-hairline border-y border-hairline">
               {starters.map((starter) => (
@@ -67,7 +70,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
                     className="agent-dim group flex w-full items-center justify-between gap-4 py-3 text-left text-sm text-ink-soft hover:text-ink"
                   >
                     {starter}
-                    <ArrowUpRight className="size-4 shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ArrowUpRight className="size-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
                   </button>
                 </li>
               ))}
@@ -92,7 +95,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
 
 function DoctorMessage({ message }: { message: Message }) {
   return (
-    <div className="agent-bubble ml-auto w-fit max-w-[85%] rounded-2xl bg-ivory-deep px-4 py-2.5 text-[14px] leading-relaxed text-ink">
+    <div className="agent-bubble ml-auto w-fit max-w-[85%] rounded-lg bg-ivory-deep px-4 py-2.5 text-[14px] leading-relaxed text-ink">
       {message.text}
     </div>
   );
@@ -171,15 +174,15 @@ function ResearchBlock({ researchId }: { researchId: string }) {
   const openTab = useStore((s) => s.openTab);
   if (!result) return null;
   return (
-    <div className="agent-card mt-4 rounded-lg border border-hairline bg-white px-4 py-3.5">
+    <div className="agent-card mt-4 min-w-0 rounded-lg border border-hairline bg-white px-4 py-3.5">
       <p className="text-[12px] text-ink-faint italic">{result.basis}</p>
-      <p className="mt-2 font-serif text-[16px] leading-relaxed text-jade-900">{result.answer}</p>
+      <p className="mt-2 break-words text-[14px] leading-relaxed text-jade-900">{result.answer}</p>
       {result.citations.length > 0 && (
         <ol className="mt-3 space-y-1.5">
           {result.citations.map((citation, index) => (
             <li key={citation.source} className="flex gap-2 text-[12px] leading-snug text-ink-soft">
-              <span className="numeric text-jade-700">{index + 1}</span>
-              {citation.source}
+              <span className="numeric shrink-0 text-jade-700">{index + 1}</span>
+              <span className="min-w-0 break-words">{citation.source}</span>
             </li>
           ))}
         </ol>

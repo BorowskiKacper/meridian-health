@@ -1,5 +1,38 @@
 const API_ROOT = "/backend-api";
 
+export interface VisitDraftData {
+  visit_date: string;
+  reason: string;
+  assessment: string;
+  plan: string;
+  saved_at?: string;
+}
+
+export interface ReviewData {
+  saved_at: string;
+  stale: boolean;
+  medication_use: Record<string, "taking" | "not_taking" | "unknown">;
+  note: string;
+}
+
+export interface EntryState {
+  draft: VisitDraftData | null;
+  medications: ReviewData | null;
+  allergies: ReviewData | null;
+  versions: { medications: string; allergies: string };
+}
+
+export function getEntryState(patientId: string) {
+  return api<EntryState>(`/patients/${patientId}/entry-state`);
+}
+
+export function saveChartEntry(patientId: string, path: string, data: Record<string, unknown>, submissionId: string, method = "POST") {
+  return api<{ saved: boolean; saved_at: string }>(`/patients/${patientId}/${path}`, {
+    method, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...data, submission_id: submissionId }),
+  });
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -29,6 +62,18 @@ export interface ChartPatient {
   phone_e164: string;
   family_history: { relationship: string; condition: string; age_at_diagnosis: number }[];
   allergies: AllergyRow[];
+}
+
+export interface PatientSearchRow {
+  id: string;
+  display_name: string;
+  date_of_birth: string | null;
+  sex: string;
+}
+
+export function searchPatients(query: string, limit = 20, signal?: AbortSignal) {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  return api<{ patients: PatientSearchRow[]; has_more: boolean }>(`/patients/search?${params}`, { signal });
 }
 
 export interface ChartRegion {

@@ -24,6 +24,10 @@ let seq = 0;
 const uid = (prefix: string) => `${prefix}-${++seq}`;
 
 const OPEN_TAB: Record<string, TabKind> = {
+  "open the overview": "overview",
+  "open the vitals": "vitals",
+  "open the medications": "medications",
+  "open the allergies": "allergies",
   "open the timeline": "timeline",
   "open the approvals": "queue",
   "open the lab report": "lab",
@@ -56,13 +60,14 @@ interface State {
   views: Record<string, PatientView>;
   mode: Mode;
   layout: Layout;
-  agentOpen: boolean;
   status: "loading" | "ready" | "error";
   statusMessage: string;
   notice: string | null;
   uploadedLabs: Record<string, string>;
 
   load: () => Promise<void>;
+  refreshPatient: (patientId: string) => Promise<void>;
+  openPatient: (patientId: string) => Promise<void>;
   openTab: (kind: TabKind, patientId: string, refId?: string) => void;
   closeTab: (id: string) => void;
   activateTab: (id: string) => void;
@@ -71,10 +76,8 @@ interface State {
 
   newConversation: (patientId: string) => void;
   activateConversation: (id: string) => void;
-  closeConversation: (id: string) => void;
   setMode: (mode: Mode) => void;
   setLayout: (layout: Layout) => void;
-  setAgentOpen: (open: boolean) => void;
 
   send: (text: string) => void;
   reroute: (messageId: string, route: Agent) => void;
@@ -152,11 +155,18 @@ export const useStore = create<State>()((set, get) => {
     views: {},
     mode: "auto",
     layout: "split",
-    agentOpen: true,
     status: "loading",
     statusMessage: "Loading the chart…",
     notice: null,
     uploadedLabs: {},
+    refreshPatient,
+    openPatient: async (patientId) => {
+      await refreshPatient(patientId);
+      get().openTab("overview", patientId);
+      const layout = get().layout;
+      const conversationId = conversationFor(patientId);
+      set({ activeConversationId: conversationId, layout });
+    },
 
     load: async () => {
       set({ status: "loading", statusMessage: "Loading the chart…", notice: null });
@@ -173,7 +183,7 @@ export const useStore = create<State>()((set, get) => {
             }))
           : [];
         const tabs: WorkTab[] = first
-          ? (["body", "timeline", "queue"] as const).map((kind) => ({
+          ? (["overview"] as const).map((kind) => ({
               id: `tab-${kind}-${first.id}`,
               kind,
               patientId: first.id,
@@ -202,7 +212,7 @@ export const useStore = create<State>()((set, get) => {
     openTab: (kind, patientId, refId) => {
       const existing = get().tabs.find((t) => t.kind === kind && t.patientId === patientId && t.refId === refId);
       if (existing) {
-        set({ activeTabId: existing.id });
+        set((s) => ({ activeTabId: existing.id, layout: s.layout === "agent" ? "split" : s.layout }));
         return;
       }
       const tab: WorkTab = { id: uid("tab"), kind, patientId, refId };
@@ -243,27 +253,13 @@ export const useStore = create<State>()((set, get) => {
         title: get().patients[patientId]!.name,
         messages: [],
       };
-      set((s) => ({ conversations: [...s.conversations, conversation], activeConversationId: conversation.id, agentOpen: true }));
+      set((s) => ({ conversations: [...s.conversations, conversation], activeConversationId: conversation.id, layout: s.layout === "workspace" ? "split" : s.layout }));
     },
 
     activateConversation: (id) => set({ activeConversationId: id }),
 
-    closeConversation: (id) =>
-      set((s) => {
-        const index = s.conversations.findIndex((c) => c.id === id);
-        const conversations = s.conversations.filter((c) => c.id !== id);
-        const activeConversationId =
-          s.activeConversationId === id ? (conversations[Math.max(0, index - 1)]?.id ?? null) : s.activeConversationId;
-        return {
-          conversations,
-          activeConversationId,
-          tabs: s.tabs.filter((t) => !(t.kind === "chat" && t.refId === id)),
-        };
-      }),
-
     setMode: (mode) => set({ mode }),
-    setLayout: (layout) => set({ layout, agentOpen: layout === "workspace" ? get().agentOpen : true }),
-    setAgentOpen: (agentOpen) => set({ agentOpen }),
+    setLayout: (layout) => set({ layout }),
 
     send: (text) => {
       const state = get();
@@ -439,7 +435,7 @@ export const useStore = create<State>()((set, get) => {
           set((s) => ({
             actions: [...s.actions, ...actions],
             activeConversationId: conversationId,
-            agentOpen: true,
+            layout: s.layout === "workspace" ? "split" : s.layout,
             notice: null,
           }));
           await refreshPatient(patientId);

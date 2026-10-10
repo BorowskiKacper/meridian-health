@@ -39,22 +39,22 @@ export function TimelineTab({ patientId }: { patientId: string }) {
   return (
     <Page>
       <PageHeader eyebrow={patient.name} title="Timeline">
-        Encounters, procedures, medication starts and notes, newest first. Pending suggestions stay out of the chart until you approve them.
+        Encounters, medication starts and notes, newest first.
       </PageHeader>
 
       {findings.length > 0 && (
-        <section className="mt-12">
-          <h2 className="eyebrow font-sans">Problems on the chart</h2>
+        <details className="mt-8 border-t border-hairline pt-4">
+          <summary className="w-fit cursor-pointer text-[13px] font-medium text-jade-700">Related chart regions · {findings.length}</summary>
           <ol className="mt-4 divide-y divide-hairline border-t border-hairline">
             {findings.map((entry) => (
               <li key={entry.id}>
                 <button
                   type="button"
                   onClick={() => openTab("region", patientId, entry.findingId)}
-                  className="group flex w-full items-baseline gap-3 py-3.5 text-left"
+                  className="group flex w-full flex-wrap items-baseline gap-3 py-5 text-left"
                 >
                   <SeverityDot severity={entry.severity} />
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-0 flex-1 basis-40">
                     <span className="font-serif text-[17px] text-jade-900 group-hover:text-jade-600">{entry.title}</span>
                     <span className="mt-0.5 block text-[13px] text-ink-soft">{entry.detail}</span>
                   </span>
@@ -66,12 +66,12 @@ export function TimelineTab({ patientId }: { patientId: string }) {
               </li>
             ))}
           </ol>
-        </section>
+        </details>
       )}
 
       <div className="mt-12 space-y-12">
-        {Object.entries(years).map(([year, items]) => (
-          <section key={year} className="grid gap-6 md:grid-cols-[6rem_1fr]">
+        {Object.entries(years).sort(([a], [b]) => Number(b) - Number(a)).map(([year, items]) => (
+          <section key={year} className="grid gap-4 @min-[800px]:grid-cols-[5rem_1fr]">
             <h2 className="eyebrow font-sans pt-1">{year}</h2>
             <ol className="divide-y divide-hairline border-t border-hairline">
               {items.map((entry) => (
@@ -80,11 +80,10 @@ export function TimelineTab({ patientId }: { patientId: string }) {
                     type="button"
                     disabled={!entry.findingId}
                     onClick={() => entry.findingId && openTab("region", patientId, entry.findingId)}
-                    className="group flex w-full items-baseline gap-4 py-3.5 text-left disabled:cursor-default"
+                    className="group grid w-full min-w-0 gap-y-3 py-5 text-left disabled:cursor-default"
                   >
-                    <span className="numeric w-28 shrink-0 text-[12px] text-ink-faint">{formatDate(entry.at)}</span>
-                    <span className="min-w-0 flex-1 text-[14px] leading-relaxed text-ink group-enabled:group-hover:text-jade-600">{entry.text}</span>
-                    <span className="shrink-0 text-[11px] tracking-[0.1em] text-ink-faint uppercase">{kindText[entry.kind]}</span>
+                    <span className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-ink-faint"><span className="numeric">{formatDate(entry.at)}</span><span>{kindText[entry.kind]}</span></span>
+                    <span className="min-w-0 text-[14px] leading-relaxed text-ink group-enabled:group-hover:text-jade-600">{entry.text}</span>
                   </button>
                 </li>
               ))}

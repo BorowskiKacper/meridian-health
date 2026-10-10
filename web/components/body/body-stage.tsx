@@ -40,7 +40,7 @@ export function BodyStage({
   return (
     <div
       data-tool={snapshot.tool}
-      className={cn("body-stage relative isolate overflow-hidden rounded-xl bg-[#101a17]", className)}
+      className={cn("body-stage relative isolate overflow-hidden rounded-lg bg-[#101a17]", className)}
     >
       <div ref={viewRef} className="absolute inset-0 [&_canvas]:block [&_canvas]:size-full" />
       <div ref={labelsRef} className="body-labels pointer-events-none absolute inset-0" />
@@ -93,7 +93,7 @@ function Toolbar({ scene, snapshot }: { scene: BodyScene | null; snapshot: Scene
   return (
     <div className="absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-4">
       {snapshot.cutaway && (
-        <div className="flex w-full max-w-xl items-center gap-4 rounded-lg bg-[#0b1311]/85 px-4 py-2.5 text-ivory backdrop-blur-md">
+        <div className="cutaway-controls flex w-full max-w-xl items-center gap-4 rounded-lg bg-[#0b1311]/85 px-4 py-2.5 text-ivory backdrop-blur-md">
           <div role="radiogroup" aria-label="Cut direction" className="flex shrink-0 gap-1">
             {axes.map((axis) => (
               <button
@@ -124,7 +124,7 @@ function Toolbar({ scene, snapshot }: { scene: BodyScene | null; snapshot: Scene
         </div>
       )}
 
-      <div className="flex items-center gap-1 rounded-lg bg-[#0b1311]/85 p-1 text-ivory backdrop-blur-md">
+      <div className="stage-toolbar flex max-w-full items-center gap-1 rounded-lg bg-[#0b1311]/85 p-1 text-ivory backdrop-blur-md">
         <div role="radiogroup" aria-label="Tool" className="flex gap-0.5">
           {tools.map((tool) => (
             <StageButton
@@ -226,7 +226,7 @@ function Lookup({ scene }: { scene: BodyScene | null }) {
   };
 
   return (
-    <div className="body-lookup absolute top-4 right-4 w-72">
+    <div className="body-lookup absolute top-4 right-4 w-64 max-w-[calc(100%-2rem)]">
       <form
         onSubmit={(event) => {
           event.preventDefault();

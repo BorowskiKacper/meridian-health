@@ -10,8 +10,11 @@ export interface Observation {
 }
 
 export interface TrendPoint {
+  id?: string;
   at: string;
   value: number;
+  source?: string;
+  documentId?: string;
 }
 
 export interface Trend {
@@ -45,6 +48,7 @@ export interface Allergy {
   category: string;
   reaction: string;
   severity: string;
+  status: string;
   recordedOn?: string;
 }
 
@@ -108,7 +112,7 @@ export interface Patient {
   id: string;
   name: string;
   age: number;
-  sex: "F" | "M";
+  sex: string;
   dob?: string;
   mrn: string;
   summary: string;
@@ -116,7 +120,9 @@ export interface Patient {
   allergies: Allergy[];
   problems: Problem[];
   medications: Medication[];
+  trends: Trend[];
   findings: Finding[];
+  chartRegions: { key: string; label: string }[];
   notes: ChartNote[];
   reminders: Reminder[];
   nextAppointment?: { at: string; reason: string };
@@ -129,13 +135,13 @@ export interface Patient {
   specialties: Specialty[];
 }
 
-export type TabKind = "body" | "region" | "timeline" | "queue" | "research" | "lab" | "reminders" | "chat";
+export type TabKind = "overview" | "vitals" | "visit" | "problems" | "medications" | "allergies" | "body" | "region" | "timeline" | "queue" | "research" | "lab" | "reminders";
 
 export interface WorkTab {
   id: string;
   kind: TabKind;
   patientId: string;
-  /** Finding id for region, research id for research, conversation id for chat. */
+  /** Finding id for region, research id for research. */
   refId?: string;
 }
 

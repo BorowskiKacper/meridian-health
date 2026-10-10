@@ -2,7 +2,7 @@ import { placeOnAtlas } from "./atlas";
 import { formatMonth, labPanel, minuteAt, NOW_MINUTE } from "./data";
 import { isConcerning } from "./reference";
 import type { ChartPatient, ChartSeries, PatientChart, SuggestionRow } from "./api";
-import { getChart, listPatients, listSuggestions } from "./api";
+import { getChart, searchPatients, listSuggestions } from "./api";
 import type {
   Allergy,
   ChartNote,
@@ -23,14 +23,11 @@ export interface WorkspaceChart {
 }
 
 export async function reloadPatient(patientId: string) {
-  const { patients } = await listPatients();
-  const directory = patients.find((patient) => patient.id === patientId);
-  if (!directory) throw new Error("Patient was not found.");
-  return loadPatient(directory);
+  return loadPatient({ id: patientId });
 }
 
 export async function loadWorkspace(): Promise<WorkspaceChart> {
-  const { patients } = await listPatients();
+  const { patients } = await searchPatients("", 1);
   const loaded = await Promise.all(patients.map(loadPatient));
   return {
     patients: loaded.map((item) => item.patient),
@@ -38,7 +35,7 @@ export async function loadWorkspace(): Promise<WorkspaceChart> {
   };
 }
 
-export async function loadPatient(directory: ChartPatient): Promise<{ patient: Patient; actions: ProposedAction[] }> {
+export async function loadPatient(directory: Pick<ChartPatient, "id">): Promise<{ patient: Patient; actions: ProposedAction[] }> {
   const [chart, suggestions] = await Promise.all([getChart(directory.id), listSuggestions(directory.id)]);
   return { patient: patientFromChart(chart), actions: suggestions.map((row) => suggestionAction(row)) };
 }
@@ -113,7 +110,7 @@ export function patientFromChart(chart: PatientChart): Patient {
     id: directory.id,
     name: directory.display_name,
     age: directory.age,
-    sex: directory.sex === "male" ? "M" : "F",
+    sex: directory.sex?.trim() || "Not recorded",
     dob: directory.date_of_birth ?? undefined,
     mrn: `R-${directory.id.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
     summary: summaryFor(problems, chart),
@@ -121,7 +118,9 @@ export function patientFromChart(chart: PatientChart): Patient {
     allergies: directory.allergies.map(allergyFromRow),
     problems,
     medications,
+    trends: chart.series.map(trendFromSeries),
     findings,
+    chartRegions: chart.regions.map((region) => ({ key: region.region_key, label: region.display_name })),
     notes,
     reminders: chart.reminders.map(reminderFromRow),
     nextAppointment: upcoming ? { at: upcoming.starts_at, reason: upcoming.reason } : undefined,
@@ -175,6 +174,17 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function trendFromSeries(item: ChartSeries): Trend {
+  return {
+    name: item.name,
+    unit: item.unit,
+    points: item.points
+      .filter((point) => Number.isFinite(point.value) && Number.isFinite(Date.parse(point.at)))
+      .map((point) => ({ id: point.id, at: point.at, value: point.value, source: point.source, documentId: point.document_id ?? undefined }))
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
+  };
+}
+
 function uniqueSpecialties(chart: PatientChart): string[] {
   const seen = new Set<string>();
   for (const region of chart.regions) for (const specialty of region.specialties) seen.add(specialty);
@@ -205,6 +215,7 @@ function allergyFromRow(row: ChartPatient["allergies"][number]): Allergy {
     category: row.category,
     reaction: row.reaction,
     severity: row.severity,
+    status: row.status,
     recordedOn: row.recorded_on ?? undefined,
   };
 }
@@ -222,11 +233,7 @@ function findingFromRegion(
 ): Finding | null {
   if (!problems.length && !medications.length && !series.length) return null;
   const placement = placeOnAtlas(region.mesh_name, region.region_key);
-  const trends: Trend[] = series.map((item) => ({
-    name: item.name,
-    unit: item.unit,
-    points: item.points.map((point) => ({ at: point.at, value: point.value })),
-  }));
+  const trends: Trend[] = series.map(trendFromSeries);
   const latest: Observation[] = trends.flatMap((trend) => {
     const point = trend.points.at(-1);
     return point ? [{ label: trend.name, value: `${point.value} ${trend.unit}`.trim(), at: point.at }] : [];
@@ -242,7 +249,8 @@ function findingFromRegion(
     const last = trend.points.at(-1);
     return last ? isConcerning(trend.name, last.value) : false;
   });
-  const severity: Severity = concerning && active.length ? "critical" : active.length || concerning ? "watch" : "clear";
+  // The API supplies no critical-result flag. A display threshold cannot establish urgency.
+  const severity: Severity = active.length || concerning ? "watch" : "clear";
   const title = problems.find((problem) => problem.status === "active")?.name ?? problems[0]?.name ?? region.display_name;
   return {
     id: region.region_key,

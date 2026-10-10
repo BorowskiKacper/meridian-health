@@ -1,10 +1,10 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
-import { formatDate, formatMonth, kindLabel, severityLabel } from "@/lib/data";
+import { formatDate, formatMonth, kindLabel } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import { Page, PageHeader, Section, SeverityDot } from "@/components/system/primitives";
-import { TrendChart } from "@/components/charts/trend-chart";
+import { MeasurementList } from "@/components/charts/measurement-list";
 
 /** Problems that implicate another region a primary care visit should look at. */
 const RELATED: Record<string, { regionKey: string; why: string }[]> = {
@@ -50,33 +50,17 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
           </button>
         }
       >
-        <span className="flex items-center gap-2">
-          <SeverityDot severity={finding.severity} />
-          {finding.condition}
-        </span>
+        Related diagnoses, medications and measurements.
       </PageHeader>
 
-      <p className="mt-8 max-w-2xl font-serif text-[19px] leading-relaxed text-jade-900">{finding.note}</p>
-      <p className="mt-3 text-[13px] text-ink-faint">
-        {severityLabel[finding.severity]} · on the chart since {finding.when ?? "today"} · {finding.structureId}
-      </p>
+      <Section title="Measurements"><MeasurementList series={finding.trends} markers={markers} /></Section>
 
-      {finding.trends.length > 0 && (
-        <Section title="Trends">
-          <div className="grid gap-4">
-            {finding.trends.map((trend) => (
-              <TrendChart key={trend.name} trend={trend} markers={markers} />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <div className="grid gap-x-16 md:grid-cols-2">
+      <div className="grid gap-x-8 @min-[900px]:grid-cols-2">
         <Section title="Problems">
           {finding.problems.length ? (
             <dl className="divide-y divide-hairline">
               {finding.problems.map((problem) => (
-                <div key={problem.id} className="flex justify-between gap-6 py-2.5 text-[14px]">
+                <div key={problem.id} className="flex flex-wrap justify-between gap-x-6 gap-y-2 py-4 text-[14px]">
                   <dt className="text-ink">{problem.name}</dt>
                   <dd className="text-right text-ink-soft">
                     <span className={problem.status === "active" ? "text-ink" : ""}>{problem.status}</span>
@@ -93,11 +77,11 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
           {meds.length ? (
             <ul className="divide-y divide-hairline">
               {meds.map((m) => (
-                <li key={m.id} className="flex justify-between gap-6 py-2.5 text-[14px]">
+                <li key={m.id} className="py-4 text-[14px]">
                   <span className={m.status === "active" ? "text-ink" : "text-ink-faint line-through"}>
-                    {m.name} {m.dose} {m.route} {m.frequency}
+                    <strong className="font-semibold">{m.name}</strong> {m.dose}<span className="mt-1.5 block text-[13px] text-ink-soft">{m.route} · {m.frequency}</span>
                   </span>
-                  <span className="shrink-0 text-right text-[12px] text-ink-faint">
+                  <span className="mt-2 block text-[12px] text-ink-faint">
                     {m.status === "active" ? "since" : "stopped · started"} {m.start ? formatMonth(m.start) : ""}
                   </span>
                 </li>
@@ -105,37 +89,6 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
             </ul>
           ) : (
             <p className="text-[14px] text-ink-faint">None charted</p>
-          )}
-        </Section>
-      </div>
-
-      <div className="grid gap-x-16 md:grid-cols-2">
-        <Section title="Latest results">
-          {finding.observations.length ? (
-            <dl className="divide-y divide-hairline">
-              {finding.observations.map((o) => (
-                <div key={o.label} className="flex justify-between gap-6 py-2.5 text-[14px]">
-                  <dt className="text-ink-soft">{o.label}</dt>
-                  <dd className="text-right">
-                    <span className="numeric text-ink">{o.value}</span>
-                    {o.at && <span className="block text-[12px] text-ink-faint">{formatDate(o.at)}</span>}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="text-[14px] text-ink-faint">No results on this region</p>
-          )}
-        </Section>
-        <Section title="Family history">
-          {patient.family.length ? (
-            <ul className="space-y-1.5 text-[14px] text-ink">
-              {patient.family.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[14px] text-ink-faint">None recorded</p>
           )}
         </Section>
       </div>
@@ -167,7 +120,7 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
       )}
 
       {notes.length > 0 && (
-        <Section title="Notes">
+        <details className="mt-8 border-t border-hairline pt-4"><summary className="w-fit cursor-pointer text-[13px] font-medium text-jade-700">Related notes · {notes.length}</summary>
           <ul className="space-y-3 text-[14px] leading-relaxed text-ink">
             {notes.map((n) => (
               <li key={n.id}>
@@ -176,7 +129,7 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
               </li>
             ))}
           </ul>
-        </Section>
+        </details>
       )}
     </Page>
   );
