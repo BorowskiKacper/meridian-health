@@ -13,12 +13,12 @@ async def upload_document(
     import app.api.db as api_db
     import app.services.labs as labs
 
-    session = api_db.get_session()
-    content = await file.read()
-    result = labs.extract_lab_report(
-        patient_id,
-        content,
-        file.content_type,
-        session=session,
-    )
-    return finish(result)
+    with api_db.get_session() as session:
+        content = await file.read()
+        result = labs.extract_lab_report(
+            patient_id,
+            content,
+            file.content_type,
+            session=session,
+        )
+        return finish(result)

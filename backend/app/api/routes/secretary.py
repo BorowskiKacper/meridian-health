@@ -24,6 +24,6 @@ def create_secretary_request(
     import app.api.db as api_db
     import app.agents.secretary as secretary
 
-    session = api_db.get_session()
-    result = secretary.answer_secretary(body.patient_id, body.text, session=session)
-    return finish(result)
+    with api_db.get_session() as session:
+        result = secretary.answer_secretary(body.patient_id, body.text, session=session)
+        return finish(result)

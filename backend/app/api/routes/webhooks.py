@@ -14,14 +14,14 @@ def twilio_webhook(
     import app.api.db as api_db
     import app.services.sms as sms
 
-    session = api_db.get_session()
-    sms.handle_sms_webhook(
-        {
-            "MessageSid": MessageSid,
-            "MessageStatus": MessageStatus,
-            "From": From,
-            "Body": Body,
-        },
-        session=session,
-    )
-    return Response(content=b"", status_code=200)
+    with api_db.get_session() as session:
+        sms.handle_sms_webhook(
+            {
+                "MessageSid": MessageSid,
+                "MessageStatus": MessageStatus,
+                "From": From,
+                "Body": Body,
+            },
+            session=session,
+        )
+        return Response(content=b"", status_code=200)

@@ -25,32 +25,32 @@ async def create_request(request: Request):
     import app.api.db as api_db
     import app.agents.doctor as doctor
 
-    session = api_db.get_session()
-    if text_present:
+    with api_db.get_session() as session:
+        if text_present:
+            result = doctor.route_doctor_request(
+                patient_id,
+                text,
+                "typed",
+                session=session,
+            )
+            return finish(result)
+
+        audio_bytes = await audio.read()
+        from app.speech.hook import SpeechHook
+
+        transcript = SpeechHook().transcribe(audio_bytes)
         result = doctor.route_doctor_request(
             patient_id,
-            text,
-            "typed",
+            transcript,
+            "voice",
             session=session,
         )
+        if (
+            isinstance(result, dict)
+            and set(result) != {"error"}
+            and result.get("spoken_text") is not None
+        ):
+            copied = dict(result)
+            copied["audio_base64"] = SpeechHook().synthesize(result["spoken_text"])
+            return copied
         return finish(result)
-
-    audio_bytes = await audio.read()
-    from app.speech.hook import SpeechHook
-
-    transcript = SpeechHook().transcribe(audio_bytes)
-    result = doctor.route_doctor_request(
-        patient_id,
-        transcript,
-        "voice",
-        session=session,
-    )
-    if (
-        isinstance(result, dict)
-        and set(result) != {"error"}
-        and result.get("spoken_text") is not None
-    ):
-        copied = dict(result)
-        copied["audio_base64"] = SpeechHook().synthesize(result["spoken_text"])
-        return copied
-    return finish(result)
