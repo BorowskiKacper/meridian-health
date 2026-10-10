@@ -113,6 +113,9 @@ def engine():
     if _SCHEMA_NAME.fullmatch(schema) is None:
         database_engine.dispose()
         raise RuntimeError("refusing unexpected test schema name")
+    # Qualify ORM tables so create_all's existence checks cannot reuse public
+    # application tables when testing an already-populated database.
+    database_engine = database_engine.execution_options(schema_translate_map={None: schema})
     try:
         from app.db.models import Base
     except Exception:
