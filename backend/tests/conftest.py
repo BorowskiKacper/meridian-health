@@ -128,9 +128,18 @@ def engine():
         _reject_foreign_schema(Base, schema)
         with database_engine.connect() as connection:
             before = _object_snapshot(connection, schema)
-        with database_engine.begin() as connection:
-            connection.execute(text(f'SET search_path TO "{schema}", public'))
-            Base.metadata.create_all(connection)
+        # public already has these tables on a shared Tiger database.
+        # Qualifying the create puts the empty copies in the test schema,
+        # which stays first on the search path for the rest of the session.
+        for table in Base.metadata.tables.values():
+            table.schema = schema
+        try:
+            with database_engine.begin() as connection:
+                connection.execute(text(f'SET search_path TO "{schema}", public'))
+                Base.metadata.create_all(connection)
+        finally:
+            for table in Base.metadata.tables.values():
+                table.schema = None
         with database_engine.connect() as connection:
             after = _object_snapshot(connection, schema)
         if after != before:

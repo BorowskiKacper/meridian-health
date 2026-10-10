@@ -39,6 +39,11 @@ async def create_request(request: Request):
         from app.speech.hook import SpeechHook
 
         transcript = SpeechHook().transcribe(audio_bytes)
+        if not isinstance(transcript, str) or not transcript.strip():
+            return error_response(
+                "validation_error",
+                "Audio could not be transcribed.",
+            )
         result = doctor.route_doctor_request(
             patient_id,
             transcript,

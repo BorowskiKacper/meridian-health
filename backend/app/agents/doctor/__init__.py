@@ -48,12 +48,18 @@ def route_doctor_request(patient_id, text, channel, *, session):
             spoken_text = _spoken_chart(suggestions)
     elif route == "clinical_question":
         answer = _research_answer(patient_id, text, session)
+        if channel == "voice":
+            spoken_text = _spoken_answer(answer)
     elif route == "check_screenings":
         review = run_reminder_agent(patient_id, "doctor_request", session=session)
         if review["suggestions"]:
             suggestions = review["suggestions"]
+            if channel == "voice":
+                spoken_text = _spoken_chart(suggestions)
         else:
             answer = {"text": review["answer"], "citations": []}
+            if channel == "voice":
+                spoken_text = _spoken_answer(answer)
     return {
         "request_id": stored["id"],
         "transcript": text,
@@ -195,6 +201,13 @@ def _has_tier(citations, *tiers):
 
 def _is_pending(row):
     return isinstance(row, dict) and row.get("status") == "pending" and "id" in row
+
+
+def _spoken_answer(answer):
+    text = answer.get("text") if isinstance(answer, dict) else None
+    if not isinstance(text, str) or not text.strip():
+        return None
+    return text
 
 
 def _spoken_chart(suggestions):

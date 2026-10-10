@@ -154,3 +154,21 @@ def test_request_rejects_both_or_neither(seeded_db, monkeypatch, client, data, f
 
     assert_error(response, 400, "validation_error")
     assert recorded == []
+
+
+def test_untranscribed_audio_is_rejected(seeded_db, monkeypatch, client):
+    bind_session(monkeypatch, seeded_db.session)
+    _install_speech(monkeypatch, transcript=None)
+    recorded = _install_route(monkeypatch, _chart_body())
+
+    response = call(
+        client,
+        "POST",
+        "/requests",
+        data={"patient_id": JANE_ID},
+        files={"audio": ("request.webm", b"audio-bytes", "audio/webm")},
+    )
+
+    assert_error(response, 400, "validation_error")
+    assert response.json()["error"]["message"] == "Audio could not be transcribed."
+    assert recorded == []

@@ -59,7 +59,28 @@ _DATE_FIELDS = {
 
 
 def embed_text(text):
-    return [0.0 for _ in range(768)] if text is not None else [0.0] * 768
+    from google import genai
+    from google.genai import types
+
+    from app import config
+
+    if not config.GEMINI_API_KEY:
+        return None
+    try:
+        client = genai.Client(api_key=config.GEMINI_API_KEY)
+        response = client.models.embed_content(
+            model=config.EMBEDDING_MODEL,
+            contents=text,
+            config=types.EmbedContentConfig(
+                output_dimensionality=config.EMBEDDING_DIMENSION
+            ),
+        )
+        values = [float(item) for item in response.embeddings[0].values]
+    except Exception:
+        return None
+    if len(values) != config.EMBEDDING_DIMENSION:
+        return None
+    return values
 
 
 def _error(code, message):

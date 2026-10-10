@@ -21,7 +21,81 @@ def save_object(storage_key, content):
 
 
 def extract_analytes(content, media_type) -> list:
-    return []
+    import json
+
+    from google import genai
+    from google.genai import types
+
+    from app import config
+
+    if not config.GEMINI_API_KEY:
+        return []
+    try:
+        client = genai.Client(api_key=config.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=content, mime_type=media_type),
+                "Extract the lab analytes.",
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "name": {"type": "STRING"},
+                            "value": {"type": "NUMBER"},
+                            "unit": {"type": "STRING"},
+                            "observed_at": {"type": "STRING"},
+                            "confidence": {"type": "NUMBER"},
+                            "flag": {
+                                "type": "STRING",
+                                "enum": ["ok", "low_confidence", "out_of_range"],
+                            },
+                        },
+                        "required": [
+                            "name",
+                            "value",
+                            "unit",
+                            "observed_at",
+                            "confidence",
+                            "flag",
+                        ],
+                    },
+                },
+            ),
+        )
+        raw = json.loads(response.text or "[]")
+    except Exception:
+        return []
+    if not isinstance(raw, list):
+        return []
+    analytes = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        if any(item.get(key) in (None, "") for key in ("name", "value", "unit", "observed_at")):
+            continue
+        confidence = item.get("confidence")
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+            continue
+        if not 0 <= float(confidence) <= 1:
+            continue
+        if item.get("flag") not in {"ok", "low_confidence", "out_of_range"}:
+            continue
+        analytes.append(
+            {
+                "name": item["name"],
+                "value": item["value"],
+                "unit": item["unit"],
+                "observed_at": item["observed_at"],
+                "confidence": float(confidence),
+                "flag": item["flag"],
+            }
+        )
+    return analytes
 
 
 def _validation_flags(flag):
