@@ -1,20 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ArrowUpRight, ChevronDown } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import type { Agent, Message, Route } from "@/lib/types";
+import type { Message, Route } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ActionCard } from "./action-card";
 import { Composer } from "./composer";
 
@@ -83,7 +75,8 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
         )}
       </div>
       <div className={cn(column, "shrink-0 pb-5")}>
-        <Composer conversationId={conversation.id} />
+        <p className="agent-dim mb-3 text-[11px] leading-relaxed">Assistant chart drafting is not connected yet. Direct chart entry is available.</p>
+        <Composer key={conversation.id} conversationId={conversation.id} />
       </div>
     </div>
   );
@@ -134,35 +127,10 @@ function AgentMessage({ message }: { message: Message }) {
 }
 
 function RouteLine({ message }: { message: Message }) {
-  const reroute = useStore((s) => s.reroute);
-  const route = message.route!;
-  const others = (["chart", "research", "screening"] as Agent[]).filter((r) => r !== route);
-  const canReroute = Boolean(message.requestText);
-
-  return (
-    <div className="agent-dim flex items-center gap-2 text-[12px] text-ink-faint">
-      <span className="agent-accent font-semibold tracking-[0.12em] text-jade-700 uppercase">{routeLabel[route]}</span>
-      <span>{message.routedBy === "manual" ? "chosen by you" : "routed automatically"}</span>
-      {canReroute && (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="agent-hover ml-1 flex items-center gap-0.5 rounded px-1 outline-none hover:bg-ivory-deep hover:text-ink">
-            Re-route <ChevronDown className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-60">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Send the same request to</DropdownMenuLabel>
-              {others.map((r) => (
-                <DropdownMenuItem key={r} onClick={() => reroute(message.id, r)}>
-                  {routeLabel[r]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-            <p className="px-1.5 pt-1 pb-1.5 text-[11px] leading-snug text-ink-faint">Pending items from this reply are discarded.</p>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
-  );
+  return <div className="agent-dim flex items-center gap-2 text-[12px]">
+    <span className="agent-accent font-semibold tracking-[0.12em] uppercase">{routeLabel[message.route!]}</span>
+    <span>{message.route === "navigate" ? "Chart navigation" : "Routed automatically"}</span>
+  </div>;
 }
 
 function ResearchBlock({ researchId }: { researchId: string }) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useShallow } from "zustand/react/shallow";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ActionCard } from "@/components/agent/action-card";
@@ -10,33 +11,36 @@ export function QueueTab({ patientId }: { patientId: string }) {
   const patient = useStore((s) => s.patients[patientId]);
   const actions = useStore(useShallow((s) => s.actions.filter((a) => a.patientId === patientId)));
   const audit = useStore(useShallow((s) => s.audit.filter((a) => a.patientId === patientId)));
-  const approve = useStore((s) => s.approve);
+  const approveSelected = useStore((s) => s.approveSelected);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
   if (!patient) return null;
 
   const pending = actions.filter((a) => a.status === "pending");
   const decided = actions.filter((a) => a.status !== "pending").reverse();
+  const reviewed = selected.filter((id) => pending.some((a) => a.id === id));
 
   return (
     <Page>
       <PageHeader
         eyebrow={patient.name}
-        title="Approvals"
+        title="Review proposed changes"
         actions={
-          pending.length > 1 && pending.every((a) => a.payload.kind !== "chart_change") && (
-            <Button className="rounded-md px-4" onClick={() => pending.forEach((a) => approve(a.id))}>
-              Approve all {pending.length}
+          reviewed.length > 0 && (
+            <Button disabled={busy} className="rounded-md px-4" onClick={async () => { setBusy(true); try { if (await approveSelected(reviewed)) setSelected([]); } finally { setBusy(false); } }}>
+              {busy ? "Approving…" : `Approve ${reviewed.length} reviewed change${reviewed.length === 1 ? "" : "s"}`}
             </Button>
           )
         }
       >
-        Review proposed changes before they enter the chart.
+        Compare each proposal with the recorded chart. Approving saves chart changes; it does not sign a visit or submit a prescription.
       </PageHeader>
 
       <Section title={`Waiting · ${pending.length}`}>
         {pending.length ? (
           <div className="grid gap-5">
             {pending.map((action) => (
-              <ActionCard key={action.id} action={action} detailed />
+              <div key={action.id}><ActionCard action={action} detailed /><label className="mt-3 flex items-center gap-2 text-[12px] text-ink-soft"><input type="checkbox" className="size-4 accent-jade-600" disabled={busy} checked={reviewed.includes(action.id)} onChange={(e) => setSelected((ids) => e.target.checked ? [...ids, action.id] : ids.filter((id) => id !== action.id))} />Reviewed “{action.title}” for batch approval</label></div>
             ))}
           </div>
         ) : (

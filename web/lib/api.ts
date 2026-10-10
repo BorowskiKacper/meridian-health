@@ -303,6 +303,26 @@ export function postRequest(patientId: string, text: string) {
   return api<DoctorRequest>("/requests", { method: "POST", body });
 }
 
+export function postVoiceRequest(patientId: string, audio: Blob) {
+  const body = new FormData();
+  body.set("patient_id", patientId);
+  body.set("audio", audio, "dictation.webm");
+  return api<DoctorRequest>("/requests", { method: "POST", body });
+}
+
+export interface EligibilityResult {
+  coverage: { payer_name: string; member_id: string; plan_name: string; active: boolean; deductible_remaining: number; copay: number; benefits: { name: string; detail: string }[] };
+  summary: string;
+  prior_auth: { note: string; citations: CitationRow[] } | null;
+}
+
+export function checkEligibility(patientId: string, orderText: string) {
+  return api<EligibilityResult>(`/patients/${patientId}/eligibility`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_text: orderText || null }),
+  });
+}
+
 export function approveSuggestions(suggestionIds: string[]) {
   return api<{ approved: SuggestionRow[]; reminder_review: { suggestions: SuggestionRow[]; answer: string | null } }>(
     "/suggestions/approve",

@@ -124,6 +124,8 @@ export interface Patient {
   findings: Finding[];
   chartRegions: { key: string; label: string }[];
   notes: ChartNote[];
+  encounters: { id: string; type: string; at: string; summary: string }[];
+  appointments: { id: string; at: string; endsAt: string; reason: string; status: string }[];
   reminders: Reminder[];
   nextAppointment?: { at: string; reason: string };
   coverage?: Coverage;
@@ -135,7 +137,7 @@ export interface Patient {
   specialties: Specialty[];
 }
 
-export type TabKind = "overview" | "vitals" | "visit" | "problems" | "medications" | "allergies" | "body" | "region" | "timeline" | "queue" | "research" | "lab" | "reminders";
+export type TabKind = "overview" | "vitals" | "visit" | "problems" | "medications" | "allergies" | "body" | "region" | "timeline" | "queue" | "research" | "lab" | "reminders" | "history";
 
 export interface WorkTab {
   id: string;

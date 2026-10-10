@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConversationView } from "./conversation";
+import { PatientBanner } from "@/components/shell/patient-banner";
 
 export function AgentWindow({ open, full }: { open: boolean; full: boolean }) {
   const conversations = useStore((s) => s.conversations);
@@ -47,6 +48,7 @@ export function AgentWindow({ open, full }: { open: boolean; full: boolean }) {
         </nav>
         <NewConversationMenu />
       </header>
+      {full && active && <PatientBanner compact tab={{ id: "assistant-context", kind: "overview", patientId: active.patientId }} />}
       <div className="min-h-0 flex-1">
         {active ? (
           <ConversationView conversationId={active.id} wide={full} />
