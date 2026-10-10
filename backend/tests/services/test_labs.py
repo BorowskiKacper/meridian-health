@@ -60,16 +60,17 @@ def invoke(fn, *args, session, **kwargs):
     return fn(*args, **kwargs)
 
 
-def install_seams(monkeypatch, tmp_path):
+def install_seams(monkeypatch):
     analyte_calls = []
     propose_calls = []
+    saved = {}
 
     def extract_analytes(content, media_type):
         analyte_calls.append((content, media_type))
         return copy.deepcopy(ANALYTES)
 
-    def storage_root():
-        return tmp_path
+    def save_object(storage_key, content):
+        saved[storage_key] = content
 
     def propose_change(*args, **kwargs):
         propose_calls.append((args, kwargs))
@@ -81,8 +82,8 @@ def install_seams(monkeypatch, tmp_path):
         raising=False,
     )
     monkeypatch.setattr(
-        "app.services.labs.storage_root",
-        storage_root,
+        "app.services.labs.save_object",
+        save_object,
         raising=False,
     )
     monkeypatch.setattr(
@@ -90,7 +91,7 @@ def install_seams(monkeypatch, tmp_path):
         propose_change,
         raising=False,
     )
-    return analyte_calls, propose_calls, storage_root
+    return analyte_calls, propose_calls, saved
 
 
 def rows_by_id(rows):
@@ -132,10 +133,10 @@ def assert_stored_suggestion(stored, analyte):
 
 
 def test_extract_lab_report_saves_photo_and_inserts_suggestions(
-    seeded_db, tmp_path, monkeypatch
+    seeded_db, monkeypatch
 ):
     session = seeded_db.session
-    analyte_calls, propose_calls, storage_root = install_seams(monkeypatch, tmp_path)
+    analyte_calls, propose_calls, saved = install_seams(monkeypatch)
     observations_before = list_observations_by_patient(session, JANE_ID)
     suggestions_before = list_suggestions(session, JANE_ID)
 
@@ -163,10 +164,7 @@ def test_extract_lab_report_saves_photo_and_inserts_suggestions(
     storage_key = document["storage_key"]
     assert isinstance(storage_key, str) and storage_key
     assert not Path(storage_key).is_absolute()
-    assert str(tmp_path) not in storage_key
-    saved = Path(storage_root()) / storage_key
-    assert saved.is_file()
-    assert saved.read_bytes() == IMAGE
+    assert saved == {storage_key: IMAGE}
 
     observations = list_observations_by_patient(session, JANE_ID)
     assert rows_by_id(observations) == rows_by_id(observations_before)
@@ -236,9 +234,9 @@ def _record_write_order(monkeypatch):
 
 
 def test_extract_lab_report_writes_the_file_after_the_rows(
-    seeded_db, tmp_path, monkeypatch
+    seeded_db, monkeypatch
 ):
-    install_seams(monkeypatch, tmp_path)
+    install_seams(monkeypatch)
     order = _record_write_order(monkeypatch)
 
     invoke(
@@ -271,11 +269,11 @@ def _rejecting_save(monkeypatch):
 
 
 def test_extract_lab_report_does_not_save_when_document_insert_fails(
-    seeded_db, tmp_path, monkeypatch
+    seeded_db, monkeypatch
 ):
     import app.services.labs as labs
 
-    install_seams(monkeypatch, tmp_path)
+    install_seams(monkeypatch)
     saved = _rejecting_save(monkeypatch)
 
     def insert_document(session, row):
@@ -291,15 +289,14 @@ def test_extract_lab_report_does_not_save_when_document_insert_fails(
             session=seeded_db.session,
         )
     assert saved == []
-    assert list(tmp_path.rglob("*")) == []
 
 
 def test_extract_lab_report_does_not_save_when_a_later_suggestion_insert_fails(
-    seeded_db, tmp_path, monkeypatch
+    seeded_db, monkeypatch
 ):
     import app.services.labs as labs
 
-    install_seams(monkeypatch, tmp_path)
+    install_seams(monkeypatch)
     saved = _rejecting_save(monkeypatch)
     suggestion_calls = {"count": 0}
     real_insert_suggestion = labs.insert_suggestion
@@ -321,15 +318,14 @@ def test_extract_lab_report_does_not_save_when_a_later_suggestion_insert_fails(
         )
     assert saved == []
     assert suggestion_calls["count"] == 2
-    assert list(tmp_path.rglob("*")) == []
 
 
 def test_extract_lab_report_propagates_save_failure(
-    seeded_db, tmp_path, monkeypatch
+    seeded_db, monkeypatch
 ):
     import app.services.labs as labs
 
-    install_seams(monkeypatch, tmp_path)
+    install_seams(monkeypatch)
     session = seeded_db.session
 
     def save_object(storage_key, content):
@@ -347,4 +343,3 @@ def test_extract_lab_report_propagates_save_failure(
 
     documents = list_documents_by_patient(session, JANE_ID)
     assert len(documents) == 1
-    assert list(tmp_path.rglob("*")) == []
