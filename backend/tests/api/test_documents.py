@@ -1,5 +1,5 @@
 from app.db.repositories import list_observations_by_patient
-from support import JANE_ID, bind_session, call
+from api_support import JANE_ID, bind_session, call
 
 LDL = {
     "name": "LDL",

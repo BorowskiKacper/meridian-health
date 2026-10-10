@@ -1,4 +1,4 @@
-from support import JANE_ID, UNKNOWN_ID, assert_error, bind_session, call
+from api_support import JANE_ID, UNKNOWN_ID, assert_error, bind_session, call
 
 BODY_KEYS = {"patient", "specialty", "regions", "timeline", "trends"}
 
