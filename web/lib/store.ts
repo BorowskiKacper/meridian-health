@@ -65,6 +65,8 @@ interface State {
   notice: string | null;
   uploadedLabs: Record<string, string>;
   capabilities: Capabilities | null;
+  approvingIds: string[];
+  approvalErrors: Record<string, string>;
 
   load: () => Promise<void>;
   refreshPatient: (patientId: string) => Promise<void>;
@@ -162,6 +164,8 @@ export const useStore = create<State>()((set, get) => {
     notice: null,
     uploadedLabs: {},
     capabilities: null,
+    approvingIds: [],
+    approvalErrors: {},
     refreshPatient,
     openPatient: async (patientId) => {
       await refreshPatient(patientId);
@@ -361,35 +365,38 @@ export const useStore = create<State>()((set, get) => {
     approve: (id) => { void get().approveSelected([id]); },
 
     approveSelected: async (ids) => {
-      const selected = [...new Set(ids)].map((id) => get().actions.find((a) => a.id === id && a.status === "pending"));
+      const uniqueIds = [...new Set(ids)];
+      const selected = uniqueIds.map((id) => get().actions.find((a) => a.id === id && a.status === "pending"));
       const action = selected[0];
       if (!action || selected.some((a) => !a || a.patientId !== action.patientId)) return false;
+      if (get().actions.some((a) => a.patientId === action.patientId && get().approvingIds.includes(a.id))) return false;
+      set((s) => ({ approvingIds: [...s.approvingIds, ...uniqueIds], approvalErrors: Object.fromEntries(Object.entries(s.approvalErrors).filter(([id]) => !uniqueIds.includes(id))), notice: null }));
       let persisted = false;
         try {
-          const result = await approveSuggestions([...new Set(ids)]);
+          const result = await approveSuggestions(uniqueIds);
           persisted = true;
+          const approvedIds = new Set(result.approved.map((row) => row.id));
+          set((s) => ({ actions: s.actions.map((a) => approvedIds.has(a.id) ? { ...a, status: "approved" } : a) }));
           audit(action.patientId, "Approved", selected.length === 1 ? action.title : `${selected.length} reviewed chart changes.`);
           await refreshPatient(action.patientId);
-          const review = result.reminder_review;
-          if (review?.answer && action.conversationId) {
-            updateConversation(action.conversationId, (c) => ({
-              ...c,
-              messages: [...c.messages, { id: uid("msg"), role: "agent", text: review.answer ?? "", route: "screening", routedBy: "auto" }],
-            }));
-          }
           set({ notice: null });
           return true;
         } catch (error) {
-          set({
-            notice: persisted ? "Changes were approved, but the chart could not refresh. Reload before continuing." : explain(error, "Approval could not be confirmed. Reload the chart before retrying."),
-          });
-          return false;
+          const message = persisted ? "Changes were approved, but the chart could not refresh. Reload before continuing." : explain(error, "Approval could not be confirmed. Reload the chart before retrying.");
+          set((s) => ({
+            notice: message,
+            approvalErrors: { ...s.approvalErrors, ...Object.fromEntries(uniqueIds.map((id) => [id, message])) },
+          }));
+          return persisted;
+        } finally {
+          set((s) => ({ approvingIds: s.approvingIds.filter((id) => !uniqueIds.includes(id)) }));
         }
     },
 
     reject: (id) => {
       const action = get().actions.find((a) => a.id === id && a.status === "pending");
       if (!action) return;
+      if (get().actions.some((a) => a.patientId === action.patientId && get().approvingIds.includes(a.id))) return;
       void (async () => {
         try {
           await rejectSuggestions([id], "Not accurate");
@@ -407,21 +414,7 @@ export const useStore = create<State>()((set, get) => {
         .actions.filter((a) => a.messageId === messageId && a.status === "pending")
         .map((a) => a.id);
       if (!ids.length) return;
-      void (async () => {
-        try {
-          await approveSuggestions(ids);
-          const patientId = get().actions.find((a) => a.id === ids[0])?.patientId;
-          if (patientId) {
-            audit(patientId, "Approved", `${ids.length} suggestion(s).`);
-            await refreshPatient(patientId);
-          }
-          set({ notice: null });
-        } catch (error) {
-          set({
-            notice: explain(error, "Approval did not finish. The reminder review needs the chart model, so the chart was left unchanged."),
-          });
-        }
-      })();
+      void get().approveSelected(ids);
     },
 
     extractLab: async (patientId, file) => {

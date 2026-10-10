@@ -1108,7 +1108,7 @@ implements FHIR interoperability. Sources: [Observation](https://hl7.org/fhir/ob
 | Visit draft | Open editor for visit date, reason/history, assessment, and plan | One unsigned draft per patient in entry state. No physical-exam field, encounter finalization, order cart, or signing endpoint. |
 | Proposed changes | Before/after review, individual approval, selected reviewed batch approval, rejection | Approval inserts new records and applies existing-record updates after field, patient ownership and stale-value checks. Notes receive real Gemini embeddings. Approval is not a legal visit signature. Provider failures roll back the request. |
 | Typed and audio doctor requests | One command surface; recording, playback/discard, transcription, draft review and spoken responses | Live Gemini classification/drafting, ElevenLabs Scribe transcription and voice synthesis are connected. Configuration comes from the backend; permission and provider failures remain explicit. |
-| Documents | S3 upload; Gemini extraction; dated numeric proposals; approved results and provenance in chart trends | Numeric extraction supports PDF, image, TXT and CSV reports. Missing/ambiguous collection dates are not invented. No report-list/download endpoint; S3 read/delete probes remain denied. |
+| Documents | S3 upload; Gemini extraction; dated numeric proposals; approved results and provenance in chart trends | Numeric extraction supports PDF, image, TXT and CSV reports. Missing/ambiguous collection dates are not invented. S3 reads now pass for both synthetic test objects after the permission update. No report-list/download endpoint yet; authenticated viewing is still needed. Delete permission has not been rechecked. |
 | Reminders and appointments | Dated follow-up, status edits, all recorded appointments in history | Scheduling mutations and secretary chat require the secretary role. Do not expose those as unrestricted doctor actions. Reminder job runs across the clinic, not just the viewed patient. |
 | Coverage and eligibility | Separate history/coverage view; optional planned-service review with payer evidence | Uses stored coverage and model/payer documents. Not a live insurer eligibility transaction, claim submission, or guaranteed authorization determination. |
 | Research and screening evidence | Cited results in assistant and research view; reviewed screening proposals | Live Snowflake USPSTF/PubMed retrieval, medical web grounding, Gemini answers and claim verification are connected. Returned citations are grounded in retrieved passages. Clinical applicability still requires clinician review. |
@@ -1137,6 +1137,11 @@ implements FHIR interoperability. Sources: [Observation](https://hl7.org/fhir/ob
 - Nonfunctional manual routing/re-routing controls are removed. The backend owns
   request classification. Chart changes require explicit approval; batch approval
   includes only proposals the clinician marked reviewed for the same patient.
+- Approval immediately displays an in-progress state, blocks duplicate approval
+  clicks, and confirms the decision when the server reports success. It saves only
+  the selected changes; screening review is initiated by an explicit clinician
+  request, rather than automatically generating proposals or chat messages after
+  every approval. A failed chart refresh does not erase a confirmed approval.
 
 ### Clinical and diagnostic findings: recommended data depth
 
@@ -1216,7 +1221,7 @@ Do not equate an SMS send with result review or care completion.
    proxy now allows up to five minutes for these multi-call workflows instead of
    cutting them off at 30 seconds; improve response speed as a follow-up.
 2. Add document metadata listing and authenticated original-report viewing.
-   Resolve object read/cleanup permissions without exposing storage credentials
+   S3 read permission is now verified. Resolve cleanup permission without exposing storage credentials
    to the frontend. Preserve document provenance on approved observations.
 3. Expand diagnostics with report/result separation, source flags/reference
    intervals, and review acknowledgment. Keep reported units and collection dates

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { Check, LoaderCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import type { ProposedAction } from "@/lib/types";
@@ -16,11 +16,15 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
   const approve = useStore((s) => s.approve);
   const reject = useStore((s) => s.reject);
   const patientName = useStore((s) => s.patients[action.patientId]?.name);
+  const approving = useStore((s) => s.approvingIds.includes(action.id));
+  const approvalError = useStore((s) => s.approvalErrors[action.id]);
+  const busy = useStore((s) => s.actions.some((a) => a.patientId === action.patientId && s.approvingIds.includes(a.id)));
   const pending = action.status === "pending";
   const { payload } = action;
 
   return (
     <article
+      aria-busy={approving}
       className={cn(
         "agent-card min-w-0 rounded-lg transition-colors",
         detailed ? "px-5 py-5" : "px-4 py-3.5",
@@ -74,12 +78,15 @@ export function ActionCard({ action, detailed = false }: { action: ProposedActio
         </p>
       )}
 
+      {approvalError && <p role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-[13px] leading-relaxed text-red-900">{approvalError}</p>}
+
       {pending && (
         <div className="mt-5 flex flex-wrap gap-3">
-          <Button size="sm" className="rounded-md px-3.5" onClick={() => approve(action.id)}>
-            Approve
+          <Button size="sm" disabled={busy} className="rounded-md px-3.5" onClick={() => approve(action.id)}>
+            {approving && <LoaderCircle aria-hidden className="size-3.5 animate-spin" />}
+            <span role="status">{approving ? "Approving…" : "Approve"}</span>
           </Button>
-          <Button size="sm" variant="ghost" className="rounded-md px-3 text-ink-soft" onClick={() => reject(action.id)}>
+          <Button size="sm" disabled={busy} variant="ghost" className="rounded-md px-3 text-ink-soft" onClick={() => reject(action.id)}>
             Reject
           </Button>
         </div>

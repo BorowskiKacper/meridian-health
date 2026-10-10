@@ -56,7 +56,7 @@ export function PatientSearch({ variant = "plus", patientName }: { variant?: "pl
     </Dialog.Trigger>
     <Dialog.Portal>
       <Dialog.Backdrop className="fixed inset-0 z-[70] bg-ink/25" />
-      <Dialog.Popup initialFocus={input} className="fixed top-1/2 left-1/2 z-[80] flex max-h-[calc(100dvh_-_3rem)] w-[calc(100%_-_2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-hairline-strong bg-white shadow-lg">
+      <Dialog.Popup initialFocus={input} className="fixed top-1/2 left-1/2 z-[80] flex max-h-[calc(100dvh_-_3rem)] w-[calc(100%_-_2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-hairline-strong bg-clinical-surface shadow-lg">
         <div className="flex items-start justify-between gap-5 px-5 pt-5">
           <div><Dialog.Title className="font-sans text-[17px] font-semibold">Find a patient</Dialog.Title><Dialog.Description className="mt-1 text-[13px] leading-relaxed text-ink-soft">Search by name, date of birth (YYYY-MM-DD), or record ID.</Dialog.Description></div>
           <Dialog.Close aria-label="Close patient search" disabled={Boolean(opening)} className="grid size-8 shrink-0 place-items-center rounded-md text-ink-soft hover:bg-jade-50 disabled:opacity-50"><X className="size-4" /></Dialog.Close>

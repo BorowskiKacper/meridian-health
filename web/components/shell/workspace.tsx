@@ -19,8 +19,8 @@ export function Workspace({ hidden }: { hidden: boolean }) {
   useLayoutEffect(() => { if (content.current) content.current.scrollTop = 0; }, [activeTabId]);
 
   return (
-    <main className={cn("chart-workspace min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-hairline-strong bg-white", hidden ? "hidden" : "flex")}>
-      <header className="flex h-12 shrink-0 items-end gap-3 border-b border-hairline px-3">
+    <main className={cn("chart-workspace min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-hairline-strong bg-clinical-surface", hidden ? "hidden" : "flex")}>
+      <header className="flex h-12 shrink-0 items-end gap-3 border-b border-hairline bg-ivory px-3">
         <TabStrip />
         <PatientSearch />
       </header>

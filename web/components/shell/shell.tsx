@@ -44,13 +44,13 @@ export function Shell() {
 
   return (
     <div className="flex h-full flex-col bg-jade-50 text-ink">
-      <header className="flex h-14 shrink-0 items-center gap-5 px-5">
-        <span className="font-serif text-[25px] tracking-tight text-jade-900">Meridian</span>
-        <span className="hidden border-l border-hairline-strong pl-5 text-[12px] text-ink-soft sm:block">Clinical workspace</span>
+      <header className="flex h-16 shrink-0 items-center gap-5 px-5">
+        <span className="shrink-0 font-serif text-[32px] leading-none tracking-tight text-jade-900">Meridian</span>
+        <span className="hidden min-w-0 truncate border-l border-hairline-strong pl-5 text-[13px] text-ink-soft sm:block">Your AI-native clinical workspace</span>
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Workspace view"
-            className="ml-auto flex h-9 shrink-0 items-center gap-2 rounded-md border border-hairline-strong bg-white px-3 text-[13px] font-semibold text-jade-900 hover:bg-jade-100"
+            className="ml-auto flex h-9 shrink-0 items-center gap-2 rounded-md border border-hairline-strong bg-clinical-surface px-3 text-[13px] font-semibold text-jade-900 hover:bg-jade-100"
           >
             <PanelsTopLeft className="size-4" />
             View: {layout === "split" ? "Split" : layout === "workspace" ? "Chart" : "Assistant"}

@@ -30,7 +30,7 @@ export function AgentWindow({ open, full }: { open: boolean; full: boolean }) {
       )}
       aria-label="Assistant"
     >
-      <header className="flex h-12 shrink-0 items-end gap-1 border-b border-white/20 px-3">
+      <header className="flex h-12 shrink-0 items-end gap-1 border-b border-white/15 px-3">
         <nav className="flex min-w-0 items-end gap-1 overflow-x-auto" aria-label="Conversations">
           {conversations.map((conversation) => (
             <div

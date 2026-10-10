@@ -6,8 +6,8 @@ import { ApiError, saveChartEntry } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { formatDate } from "@/lib/data";
 
-export const entryButton = "rounded-md border border-hairline-strong bg-white px-3 py-2 text-[13px] font-medium text-jade-700 hover:bg-jade-50 disabled:opacity-50";
-export const entryInput = "mt-1.5 w-full min-w-0 rounded-md border border-hairline-strong bg-white px-3 py-2 text-[14px] text-ink focus:outline-2 focus:outline-jade-600";
+export const entryButton = "rounded-md border border-hairline-strong bg-clinical-surface px-3 py-2 text-[13px] font-medium text-jade-700 hover:bg-jade-50 disabled:opacity-50";
+export const entryInput = "mt-1.5 w-full min-w-0 rounded-md border border-hairline-strong bg-clinical-surface px-3 py-2 text-[14px] text-ink focus:outline-2 focus:outline-jade-600";
 export const localDate = () => {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);

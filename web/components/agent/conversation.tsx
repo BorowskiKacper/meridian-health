@@ -94,6 +94,7 @@ function DoctorMessage({ message }: { message: Message }) {
 function AgentMessage({ message }: { message: Message }) {
   const actions = useStore(useShallow((s) => s.actions.filter((a) => a.messageId === message.id)));
   const approveMessage = useStore((s) => s.approveMessage);
+  const busy = useStore((s) => s.actions.some((a) => a.messageId === message.id && s.approvingIds.includes(a.id)));
   const pendingCount = actions.filter((a) => a.status === "pending").length;
 
   if (message.pending) {
@@ -118,8 +119,8 @@ function AgentMessage({ message }: { message: Message }) {
             <ActionCard key={action.id} action={action} />
           ))}
           {pendingCount > 1 && actions.every((a) => a.payload.kind !== "chart_change") && (
-            <Button size="sm" variant="outline" className="rounded-full px-3.5" onClick={() => approveMessage(message.id)}>
-              Approve all {pendingCount}
+            <Button size="sm" disabled={busy} variant="outline" className="rounded-full px-3.5" onClick={() => approveMessage(message.id)}>
+              {busy ? "Approving…" : `Approve all ${pendingCount}`}
             </Button>
           )}
         </div>
