@@ -1,12 +1,29 @@
-"""Snowflake Cortex Search over the loaded guideline and payer corpora."""
+"""Snowflake Cortex Search over the loaded guideline and payer corpora.
+
+When SNOWFLAKE_ACCOUNT, SNOWFLAKE_PAT, SNOWFLAKE_DATABASE, and SNOWFLAKE_SCHEMA
+are all set, queries go to the Cortex Search REST API. When any of them is
+blank, the same service names are answered from backend/ingest/corpus so the
+research, reminder, secretary, and eligibility callers still receive passages.
+"""
 
 from urllib.parse import quote
 
 import httpx
 
 from app import config
+from app.evidence.corpus import search_corpus
 
 _COLUMNS = ["source_id", "title", "passage", "locator"]
+_SETTING_NAMES = (
+    "SNOWFLAKE_ACCOUNT",
+    "SNOWFLAKE_PAT",
+    "SNOWFLAKE_DATABASE",
+    "SNOWFLAKE_SCHEMA",
+)
+
+
+def snowflake_configured():
+    return all(str(getattr(config, name, "")).strip() for name in _SETTING_NAMES)
 
 
 def _snowflake_host(account):
@@ -24,6 +41,8 @@ def cortex_search(service_name, text):
 
     Each row has source_id, title, passage, and locator.
     """
+    if not snowflake_configured():
+        return search_corpus(service_name, text)
     database = quote(config.SNOWFLAKE_DATABASE.strip(), safe="")
     schema = quote(config.SNOWFLAKE_SCHEMA.strip(), safe="")
     service = quote(service_name, safe="")
