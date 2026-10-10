@@ -1,4 +1,4 @@
-# Round: product and clinical recommendations
+# Meridian: product and clinical recommendations
 
 > **Frontend planning update, 2026-10-10:** The current hackathon priorities
 > are in sections 9 and 11. Section 11 adds the proposed demo story, clinical
@@ -803,7 +803,7 @@ judgments; they are not clinical practice guidelines or measured outcomes.
 
 ### 11.1 The promise and the audience
 
-**Round helps a primary-care clinician understand what changed, review the
+**Meridian helps a primary-care clinician understand what changed, review the
 basis for a proposed action, and leave a clear next step.** Make that promise
 visible before explaining agents, anatomy rendering or the database.
 

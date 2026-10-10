@@ -45,10 +45,6 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
 
   return (
     <div className="flex h-full flex-col">
-      <div className={cn(column, "agent-rule flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-hairline py-4")}>
-        <span className="agent-accent text-[12px] font-semibold text-jade-700">Assistant</span>
-        <span className="agent-dim text-[12px] text-ink-soft">{patient.name} · {patient.mrn}</span>
-      </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
         {conversation.messages.length === 0 ? (
           <div className={cn(column, "flex min-h-full flex-col py-8")}>
@@ -110,7 +106,7 @@ function AgentMessage({ message }: { message: Message }) {
     return (
       <div className="flex items-center gap-1.5 py-1" aria-label="Working">
         {[0, 1, 2].map((i) => (
-          <span key={i} className="size-1.5 animate-pulse rounded-full bg-jade-600/60" style={{ animationDelay: `${i * 160}ms` }} />
+          <span key={i} className="agent-working size-1.5 animate-pulse rounded-full bg-jade-600/60" style={{ animationDelay: `${i * 160}ms` }} />
         ))}
       </div>
     );

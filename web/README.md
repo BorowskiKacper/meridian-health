@@ -1,4 +1,4 @@
-# Round frontend
+# Meridian frontend
 
 The integrated Next.js workspace for the patient chart, 3D anatomy, trends and
 assistant. `../patient-round` is an earlier standalone prototype.
