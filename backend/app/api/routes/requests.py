@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 from starlette.datastructures import UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.api.errors import error_response, finish
 
@@ -22,11 +23,16 @@ async def create_request(request: Request):
             "Send exactly one of text or audio.",
         )
 
+    audio_bytes = await audio.read() if audio_present else None
+    return await run_in_threadpool(_process_request, patient_id, text, audio_bytes)
+
+
+def _process_request(patient_id: str, text: str | None, audio_bytes: bytes | None):
     import app.api.db as api_db
     import app.agents.doctor as doctor
 
     with api_db.get_session() as session:
-        if text_present:
+        if audio_bytes is None:
             result = doctor.route_doctor_request(
                 patient_id,
                 text,
@@ -35,7 +41,6 @@ async def create_request(request: Request):
             )
             return finish(result)
 
-        audio_bytes = await audio.read()
         from app.speech.hook import SpeechHook
 
         transcript = SpeechHook().transcribe(audio_bytes)

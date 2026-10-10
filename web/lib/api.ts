@@ -1,5 +1,8 @@
 const API_ROOT = "/backend-api";
 
+export interface Capabilities { assistant: boolean; speech: boolean; lab_extraction: boolean }
+export function getCapabilities() { return api<Capabilities>("/capabilities"); }
+
 export interface VisitDraftData {
   visit_date: string;
   reason: string;

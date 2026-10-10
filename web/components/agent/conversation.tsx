@@ -24,6 +24,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
   const patient = useStore((s) => (conversation ? s.patients[conversation.patientId] : undefined));
   const send = useStore((s) => s.send);
   const activate = useStore((s) => s.activateConversation);
+  const capabilities = useStore((s) => s.capabilities);
   const scroller = useRef<HTMLDivElement>(null);
   const count = conversation?.messages.length ?? 0;
   const lastText = conversation?.messages.at(-1)?.text;
@@ -75,7 +76,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
         )}
       </div>
       <div className={cn(column, "shrink-0 pb-5")}>
-        <p className="agent-dim mb-3 text-[11px] leading-relaxed">Assistant chart drafting is not connected yet. Direct chart entry is available.</p>
+        {capabilities?.assistant === false && <p className="agent-dim mb-3 text-[11px] leading-relaxed">The assistant is not configured on the server. Direct chart entry is available.</p>}
         <Composer key={conversation.id} conversationId={conversation.id} />
       </div>
     </div>
@@ -109,6 +110,7 @@ function AgentMessage({ message }: { message: Message }) {
     <div>
       {message.route && <RouteLine message={message} />}
       <p className="agent-text mt-1.5 text-[14px] leading-relaxed text-ink">{message.text}</p>
+      {message.audioBase64 && <audio controls className="mt-3 h-9 max-w-full" aria-label="Spoken assistant response" src={`data:audio/mpeg;base64,${message.audioBase64}`} />}
       {message.researchId && <ResearchBlock researchId={message.researchId} />}
       {actions.length > 0 && (
         <div className="mt-4 space-y-2.5">

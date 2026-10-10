@@ -1100,18 +1100,18 @@ implements FHIR interoperability. Sources: [Observation](https://hl7.org/fhir/ob
 | Backend capability | Frontend treatment | Current boundary |
 | --- | --- | --- |
 | Patient search and full chart | Centered search; persistent identity and allergies; longitudinal overview | Record label is derived from the UUID, not a hospital-issued MRN. No code-status or advance-directive fields. |
-| Conditions | Active/history list and direct add form; anatomy detail | Direct problem editing/resolution has no endpoint. AI condition updates depend on the unfinished doctor adapter. No ICD/SNOMED coding contract. |
+| Conditions | Active/history list and direct add form; anatomy detail; reviewed AI updates | Direct problem editing/resolution has no endpoint. AI updates are available through pending proposals. No ICD/SNOMED coding contract. |
 | Medications | Add, edit, stop via recorded status; history; reconciliation | Medication records are not prescriptions, e-prescribing, pharmacy transmission, or an inpatient MAR. |
 | Allergies | Substance, reaction, severity, active/history, direct editing and reconciliation | An explicit NKDA assertion is different from a missing allergy history. |
 | Observations and vital entry | Compact BP, weight, pulse and other recorded trends; exact-values flowsheet | Direct entry currently accepts paired BP, pulse, and weight. Other observations can be read if present. No continuous wearable feed. |
 | Encounter summaries and notes | Recent activity, timeline, recorded procedures | No separate surgical-history registry; no linked encounter diagnosis or completed SOAP/signature workflow. |
 | Visit draft | Open editor for visit date, reason/history, assessment, and plan | One unsigned draft per patient in entry state. No physical-exam field, encounter finalization, order cart, or signing endpoint. |
-| Proposed changes | Before/after review, individual approval, selected reviewed batch approval, rejection | Approval applies supported chart mutations; it is not a legal visit signature. The downstream reminder review also needs the doctor adapter. |
-| Typed and audio doctor requests | One command surface; real recording and playback/discard; transcription explicitly unavailable | `agents/doctor/model.complete` currently raises `NotImplementedError`. Valid Gemini keys do not connect this adapter. `SpeechHook.transcribe` and `synthesize` also return `None`; the request route exists, but the speech adapter is unfinished. |
-| Documents | Real file upload with honest storage/extraction result | `labs.extract_analytes` currently returns an empty list. No report-list/download endpoint; uploads do not populate numeric results. S3 write succeeds, read/delete probes were denied. |
+| Proposed changes | Before/after review, individual approval, selected reviewed batch approval, rejection | Approval inserts new records and applies existing-record updates after field, patient ownership and stale-value checks. Notes receive real Gemini embeddings. Approval is not a legal visit signature. Provider failures roll back the request. |
+| Typed and audio doctor requests | One command surface; recording, playback/discard, transcription, draft review and spoken responses | Live Gemini classification/drafting, ElevenLabs Scribe transcription and voice synthesis are connected. Configuration comes from the backend; permission and provider failures remain explicit. |
+| Documents | S3 upload; Gemini extraction; dated numeric proposals; approved results and provenance in chart trends | Numeric extraction supports PDF, image, TXT and CSV reports. Missing/ambiguous collection dates are not invented. No report-list/download endpoint; S3 read/delete probes remain denied. |
 | Reminders and appointments | Dated follow-up, status edits, all recorded appointments in history | Scheduling mutations and secretary chat require the secretary role. Do not expose those as unrestricted doctor actions. Reminder job runs across the clinic, not just the viewed patient. |
 | Coverage and eligibility | Separate history/coverage view; optional planned-service review with payer evidence | Uses stored coverage and model/payer documents. Not a live insurer eligibility transaction, claim submission, or guaranteed authorization determination. |
-| Research and screening evidence | Cited results in assistant and research view when returned | Provider authentication checks do not prove end-to-end clinical routing. The doctor adapter remains a blocker. |
+| Research and screening evidence | Cited results in assistant and research view; reviewed screening proposals | Live Snowflake USPSTF/PubMed retrieval, medical web grounding, Gemini answers and claim verification are connected. Returned citations are grounded in retrieved passages. Clinical applicability still requires clinician review. |
 
 ### Refactor implemented in this working tree
 
@@ -1130,9 +1130,10 @@ implements FHIR interoperability. Sources: [Observation](https://hl7.org/fhir/ob
 - Visit context remains available beside documentation through an expandable
   snapshot. Old vitals keep their dates and are never relabeled today's vitals.
   Save is explicitly an unsigned draft, with no claim to submit orders.
-- Real microphone capture replaces the sample transcript. Processing stays unavailable until the speech adapter is connected. Unsupported recording,
-  denied microphone access, upload failure, empty extraction, and unfinished
-  assistant drafting are expressed as actual states.
+- Real microphone capture replaces the sample transcript. Process dictation sends
+  recorded audio to the live speech adapter; the transcript and proposed changes
+  are returned for review. Unsupported recording, denied microphone access,
+  provider failures, upload failure and empty extraction remain explicit states.
 - Nonfunctional manual routing/re-routing controls are removed. The backend owns
   request classification. Chart changes require explicit approval; batch approval
   includes only proposals the clinician marked reviewed for the same patient.
@@ -1202,13 +1203,18 @@ Do not equate an SMS send with result review or care completion.
 | Vitals and wearables | Timestamped vitals plus clearly attributed home/device observations | Device identity, acquisition method, measurement quality, cadence, units, and reconciliation. Do not label sporadic office readings real-time. |
 | Genomics | A reviewed report, indication, laboratory interpretation, and source-linked actionable findings | Report/version metadata, variant identifiers and method, interpretation, consent/access policy, and clinical review. No automatic treatment changes from unreviewed variants. |
 | Public health and demographics | Relevant regional guidance linked to the patient's context | Source, geographic scope, publication/update dates and applicability. Population data must remain distinct from a patient's measured history. |
-| Medical literature and guidelines | A question-specific answer with citations and publication/version context | Complete doctor adapter, functioning evidence retrieval, patient-specific applicability review, and an explicit approved chart/plan action. |
+| Medical literature and guidelines | A question-specific answer with citations and publication/version context | Live doctor adapter and evidence retrieval are connected. Publication/version metadata and deeper patient-specific applicability review need further expansion; chart/plan actions require approval. |
 
 ### Recommended build order
 
-1. Finish the doctor model adapter, speech adapter, and lab extraction implementation; then verify
-   typed request, voice request, proposal review, approval, and chart refresh as
-   complete workflows. Keep provider credential tests distinct from these checks.
+1. The doctor model adapter, speech adapter and numeric lab extraction are now
+   connected and verified with real providers through HTTP requests and committed
+   synthetic records in an isolated database. Typed and voice drafting, approval,
+   real note embeddings, clinical answers, screening review, secretary payer
+   lookup, S3 upload and approved lab chart refresh passed. Continue to keep
+   provider credential checks distinct from complete workflow checks. The frontend
+   proxy now allows up to five minutes for these multi-call workflows instead of
+   cutting them off at 30 seconds; improve response speed as a follow-up.
 2. Add document metadata listing and authenticated original-report viewing.
    Resolve object read/cleanup permissions without exposing storage credentials
    to the frontend. Preserve document provenance on approved observations.

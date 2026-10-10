@@ -211,6 +211,7 @@ export interface Message {
   requestText?: string;
   researchId?: string;
   pending?: boolean;
+  audioBase64?: string;
 }
 
 export interface Conversation {

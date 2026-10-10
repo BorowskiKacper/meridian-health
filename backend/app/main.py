@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 import app.api.db as api_db
 import app.runtime as runtime
 from app.api.errors import validation_message
+from app.integrations import IntegrationError
 from app.api.routes import (
     appointments,
     body,
@@ -20,6 +21,17 @@ from app.api.routes import (
 )
 
 app = FastAPI()
+
+
+@app.get("/capabilities")
+def capabilities():
+    from app import config
+    return {"assistant": bool(config.GEMINI_API_KEY), "speech": bool(config.ELEVENLABS_API_KEY), "lab_extraction": bool(config.GEMINI_API_KEY and config.S3_BUCKET)}
+
+
+@app.exception_handler(IntegrationError)
+async def provider_error(request: Request, exc: IntegrationError):
+    return JSONResponse(status_code=503, content={"error": {"code": "service_unavailable", "message": str(exc), "service": exc.service}})
 app.include_router(body.router)
 app.include_router(chart_entries.router)
 app.include_router(requests.router)

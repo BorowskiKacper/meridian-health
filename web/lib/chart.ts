@@ -223,7 +223,7 @@ function findingFromRegion(
   series: ChartSeries[],
   span: { start: number; end: number },
 ): Finding | null {
-  if (!problems.length && !medications.length && !series.length) return null;
+  if (region.region_key === "general" || (!problems.length && !medications.length && !series.length)) return null;
   const placement = placeOnAtlas(region.mesh_name, region.region_key);
   const trends: Trend[] = series.map(trendFromSeries);
   const latest: Observation[] = trends.flatMap((trend) => {

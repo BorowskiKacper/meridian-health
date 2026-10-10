@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type DocumentResult } from "./api";
+import { approveSuggestions, getCapabilities, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult } from "./api";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import type {
@@ -64,6 +64,7 @@ interface State {
   statusMessage: string;
   notice: string | null;
   uploadedLabs: Record<string, string>;
+  capabilities: Capabilities | null;
 
   load: () => Promise<void>;
   refreshPatient: (patientId: string) => Promise<void>;
@@ -92,7 +93,7 @@ interface State {
 }
 
 function explain(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.status < 500) return error.message;
+  if (error instanceof ApiError && (error.status < 500 || error.status === 503)) return error.message;
   if (error instanceof Error && !(error instanceof ApiError) && error.message) return error.message;
   return fallback;
 }
@@ -160,6 +161,7 @@ export const useStore = create<State>()((set, get) => {
     statusMessage: "Loading the chart…",
     notice: null,
     uploadedLabs: {},
+    capabilities: null,
     refreshPatient,
     openPatient: async (patientId) => {
       await refreshPatient(patientId);
@@ -172,7 +174,7 @@ export const useStore = create<State>()((set, get) => {
     load: async () => {
       set({ status: "loading", statusMessage: "Loading the chart…", notice: null });
       try {
-        const chart = await loadWorkspace();
+        const [chart, capabilities] = await Promise.all([loadWorkspace(), getCapabilities().catch(() => null)]);
         const patients = Object.fromEntries(chart.patients.map((patient) => [patient.id, patient]));
         const first = chart.patients[0];
         const conversations: Conversation[] = first
@@ -192,6 +194,7 @@ export const useStore = create<State>()((set, get) => {
           : [];
         set({
           patients,
+          capabilities,
           actions: chart.actions,
           views: Object.fromEntries(chart.patients.map((patient) => [patient.id, { specialty: "all" as const, minute: NOW_MINUTE }])),
           conversations,
@@ -331,12 +334,13 @@ export const useStore = create<State>()((set, get) => {
             routedBy: "auto",
             requestText: text,
             researchId,
+            audioBase64: result.audio_base64 ?? undefined,
             pending: false,
           });
           try { await refreshPatient(conversation.patientId); } catch { set({ notice: "The request completed, but the chart could not refresh. Reload before continuing." }); }
         } catch (error) {
           updateMessage(conversationId, reply.id, {
-            text: explain(error, "The clinic API could not classify this request. The chart model is not configured, so nothing was saved."),
+            text: explain(error, "The assistant request could not finish. Try again; no chart changes were approved."),
             requestText: text,
             pending: false,
           });

@@ -32,11 +32,11 @@ export function OverviewTab({ patientId }: { patientId: string }) {
         <MeasurementList series={[...bloodPressure(patient.trends), ...(weight ? [weight] : []), ...patient.trends.filter((trend) => /^heart rate$|^pulse$/i.test(trend.name))]} />
       </OverviewSection>
 
-      <div className="grid gap-x-8 @min-[700px]:grid-cols-2">
-        <OverviewSection title="Active problems" action="Problem list" onAction={() => openTab("problems", patientId)}>
+      <div className="mt-7 divide-y divide-hairline border-y border-hairline">
+        <OverviewSection className="py-5" title="Active problems" action="Problem list" onAction={() => openTab("problems", patientId)}>
           {problems.length ? <ul className="divide-y divide-hairline">{problems.map((p) => <li key={p.id} className="py-3 first:pt-0"><button type="button" className="text-left text-[14px] font-semibold text-jade-700 hover:underline" onClick={() => openTab("region", patientId, p.regionKey)}>{p.name}</button><p className="mt-1 text-[12px] text-ink-faint"><span className="capitalize">{p.status}</span> · Onset {p.onset ? formatDate(p.onset) : "not recorded"}</p></li>)}</ul> : <p className="text-sm text-ink-faint">No active problems recorded.</p>}
         </OverviewSection>
-        <OverviewSection title="Active medications" action="Medication list" onAction={() => openTab("medications", patientId)}>
+        <OverviewSection className="py-5" title="Active medications" action="Medication list" onAction={() => openTab("medications", patientId)}>
           {meds.length ? <ul className="divide-y divide-hairline">{meds.map((m) => <li key={m.id} className="py-3 first:pt-0"><p className="text-[14px] font-semibold">{m.name} <span className="font-normal">{m.dose}</span></p><p className="mt-1 text-[12px] text-ink-soft">{m.route || "Route not recorded"} · {m.frequency || "Frequency not recorded"}</p></li>)}</ul> : <p className="text-sm text-ink-faint">No active medication records.</p>}
         </OverviewSection>
       </div>
@@ -53,6 +53,6 @@ export function OverviewTab({ patientId }: { patientId: string }) {
   );
 }
 
-function OverviewSection({ title, action, onAction, children }: { title: string; action: string; onAction: () => void; children: ReactNode }) {
-  return <section className="mt-7"><div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><h2 className="font-sans text-[15px] font-semibold">{title}</h2><button type="button" onClick={onAction} className="text-[12px] text-jade-700 hover:underline">{action} →</button></div>{children}</section>;
+function OverviewSection({ title, action, onAction, children, className = "mt-7" }: { title: string; action: string; onAction: () => void; children: ReactNode; className?: string }) {
+  return <section className={className}><div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><h2 className="font-sans text-[15px] font-semibold">{title}</h2><button type="button" onClick={onAction} className="text-[12px] text-jade-700 hover:underline">{action} →</button></div>{children}</section>;
 }

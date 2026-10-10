@@ -39,20 +39,16 @@ atlas checkout if needed.
 
 ### Local stack installed on this machine
 
-The backend now has a Python 3.12 virtual environment and a local PostgreSQL
-16 database with pgvector. The database binaries and data are under ignored
-`backend/.local/`; the generated connection credentials are in ignored
-`backend/.env`. The repository's base and primary-care demo seeds are loaded.
+The backend has a Python 3.12 virtual environment. Its database is selected by
+`DATABASE_URL` in ignored `backend/.env`, currently the configured cloud PostgreSQL
+database. Local PostgreSQL 16 with pgvector is also installed under ignored
+`backend/.local/` for isolated synthetic regression tests. Do not replace the
+configured database URL just to run the app.
 
 To restart the backend from a new PowerShell at the repository root:
 
 ```powershell
 cd backend
-$env:Path = (Resolve-Path '.local/postgres/Library/bin').Path + ';' + $env:Path
-& '.local/postgres/Library/bin/pg_ctl.exe' -D '.local/data' status
-if ($LASTEXITCODE -ne 0) {
-    & '.local/postgres/Library/bin/pg_ctl.exe' -D '.local/data' -l '.local/postgres.log' -o '-h 127.0.0.1 -p 55432' -w start
-}
 & '.venv/Scripts/python.exe' -m app.bootstrap
 & '.venv/Scripts/python.exe' -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -61,11 +57,29 @@ Use a second terminal for the frontend command above. The bootstrap command
 preserves an already-seeded database. The initial background API process logs
 are in `backend/.local/api.stdout.log` and `backend/.local/api.stderr.log`.
 
-The database listens on `127.0.0.1:55432`, the API on `127.0.0.1:8000`, and the
-frontend on `127.0.0.1:3000`. The API documentation is at
-http://127.0.0.1:8000/docs. Chart browsing works without vendor credentials;
-unfinished model, extraction and speech implementations are separate from
-starting these servers.
+The API listens on `127.0.0.1:8000` and the frontend on `127.0.0.1:3000`.
+The API documentation is at http://127.0.0.1:8000/docs. Configure vendor credentials
+in `backend/.env` using [the example](../backend/.env.example). Secrets never belong
+in browser environment variables. Restart the API after changing credentials.
+
+Gemini routing, chart drafting, embeddings and clinical verification, Snowflake
+guideline/payer retrieval, ElevenLabs transcription and spoken responses, and S3
+lab uploads with Gemini extraction are connected. `/capabilities` reports which
+features are configured; this is not a live provider health check. The frontend
+proxy permits five-minute workflows and 20 MB uploads with multipart overhead.
+AI changes remain pending until approved. Eligibility uses recorded coverage,
+not a live insurer transaction. Twilio account credentials are tested without
+sending real messages. Original document viewing still requires authenticated
+access and S3 read permission; bucket read/delete probes currently return 403.
+
+Live checks used synthetic clinical data in a private database schema, removed
+afterward. S3 deletion was denied, so these synthetic test objects remain for
+cleanup by an account with `s3:DeleteObject` permission:
+
+```text
+integration-checks/meridian-ed62457d-bb4e-4527-a19e-72f5c07ec994.txt
+33333333-3333-4333-8333-333333333333/df1789e0-cf62-4c4d-8ac1-fe7430eebfbd.bin
+```
 
 ### Connecting another API
 
