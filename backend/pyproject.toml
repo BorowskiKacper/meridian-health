@@ -19,6 +19,7 @@ dependencies = [
     "httpx",
     "google-genai",
     "twilio",
+    "boto3[crt]>=1.42",
 ]
 
 [project.optional-dependencies]

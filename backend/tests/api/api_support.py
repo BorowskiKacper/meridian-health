@@ -17,6 +17,17 @@ DOCTOR = {"X-Role": "doctor"}
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+class _BoundSession:
+    def __init__(self, session):
+        self._session = session
+
+    def __enter__(self):
+        return self._session
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
 def bind_session(monkeypatch, session):
     import importlib
 
@@ -24,7 +35,7 @@ def bind_session(monkeypatch, session):
         db = importlib.import_module("app.api.db")
     except ModuleNotFoundError:
         return
-    monkeypatch.setattr(db, "get_session", lambda: session)
+    monkeypatch.setattr(db, "get_session", lambda: _BoundSession(session))
 
 
 def assert_error(response, status, code):
