@@ -2,6 +2,8 @@ import copy
 import uuid
 from pathlib import Path
 
+import pytest
+
 from app.db.repositories import (
     get_suggestion,
     list_documents_by_patient,
@@ -205,3 +207,144 @@ def test_labs_source_does_not_reference_mcp():
     source = LABS_SOURCE.read_text(encoding="utf-8")
     assert "app.mcp" not in source
     assert "propose_change" not in source
+
+
+def _record_write_order(monkeypatch):
+    import app.services.labs as labs
+
+    order = []
+    real_insert_document = labs.insert_document
+    real_insert_suggestion = labs.insert_suggestion
+    real_save_object = labs.save_object
+
+    def insert_document(session, row):
+        order.append("insert_document")
+        return real_insert_document(session, row)
+
+    def insert_suggestion(session, row):
+        order.append("insert_suggestion")
+        return real_insert_suggestion(session, row)
+
+    def save_object(storage_key, content):
+        order.append("save_object")
+        return real_save_object(storage_key, content)
+
+    monkeypatch.setattr(labs, "insert_document", insert_document)
+    monkeypatch.setattr(labs, "insert_suggestion", insert_suggestion)
+    monkeypatch.setattr(labs, "save_object", save_object)
+    return order
+
+
+def test_extract_lab_report_writes_the_file_after_the_rows(
+    seeded_db, tmp_path, monkeypatch
+):
+    install_seams(monkeypatch, tmp_path)
+    order = _record_write_order(monkeypatch)
+
+    invoke(
+        extract_lab_report,
+        JANE_ID,
+        IMAGE,
+        MEDIA_TYPE,
+        session=seeded_db.session,
+    )
+
+    assert order == [
+        "insert_document",
+        "insert_suggestion",
+        "insert_suggestion",
+        "insert_suggestion",
+        "save_object",
+    ]
+
+
+def _rejecting_save(monkeypatch):
+    import app.services.labs as labs
+
+    saved = []
+
+    def save_object(storage_key, content):
+        saved.append((storage_key, content))
+
+    monkeypatch.setattr(labs, "save_object", save_object)
+    return saved
+
+
+def test_extract_lab_report_does_not_save_when_document_insert_fails(
+    seeded_db, tmp_path, monkeypatch
+):
+    import app.services.labs as labs
+
+    install_seams(monkeypatch, tmp_path)
+    saved = _rejecting_save(monkeypatch)
+
+    def insert_document(session, row):
+        raise RuntimeError("document insert failed")
+
+    monkeypatch.setattr(labs, "insert_document", insert_document)
+    with pytest.raises(RuntimeError, match="document insert failed"):
+        invoke(
+            extract_lab_report,
+            JANE_ID,
+            IMAGE,
+            MEDIA_TYPE,
+            session=seeded_db.session,
+        )
+    assert saved == []
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_extract_lab_report_does_not_save_when_a_later_suggestion_insert_fails(
+    seeded_db, tmp_path, monkeypatch
+):
+    import app.services.labs as labs
+
+    install_seams(monkeypatch, tmp_path)
+    saved = _rejecting_save(monkeypatch)
+    suggestion_calls = {"count": 0}
+    real_insert_suggestion = labs.insert_suggestion
+
+    def insert_suggestion(session, row):
+        suggestion_calls["count"] += 1
+        if suggestion_calls["count"] == 2:
+            raise RuntimeError("suggestion insert failed")
+        return real_insert_suggestion(session, row)
+
+    monkeypatch.setattr(labs, "insert_suggestion", insert_suggestion)
+    with pytest.raises(RuntimeError, match="suggestion insert failed"):
+        invoke(
+            extract_lab_report,
+            JANE_ID,
+            IMAGE,
+            MEDIA_TYPE,
+            session=seeded_db.session,
+        )
+    assert saved == []
+    assert suggestion_calls["count"] == 2
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_extract_lab_report_propagates_save_failure(
+    seeded_db, tmp_path, monkeypatch
+):
+    import app.services.labs as labs
+
+    install_seams(monkeypatch, tmp_path)
+    session = seeded_db.session
+
+    def save_object(storage_key, content):
+        raise RuntimeError("save failed")
+
+    monkeypatch.setattr(labs, "save_object", save_object)
+    with pytest.raises(RuntimeError, match="save failed"):
+        invoke(
+            extract_lab_report,
+            JANE_ID,
+            IMAGE,
+            MEDIA_TYPE,
+            session=session,
+        )
+
+    documents = list_documents_by_patient(session, JANE_ID)
+    assert len(documents) == 1
+    assert list(tmp_path.rglob("*")) == []

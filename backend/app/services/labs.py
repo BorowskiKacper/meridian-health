@@ -12,6 +12,12 @@ def storage_root() -> Path:
     return Path(__file__).resolve().parents[2] / "storage"
 
 
+def save_object(storage_key, content):
+    destination = storage_root() / storage_key
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(content)
+
+
 def extract_analytes(content, media_type) -> list:
     return []
 
@@ -49,9 +55,6 @@ def _suggestion_payload(patient_id, analyte):
 def extract_lab_report(patient_id, content, media_type, *, session):
     document_id = str(uuid4())
     storage_key = f"{patient_id}/{document_id}.bin"
-    destination = storage_root() / storage_key
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(content)
 
     document = insert_document(
         session,
@@ -73,6 +76,8 @@ def extract_lab_report(patient_id, content, media_type, *, session):
             suggestion.model_dump(exclude={"unconfirmed"}),
         )
         suggestions.append(stored)
+
+    save_object(storage_key, content)
 
     return {
         "document_id": document["id"],
