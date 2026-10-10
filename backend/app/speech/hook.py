@@ -1,64 +1,64 @@
 import base64
+from functools import lru_cache
 
 import httpx
 
-# Clinical dictation. Scribe v2 Medical uses the same request as scribe_v2.
-_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
-_STT_MODEL = "scribe_v2_medical"
-# Premade voice used for the short spoken read-back. Not a patient setting.
-_TTS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
-_TTS_URL = f"https://api.elevenlabs.io/v1/text-to-speech/{_TTS_VOICE_ID}"
-_TTS_MODEL = "eleven_flash_v2_5"
-_TIMEOUT_SECONDS = 60.0
+from app import config
+from app.integrations import IntegrationError
+
+_ROOT = "https://api.elevenlabs.io/v1"
 
 
-def _api_key():
-    import app.config as config
+def _request(method, path, **kwargs):
+    if not config.ELEVENLABS_API_KEY:
+        raise IntegrationError("ElevenLabs", "Voice services are not configured on the server.")
+    try:
+        response = httpx.request(method, _ROOT + path, headers={"xi-api-key": config.ELEVENLABS_API_KEY}, timeout=60, **kwargs)
+        response.raise_for_status()
+        return response
+    except Exception:
+        raise IntegrationError("ElevenLabs", "The voice service could not complete this request. Try again.") from None
 
-    key = getattr(config, "ELEVENLABS_API_KEY", "")
-    if isinstance(key, str):
-        return key.strip()
-    return ""
+
+@lru_cache(maxsize=1)
+def _voice(key):
+    voices = _request("GET", "/voices").json().get("voices", [])
+    if not voices:
+        raise IntegrationError("ElevenLabs", "No voice is available for this ElevenLabs account.")
+    return voices[0]["voice_id"]
+
+
+def _mime(audio):
+    if audio.startswith(b"\x1aE\xdf\xa3"):
+        return "audio/webm"
+    if audio.startswith(b"OggS"):
+        return "audio/ogg"
+    if audio.startswith(b"RIFF"):
+        return "audio/wav"
+    # Phone recordings are M4A, an MP4 container whose type sits after the size field.
+    if len(audio) >= 8 and audio[4:8] == b"ftyp":
+        return "audio/mp4"
+    return "audio/mpeg"
 
 
 class SpeechHook:
     def transcribe(self, audio):
-        key = _api_key()
-        if not key or not audio:
-            return None
-        try:
-            response = httpx.post(
-                _STT_URL,
-                headers={"xi-api-key": key},
-                data={"model_id": _STT_MODEL, "language_code": "eng"},
-                files={
-                    "file": ("dictation.audio", audio, "application/octet-stream")
-                },
-                timeout=_TIMEOUT_SECONDS,
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except Exception:
-            return None
-        text = payload.get("text") if isinstance(payload, dict) else None
-        if isinstance(text, str) and text.strip():
-            return text.strip()
-        return None
+        if not audio or len(audio) > 20 * 1024 * 1024:
+            raise IntegrationError("ElevenLabs", "Provide a nonempty recording under 20 MB.")
+        response = _request(
+            "POST",
+            "/speech-to-text",
+            data={"model_id": "scribe_v2", "tag_audio_events": "false"},
+            files={"file": ("dictation", audio, _mime(audio))},
+        )
+        text = response.json().get("text", "").strip()
+        if not text:
+            raise IntegrationError("ElevenLabs", "No speech was recognized. Record again or type your request.")
+        return text
 
     def synthesize(self, text):
-        key = _api_key()
-        if not key or not isinstance(text, str) or not text.strip():
-            return None
-        try:
-            response = httpx.post(
-                _TTS_URL,
-                headers={"xi-api-key": key, "Accept": "audio/mpeg"},
-                json={"text": text, "model_id": _TTS_MODEL},
-                timeout=_TIMEOUT_SECONDS,
-            )
-            response.raise_for_status()
-        except Exception:
-            return None
-        if not response.content:
-            return None
+        if not isinstance(text, str) or not text.strip():
+            raise IntegrationError("ElevenLabs", "There is no response to speak.")
+        voice = config.ELEVENLABS_VOICE_ID or _voice(config.ELEVENLABS_API_KEY)
+        response = _request("POST", f"/text-to-speech/{voice}", json={"text": text, "model_id": "eleven_flash_v2_5"})
         return base64.b64encode(response.content).decode("ascii")

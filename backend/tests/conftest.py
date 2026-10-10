@@ -76,6 +76,29 @@ def _reject_foreign_schema(base, schema):
             pytest.fail("refusing to create tables outside the test schema")
 
 
+def _engine_for_schema(database_engine, schema):
+    # Qualify every default-schema name. create_all then looks only in the
+    # test schema, instead of treating visible public tables as already there.
+    return database_engine.execution_options(schema_translate_map={None: schema})
+
+
+def _relation_in_schema(connection, schema, name):
+    found = connection.execute(
+        text(
+            """
+            SELECT 1
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = :schema
+              AND c.relname = :name
+              AND c.relkind = 'r'
+            """
+        ),
+        {"schema": schema, "name": name},
+    ).scalar()
+    return found is not None
+
+
 def _object_snapshot(connection, schema):
     relations = connection.execute(
         text(
@@ -113,6 +136,9 @@ def engine():
     if _SCHEMA_NAME.fullmatch(schema) is None:
         database_engine.dispose()
         raise RuntimeError("refusing unexpected test schema name")
+    # Qualify ORM tables so create_all's existence checks cannot reuse public
+    # application tables when testing an already-populated database.
+    database_engine = database_engine.execution_options(schema_translate_map={None: schema})
     try:
         from app.db.models import Base
     except Exception:
@@ -125,17 +151,21 @@ def engine():
             connection.execute(text(f'CREATE SCHEMA "{schema}"'))
         listener = _bind_search_path(database_engine, schema)
         database_engine.dispose()
+        test_engine = _engine_for_schema(database_engine, schema)
         _reject_foreign_schema(Base, schema)
-        with database_engine.connect() as connection:
+        with test_engine.connect() as connection:
             before = _object_snapshot(connection, schema)
-        with database_engine.begin() as connection:
+        with test_engine.begin() as connection:
             connection.execute(text(f'SET search_path TO "{schema}", public'))
             Base.metadata.create_all(connection)
-        with database_engine.connect() as connection:
+        with test_engine.connect() as connection:
             after = _object_snapshot(connection, schema)
+            body_regions = _relation_in_schema(connection, schema, "body_regions")
         if after != before:
             pytest.fail("table creation changed a schema other than the test schema")
-        yield database_engine
+        if not body_regions:
+            pytest.fail("body_regions was not created in the test schema")
+        yield test_engine
     finally:
         if listener is not None:
             event.remove(database_engine, "connect", listener)

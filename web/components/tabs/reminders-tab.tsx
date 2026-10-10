@@ -22,7 +22,7 @@ export function RemindersTab({ patientId }: { patientId: string }) {
         <h3 className="font-sans text-[15px] font-semibold leading-relaxed text-ink">{task.title}</h3>
         <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-ink-soft">
           <span>Due <time dateTime={task.dueOn}>{formatDate(task.dueOn)}</time></span>
-          <span className={task.status === "due" ? "font-medium text-jade-700" : ""}>{statusLabel[task.status]}</span>
+          <span className={task.status === "due" ? "rounded bg-watch/10 px-2 py-0.5 font-medium text-watch" : ""}>{statusLabel[task.status]}</span>
         </div>
         {task.rule && <details className="mt-3 text-[12px] text-ink-faint">
           <summary className="w-fit cursor-pointer hover:text-jade-700">Task source</summary>

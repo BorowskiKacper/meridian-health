@@ -2,8 +2,8 @@
 
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, postRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument } from "./api";
-import { labReportFile, loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
+import { approveSuggestions, getCapabilities, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult } from "./api";
+import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import type {
   Agent,
@@ -64,6 +64,7 @@ interface State {
   statusMessage: string;
   notice: string | null;
   uploadedLabs: Record<string, string>;
+  capabilities: Capabilities | null;
 
   load: () => Promise<void>;
   refreshPatient: (patientId: string) => Promise<void>;
@@ -79,19 +80,20 @@ interface State {
   setMode: (mode: Mode) => void;
   setLayout: (layout: Layout) => void;
 
-  send: (text: string) => void;
+  send: (text: string, audio?: Blob) => void;
   reroute: (messageId: string, route: Agent) => void;
   approve: (id: string) => void;
+  approveSelected: (ids: string[]) => Promise<boolean>;
   reject: (id: string) => void;
   approveMessage: (messageId: string) => void;
 
-  extractLab: (patientId: string) => void;
+  extractLab: (patientId: string, file: File) => Promise<DocumentResult | undefined>;
   runReminders: (patientId: string) => void;
   optOut: (patientId: string) => void;
 }
 
 function explain(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.status < 500) return error.message;
+  if (error instanceof ApiError && (error.status < 500 || error.status === 503)) return error.message;
   if (error instanceof Error && !(error instanceof ApiError) && error.message) return error.message;
   return fallback;
 }
@@ -159,6 +161,7 @@ export const useStore = create<State>()((set, get) => {
     statusMessage: "Loading the chart…",
     notice: null,
     uploadedLabs: {},
+    capabilities: null,
     refreshPatient,
     openPatient: async (patientId) => {
       await refreshPatient(patientId);
@@ -171,7 +174,7 @@ export const useStore = create<State>()((set, get) => {
     load: async () => {
       set({ status: "loading", statusMessage: "Loading the chart…", notice: null });
       try {
-        const chart = await loadWorkspace();
+        const [chart, capabilities] = await Promise.all([loadWorkspace(), getCapabilities().catch(() => null)]);
         const patients = Object.fromEntries(chart.patients.map((patient) => [patient.id, patient]));
         const first = chart.patients[0];
         const conversations: Conversation[] = first
@@ -191,6 +194,7 @@ export const useStore = create<State>()((set, get) => {
           : [];
         set({
           patients,
+          capabilities,
           actions: chart.actions,
           views: Object.fromEntries(chart.patients.map((patient) => [patient.id, { specialty: "all" as const, minute: NOW_MINUTE }])),
           conversations,
@@ -261,7 +265,7 @@ export const useStore = create<State>()((set, get) => {
     setMode: (mode) => set({ mode }),
     setLayout: (layout) => set({ layout }),
 
-    send: (text) => {
+    send: (text, audio) => {
       const state = get();
       let conversationId = state.activeConversationId;
       if (!conversationId) {
@@ -276,7 +280,7 @@ export const useStore = create<State>()((set, get) => {
       const doctor: Message = { id: uid("msg"), role: "doctor", text };
       const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true };
       updateConversation(conversationId, (c) => ({ ...c, messages: [...c.messages, doctor, reply] }));
-      const localTab = OPEN_TAB[text.trim().toLowerCase()];
+      const localTab = audio ? undefined : OPEN_TAB[text.trim().toLowerCase()];
       if (localTab) {
         get().openTab(localTab, conversation.patientId);
         updateMessage(conversationId, reply.id, {
@@ -290,7 +294,8 @@ export const useStore = create<State>()((set, get) => {
       }
       void (async () => {
         try {
-          const result = await postRequest(conversation.patientId, text);
+          const result = audio ? await postVoiceRequest(conversation.patientId, audio) : await postRequest(conversation.patientId, text);
+          if (audio) updateMessage(conversationId, doctor.id, { text: result.transcript || "Voice request (no transcript returned)" });
           const route = ROUTE_LABEL[result.route];
           const researchId = result.answer ? uid("research") : undefined;
           if (result.answer && researchId) {
@@ -329,12 +334,13 @@ export const useStore = create<State>()((set, get) => {
             routedBy: "auto",
             requestText: text,
             researchId,
+            audioBase64: result.audio_base64 ?? undefined,
             pending: false,
           });
-          await refreshPatient(conversation.patientId);
+          try { await refreshPatient(conversation.patientId); } catch { set({ notice: "The request completed, but the chart could not refresh. Reload before continuing." }); }
         } catch (error) {
           updateMessage(conversationId, reply.id, {
-            text: explain(error, "The clinic API could not classify this request. The chart model is not configured, so nothing was saved."),
+            text: explain(error, "The assistant request could not finish. Try again; no chart changes were approved."),
             requestText: text,
             pending: false,
           });
@@ -352,13 +358,17 @@ export const useStore = create<State>()((set, get) => {
       });
     },
 
-    approve: (id) => {
-      const action = get().actions.find((a) => a.id === id && a.status === "pending");
-      if (!action) return;
-      void (async () => {
+    approve: (id) => { void get().approveSelected([id]); },
+
+    approveSelected: async (ids) => {
+      const selected = [...new Set(ids)].map((id) => get().actions.find((a) => a.id === id && a.status === "pending"));
+      const action = selected[0];
+      if (!action || selected.some((a) => !a || a.patientId !== action.patientId)) return false;
+      let persisted = false;
         try {
-          const result = await approveSuggestions([id]);
-          audit(action.patientId, "Approved", action.title);
+          const result = await approveSuggestions([...new Set(ids)]);
+          persisted = true;
+          audit(action.patientId, "Approved", selected.length === 1 ? action.title : `${selected.length} reviewed chart changes.`);
           await refreshPatient(action.patientId);
           const review = result.reminder_review;
           if (review?.answer && action.conversationId) {
@@ -368,12 +378,13 @@ export const useStore = create<State>()((set, get) => {
             }));
           }
           set({ notice: null });
+          return true;
         } catch (error) {
           set({
-            notice: explain(error, "Approval did not finish. The reminder review needs the chart model, so the chart was left unchanged."),
+            notice: persisted ? "Changes were approved, but the chart could not refresh. Reload before continuing." : explain(error, "Approval could not be confirmed. Reload the chart before retrying."),
           });
+          return false;
         }
-      })();
     },
 
     reject: (id) => {
@@ -413,20 +424,19 @@ export const useStore = create<State>()((set, get) => {
       })();
     },
 
-    extractLab: (patientId) => {
+    extractLab: async (patientId, file) => {
       const patient = get().patients[patientId];
-      if (!patient || get().uploadedLabs[patientId]) return;
+      if (!patient) return;
       const conversationId = conversationFor(patientId);
-      void (async () => {
         try {
-          const result = await uploadDocument(patientId, labReportFile(patient.name));
+          const result = await uploadDocument(patientId, file);
           set((s) => ({ uploadedLabs: { ...s.uploadedLabs, [patientId]: result.document_id } }));
           const message: Message = {
             id: uid("msg"),
             role: "agent",
             text: result.suggestions.length
               ? `Saved the report and drafted ${result.suggestions.length} value${result.suggestions.length === 1 ? "" : "s"}. Approve the ones you want on the chart.`
-              : "Saved the report on the chart. No values were extracted.",
+              : "Stored the uploaded document. No values were extracted or added to the recorded results.",
             route: "chart",
             routedBy: "auto",
           };
@@ -438,11 +448,11 @@ export const useStore = create<State>()((set, get) => {
             layout: s.layout === "workspace" ? "split" : s.layout,
             notice: null,
           }));
-          await refreshPatient(patientId);
+          try { await refreshPatient(patientId); } catch { set({ notice: "Document stored, but the chart could not refresh. Reload before uploading again." }); }
+          return result;
         } catch (error) {
-          set({ notice: explain(error, "The lab report was not saved.") });
+          set({ notice: explain(error, "The document upload could not be confirmed. Check before retrying.") });
         }
-      })();
     },
 
     runReminders: (patientId) => {

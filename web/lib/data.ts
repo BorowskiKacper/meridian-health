@@ -36,11 +36,12 @@ export const tabLabel: Record<TabKind, string> = {
   timeline: "Timeline",
   queue: "Approvals",
   research: "Research",
-  lab: "Lab document",
+  lab: "Diagnostics",
+  history: "History & coverage",
   reminders: "Follow-up",
 };
 
-export const openableTabs: TabKind[] = ["overview", "visit", "vitals", "problems", "medications", "allergies", "timeline", "body", "queue", "lab", "reminders"];
+export const openableTabs: TabKind[] = ["overview", "visit", "vitals", "problems", "medications", "allergies", "lab", "history", "timeline", "body", "queue", "reminders"];
 
 const SPECIALTY_NAMES: Record<string, string> = {
   all: "All findings",

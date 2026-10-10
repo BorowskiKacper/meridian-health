@@ -1,5 +1,8 @@
 const API_ROOT = "/backend-api";
 
+export interface Capabilities { assistant: boolean; speech: boolean; lab_extraction: boolean }
+export function getCapabilities() { return api<Capabilities>("/capabilities"); }
+
 export interface VisitDraftData {
   visit_date: string;
   reason: string;
@@ -301,6 +304,26 @@ export function postRequest(patientId: string, text: string) {
   body.set("patient_id", patientId);
   body.set("text", text);
   return api<DoctorRequest>("/requests", { method: "POST", body });
+}
+
+export function postVoiceRequest(patientId: string, audio: Blob) {
+  const body = new FormData();
+  body.set("patient_id", patientId);
+  body.set("audio", audio, "dictation.webm");
+  return api<DoctorRequest>("/requests", { method: "POST", body });
+}
+
+export interface EligibilityResult {
+  coverage: { payer_name: string; member_id: string; plan_name: string; active: boolean; deductible_remaining: number; copay: number; benefits: { name: string; detail: string }[] };
+  summary: string;
+  prior_auth: { note: string; citations: CitationRow[] } | null;
+}
+
+export function checkEligibility(patientId: string, orderText: string) {
+  return api<EligibilityResult>(`/patients/${patientId}/eligibility`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_text: orderText || null }),
+  });
 }
 
 export function approveSuggestions(suggestionIds: string[]) {

@@ -24,7 +24,7 @@ def ask_model(prompt):
 
     from app import config
 
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"timeout": 90000, "retry_options": {"attempts": 1}})
     response = client.models.generate_content(
         model=config.GEMINI_MODEL,
         contents=prompt,

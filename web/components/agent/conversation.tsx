@@ -1,20 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ArrowUpRight, ChevronDown } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import type { Agent, Message, Route } from "@/lib/types";
+import type { Message, Route } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ActionCard } from "./action-card";
 import { Composer } from "./composer";
 
@@ -32,6 +24,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
   const patient = useStore((s) => (conversation ? s.patients[conversation.patientId] : undefined));
   const send = useStore((s) => s.send);
   const activate = useStore((s) => s.activateConversation);
+  const capabilities = useStore((s) => s.capabilities);
   const scroller = useRef<HTMLDivElement>(null);
   const count = conversation?.messages.length ?? 0;
   const lastText = conversation?.messages.at(-1)?.text;
@@ -45,10 +38,6 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
 
   return (
     <div className="flex h-full flex-col">
-      <div className={cn(column, "agent-rule flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-hairline py-4")}>
-        <span className="agent-accent text-[12px] font-semibold text-jade-700">Assistant</span>
-        <span className="agent-dim text-[12px] text-ink-soft">{patient.name} · {patient.mrn}</span>
-      </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
         {conversation.messages.length === 0 ? (
           <div className={cn(column, "flex min-h-full flex-col py-8")}>
@@ -87,7 +76,8 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
         )}
       </div>
       <div className={cn(column, "shrink-0 pb-5")}>
-        <Composer conversationId={conversation.id} />
+        {capabilities?.assistant === false && <p className="agent-dim mb-3 text-[11px] leading-relaxed">The assistant is not configured on the server. Direct chart entry is available.</p>}
+        <Composer key={conversation.id} conversationId={conversation.id} />
       </div>
     </div>
   );
@@ -110,7 +100,7 @@ function AgentMessage({ message }: { message: Message }) {
     return (
       <div className="flex items-center gap-1.5 py-1" aria-label="Working">
         {[0, 1, 2].map((i) => (
-          <span key={i} className="size-1.5 animate-pulse rounded-full bg-jade-600/60" style={{ animationDelay: `${i * 160}ms` }} />
+          <span key={i} className="agent-working size-1.5 animate-pulse rounded-full bg-jade-600/60" style={{ animationDelay: `${i * 160}ms` }} />
         ))}
       </div>
     );
@@ -120,6 +110,7 @@ function AgentMessage({ message }: { message: Message }) {
     <div>
       {message.route && <RouteLine message={message} />}
       <p className="agent-text mt-1.5 text-[14px] leading-relaxed text-ink">{message.text}</p>
+      {message.audioBase64 && <audio controls className="mt-3 h-9 max-w-full" aria-label="Spoken assistant response" src={`data:audio/mpeg;base64,${message.audioBase64}`} />}
       {message.researchId && <ResearchBlock researchId={message.researchId} />}
       {actions.length > 0 && (
         <div className="mt-4 space-y-2.5">
@@ -138,35 +129,10 @@ function AgentMessage({ message }: { message: Message }) {
 }
 
 function RouteLine({ message }: { message: Message }) {
-  const reroute = useStore((s) => s.reroute);
-  const route = message.route!;
-  const others = (["chart", "research", "screening"] as Agent[]).filter((r) => r !== route);
-  const canReroute = Boolean(message.requestText);
-
-  return (
-    <div className="agent-dim flex items-center gap-2 text-[12px] text-ink-faint">
-      <span className="agent-accent font-semibold tracking-[0.12em] text-jade-700 uppercase">{routeLabel[route]}</span>
-      <span>{message.routedBy === "manual" ? "chosen by you" : "routed automatically"}</span>
-      {canReroute && (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="agent-hover ml-1 flex items-center gap-0.5 rounded px-1 outline-none hover:bg-ivory-deep hover:text-ink">
-            Re-route <ChevronDown className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-60">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Send the same request to</DropdownMenuLabel>
-              {others.map((r) => (
-                <DropdownMenuItem key={r} onClick={() => reroute(message.id, r)}>
-                  {routeLabel[r]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-            <p className="px-1.5 pt-1 pb-1.5 text-[11px] leading-snug text-ink-faint">Pending items from this reply are discarded.</p>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
-  );
+  return <div className="agent-dim flex items-center gap-2 text-[12px]">
+    <span className="agent-accent font-semibold tracking-[0.12em] uppercase">{routeLabel[message.route!]}</span>
+    <span>{message.route === "navigate" ? "Chart navigation" : "Routed automatically"}</span>
+  </div>;
 }
 
 function ResearchBlock({ researchId }: { researchId: string }) {

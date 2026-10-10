@@ -25,7 +25,7 @@ export function Shell() {
       <div className="grid h-full place-items-center bg-jade-50 px-6 text-ink">
         <div className="max-w-md text-center">
           <h1 className="font-serif text-3xl text-jade-900">
-            Round<span className="text-jade-600">.</span>
+            Meridian
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-ink-soft">{statusMessage}</p>
           {status === "error" && (
@@ -45,7 +45,7 @@ export function Shell() {
   return (
     <div className="flex h-full flex-col bg-jade-50 text-ink">
       <header className="flex h-14 shrink-0 items-center gap-5 px-5">
-        <span className="font-serif text-[25px] tracking-tight text-jade-900">Round<span className="text-jade-600">.</span></span>
+        <span className="font-serif text-[25px] tracking-tight text-jade-900">Meridian</span>
         <span className="hidden border-l border-hairline-strong pl-5 text-[12px] text-ink-soft sm:block">Clinical workspace</span>
         <DropdownMenu>
           <DropdownMenuTrigger

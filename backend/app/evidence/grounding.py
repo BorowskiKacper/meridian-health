@@ -27,7 +27,7 @@ def grounded_search(text):
     Returns text, grounding_chunks ({uri, title}), and grounding_supports
     ({segment_text, chunk_indices}). Chunk URIs are Google redirect links.
     """
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"timeout": 90000, "retry_options": {"attempts": 1}})
     response = client.models.generate_content(
         model=config.GEMINI_MODEL,
         contents=text,

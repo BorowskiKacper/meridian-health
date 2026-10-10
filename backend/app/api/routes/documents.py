@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, Form, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.api.errors import finish
 
@@ -15,7 +16,7 @@ async def upload_document(
 
     with api_db.get_session() as session:
         content = await file.read()
-        result = labs.extract_lab_report(
+        result = await run_in_threadpool(labs.extract_lab_report,
             patient_id,
             content,
             file.content_type,

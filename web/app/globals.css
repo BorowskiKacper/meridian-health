@@ -16,6 +16,9 @@
   --jade-600: #28634f;
   --jade-700: #174e3d;
   --jade-900: #00362d;
+  --assistant-surface: #23594f;
+  --assistant-text: var(--white);
+  --assistant-muted: var(--white);
 
   --ivory: #f8faf8;
   --ivory-deep: #edf1ee;
@@ -78,6 +81,7 @@
   --color-jade-600: var(--jade-600);
   --color-jade-700: var(--jade-700);
   --color-jade-900: var(--jade-900);
+  --color-assistant-surface: var(--assistant-surface);
   --color-ivory: var(--ivory);
   --color-ivory-deep: var(--ivory-deep);
   --color-ink: var(--ink);
@@ -164,36 +168,38 @@
   .cutaway-controls > span { width: auto; }
 }
 
-/* The assistant has one consistent dark surface. Action cards can also appear
-   on the white approvals page, so their dark styles remain scoped here. */
-.agent-window .eyebrow { color: rgb(250 248 243 / 0.7); }
-.agent-window h2 { color: var(--ivory); }
-.agent-window .agent-dim { color: rgb(250 248 243 / 0.65); }
-.agent-window .agent-text { color: var(--ivory); }
-.agent-window .agent-accent { color: var(--jade-300); }
-.agent-window .agent-rule { border-color: rgb(250 248 243 / 0.14); }
-.agent-window .agent-rule > li { border-color: rgb(250 248 243 / 0.14); }
-.agent-window .agent-bubble { background: rgb(250 248 243 / 0.1); color: var(--ivory); }
-.agent-window .agent-hover:hover { background: rgb(250 248 243 / 0.1); color: var(--ivory); }
-.agent-window .agent-card { background: rgb(250 248 243 / 0.06); border-color: rgb(250 248 243 / 0.14); }
-.agent-window .agent-card p,
-.agent-window .agent-card li { color: rgb(250 248 243 / 0.75); }
-.agent-window .agent-card .font-serif { color: var(--ivory); }
-.agent-window .agent-composer { background: rgb(250 248 243 / 0.08); border-color: rgb(250 248 243 / 0.2); box-shadow: none; }
-.agent-window .agent-composer:focus-within { border-color: var(--jade-300); }
-.agent-window .agent-composer textarea { color: var(--ivory); }
-.agent-window .agent-composer textarea::placeholder { color: rgb(250 248 243 / 0.65); }
-.agent-window .agent-mode { color: rgb(250 248 243 / 0.7); }
-.agent-window .agent-mode:hover { color: var(--ivory); }
-.agent-window .agent-mode-on { background: rgb(250 248 243 / 0.14); color: var(--ivory); }
-.agent-window .agent-send { background: var(--jade-300); color: var(--jade-900); }
-.agent-window .agent-send:hover { background: var(--jade-100); }
-.agent-window .agent-send:disabled { background: rgb(250 248 243 / 0.1); color: rgb(250 248 243 / 0.35); }
-.agent-window .agent-card button { color: var(--jade-300); }
-.agent-window .agent-card button:hover { color: var(--ivory); }
-.agent-window header button { color: rgb(250 248 243 / 0.75); }
-.agent-window header button:hover { background: rgb(250 248 243 / 0.1); color: var(--ivory); }
+/* Deep teal separates the assistant from the chart; ivory inputs and review
+   cards retain dark text and the chart's familiar jade controls. */
+.agent-window { color: var(--assistant-text); }
+.agent-window .eyebrow { color: var(--assistant-muted); }
+.agent-window h2 { color: var(--assistant-text); }
+.agent-window .agent-dim { color: var(--assistant-muted); }
+.agent-window .agent-text { color: var(--assistant-text); }
+.agent-window .agent-accent { color: var(--assistant-text); }
+.agent-window .agent-working { background: var(--jade-300); }
+.agent-window .agent-rule,
+.agent-window .agent-rule > li { border-color: rgb(248 250 248 / 0.18); }
+.agent-window .agent-bubble { background: rgb(248 250 248 / 0.12); color: var(--assistant-text); }
+.agent-window .agent-hover:hover { background: rgb(248 250 248 / 0.12); color: var(--assistant-text); }
+.agent-window .agent-card { background: var(--ivory); border-color: var(--hairline); }
+.agent-window .agent-card .agent-text { color: var(--ink); }
+.agent-window .agent-card .agent-accent { color: var(--jade-700); }
+.agent-window .agent-composer { background: var(--ivory); border-color: var(--hairline-strong); box-shadow: none; }
+.agent-window .agent-composer:focus-within { border-color: var(--jade-600); }
+.agent-window .agent-composer textarea { color: var(--ink); }
+.agent-window .agent-composer textarea::placeholder { color: var(--ink-soft); }
+.agent-window .agent-mode { color: var(--ink-soft); }
+.agent-window .agent-mode:hover { color: var(--ink); }
+.agent-window .agent-mode-on { background: var(--jade-100); color: var(--jade-900); }
+.agent-window .agent-send { background: var(--jade-600); color: var(--white); }
+.agent-window .agent-send:hover { background: var(--jade-700); }
+.agent-window .agent-send:disabled { background: rgb(0 54 45 / 0.08); color: var(--ink-faint); }
+.agent-window header button { color: var(--assistant-muted); }
+.agent-window header button[aria-pressed="true"] { color: var(--assistant-text); }
+.agent-window header button:hover { background: rgb(248 250 248 / 0.12); color: var(--assistant-text); }
 .agent-window :focus-visible { outline-color: var(--jade-300); }
+.agent-window .agent-composer :focus-visible,
+.agent-window .agent-card :focus-visible { outline-color: var(--jade-600); }
 
 @layer components {
   .clinical-table {

@@ -1,130 +1,55 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Mic } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowUp, Mic, Square } from "lucide-react";
 import { useStore } from "@/lib/store";
-import type { Mode } from "@/lib/types";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-const modes: { id: Mode; label: string; hint: string }[] = [
-  { id: "auto", label: "Auto", hint: "Routes each request to the right agent" },
-  { id: "chart", label: "Chart", hint: "Dictation becomes chart changes to approve" },
-  { id: "research", label: "Ask", hint: "Clinical questions, answered with citations" },
-  { id: "screening", label: "Screening", hint: "Reviews screenings and reminders" },
-];
-
-/** Stand-in for speech-to-text. The text is sent to the clinic API after you review it. */
-const transcripts: Record<Mode, string> = {
-  auto: "Mark the active condition controlled.",
-  chart: "Mark the active condition controlled.",
-  research: "What does the chart say about screening for this patient?",
-  screening: "Are screenings up to date?",
-};
-
-const LISTEN_MS = 1600;
 
 export function Composer({ conversationId }: { conversationId: string }) {
-  const mode = useStore((s) => s.mode);
-  const setMode = useStore((s) => s.setMode);
   const send = useStore((s) => s.send);
   const activate = useStore((s) => s.activateConversation);
+  const speechReady = useStore((s) => s.capabilities?.speech ?? false);
   const patient = useStore((s) => {
     const conversation = s.conversations.find((c) => c.id === conversationId);
     return conversation ? s.patients[conversation.patientId] : undefined;
   });
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
-  const field = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (!listening || !patient) return;
-    const timer = setTimeout(() => {
-      setText(transcripts[mode]);
-      setListening(false);
-      field.current?.focus();
-    }, LISTEN_MS);
-    return () => clearTimeout(timer);
-  }, [listening, mode, patient]);
-
-  const submit = () => {
-    const value = text.trim();
-    if (!value) return;
-    activate(conversationId);
-    send(value);
-    setText("");
+  const [starting, setStarting] = useState(false);
+  const [audio, setAudio] = useState<Blob | null>(null);
+  const preview = useRef<HTMLAudioElement>(null);
+  const [error, setError] = useState("");
+  const recorder = useRef<MediaRecorder | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; if (recorder.current?.state === "recording") recorder.current.stop(); stream.current?.getTracks().forEach((track) => track.stop()); }; }, []);
+  useEffect(() => { if (!audio) return; const url = URL.createObjectURL(audio); if (preview.current) preview.current.src = url; return () => URL.revokeObjectURL(url); }, [audio]);
+  const record = async () => {
+    setError("");
+    if (recorder.current?.state === "recording") { recorder.current.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { setError("Recording is unavailable in this browser. Type your request instead."); return; }
+    setStarting(true);
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current) { media.getTracks().forEach((track) => track.stop()); return; }
+      stream.current = media;
+      const recording = new MediaRecorder(media);
+      recorder.current = recording;
+      const chunks: Blob[] = [];
+      recording.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      recording.onstop = () => { media.getTracks().forEach((track) => track.stop()); if (!mounted.current) return; setListening(false); const blob = new Blob(chunks, { type: recording.mimeType }); if (blob.size) setAudio(blob); else setError("No audio was recorded. Try again or type your request."); };
+      recording.onerror = () => { media.getTracks().forEach((track) => track.stop()); if (mounted.current) { setListening(false); setError("Recording failed. Type your request or try again."); } };
+      recording.start();
+      setListening(true);
+    } catch { stream.current?.getTracks().forEach((track) => track.stop()); if (mounted.current) setError("Microphone access was not available. Type your request or enable microphone access in your browser."); }
+    finally { if (mounted.current) setStarting(false); }
   };
-
-  return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        submit();
-      }}
-      className="agent-composer rounded-lg border border-hairline-strong bg-white focus-within:border-jade-600/50"
-    >
-      <textarea
-        ref={field}
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            submit();
-          }
-        }}
-        rows={1}
-        aria-label={`Message about ${patient?.name ?? "this patient"}`}
-        placeholder={listening ? "Listening…" : `Message about ${patient?.name ?? "this patient"}`}
-        className="field-sizing-content block max-h-48 min-h-12 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-relaxed text-ink outline-none placeholder:text-ink-faint"
-      />
-      <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
-        <div role="radiogroup" aria-label="Mode" className="flex items-center gap-0.5">
-          {modes.map((item) => (
-            <Tooltip key={item.id}>
-              <TooltipTrigger
-                type="button"
-                role="radio"
-                aria-checked={mode === item.id}
-                onClick={() => setMode(item.id)}
-                className={cn(
-                  "rounded-md px-2 py-1 text-[12px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                  mode === item.id ? "agent-mode-on bg-jade-50 font-semibold text-jade-900" : "agent-mode text-ink-faint hover:text-ink",
-                )}
-              >
-                {item.label}
-              </TooltipTrigger>
-              <TooltipContent>{item.hint}</TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              type="button"
-              aria-label={listening ? "Stop dictation" : "Dictate"}
-              aria-pressed={listening}
-              onClick={() => setListening((value) => !value)}
-              className={cn(
-                "relative grid size-8 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                listening ? "agent-mode-on bg-jade-50 text-jade-700" : "agent-mode text-ink-faint hover:bg-ivory-deep hover:text-ink",
-              )}
-            >
-              {listening && <span className="listening-ring absolute inset-0 rounded-full bg-jade-300/50" />}
-              <Mic className="relative size-4" />
-            </TooltipTrigger>
-            <TooltipContent>Dictate. The transcript fills in for you to review.</TooltipContent>
-          </Tooltip>
-          <button
-            type="submit"
-            aria-label="Send"
-            disabled={!text.trim()}
-            className="agent-send grid size-8 place-items-center rounded-full bg-jade-600 text-white transition-colors hover:bg-jade-700 disabled:bg-ivory-deep disabled:text-ink-faint"
-          >
-            <ArrowUp className="size-4" />
-          </button>
-        </div>
-      </div>
+  const submit = () => { const value = text.trim(); if (!value || listening || starting || audio) return; activate(conversationId); send(value); setText(""); };
+  return <div>
+    {audio && <div className="mb-3 rounded-md border border-white/25 p-3 text-[12px]"><p>Review recorded dictation</p><audio ref={preview} className="mt-2 h-8 w-full" controls /><p className="mt-2 leading-relaxed">Processing sends this recording for transcription and drafts proposed changes. Review the transcript and each change before approving.</p><div className="mt-3 flex flex-wrap gap-3"><button type="button" disabled={!speechReady} className="rounded-md bg-white px-3 py-2 font-medium text-jade-900 disabled:opacity-50" onClick={() => { activate(conversationId); send("Voice dictation", audio); setAudio(null); }}>{speechReady ? "Process dictation" : "Voice service not configured"}</button><button type="button" className="underline" onClick={() => setAudio(null)}>Discard recording</button></div></div>}
+    {error && <p role="alert" className="mb-3 text-[12px] leading-relaxed">{error}</p>}
+    <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="agent-composer rounded-lg border border-hairline-strong bg-white focus-within:border-jade-600/50">
+      <textarea value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} rows={1} aria-label={`Message about ${patient?.name ?? "this patient"}`} placeholder={listening ? "Recording… stop to review" : "Ask a question or describe a chart change"} className="field-sizing-content block max-h-48 min-h-12 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-relaxed text-ink outline-none placeholder:text-ink-faint" />
+      <div className="flex flex-wrap items-center gap-2 px-3 pb-2"><span className="text-[11px] text-ink-faint" role="status">{listening ? "Recording · click stop to review" : "Draft → Review → Approve"}</span><div className="ml-auto flex gap-1"><button type="button" aria-label={listening ? "Stop dictation" : "Dictate"} aria-pressed={listening} disabled={!speechReady || starting || Boolean(audio)} onClick={() => void record()} className="agent-mode grid size-8 place-items-center rounded-md text-ink-soft hover:bg-ivory-deep disabled:opacity-50">{listening ? <Square className="size-3.5" /> : <Mic className="size-4" />}</button><button type="submit" aria-label="Send" disabled={!text.trim() || listening || starting || Boolean(audio)} className="agent-send grid size-8 place-items-center rounded-md bg-jade-600 text-white hover:bg-jade-700 disabled:bg-ivory-deep disabled:text-ink-faint"><ArrowUp className="size-4" /></button></div></div>
     </form>
-  );
+  </div>;
 }

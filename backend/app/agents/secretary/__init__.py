@@ -40,7 +40,7 @@ def answer_secretary(patient_id, text, *, session):
     import app.mcp.tools as tools
     from app.db.repositories import insert_request
 
-    response = model.complete("secretary", {"text": text})
+    response = model.complete("secretary", {"text": text, "coverage": tools.get_coverage(patient_id, session=session)})
     for call in response.get("tool_calls") or []:
         _execute_tool(call, patient_id, session, tools, evidence)
 

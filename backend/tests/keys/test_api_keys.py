@@ -41,7 +41,7 @@ def _png_1x1():
 
 
 def _gemini():
-    return genai.Client(api_key=_require("GEMINI_API_KEY"))
+    return genai.Client(api_key=_require("GEMINI_API_KEY"), http_options={"timeout": 90000, "retry_options": {"attempts": 1}})
 
 
 def _elevenlabs(method, path, **kwargs):

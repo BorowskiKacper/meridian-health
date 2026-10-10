@@ -1,7 +1,8 @@
-# Round: product and clinical recommendations
+# Meridian: product and clinical recommendations
 
 > **Frontend planning update, 2026-10-10:** The current hackathon priorities
-> are in sections 9 and 11. Section 11 adds the proposed demo story, clinical
+> are in sections 9, 11, 12, and 13. Section 13 maps the UI to the current backend
+> and expands the clinical and diagnostic data roadmap. Section 11 adds the proposed demo story, clinical
 > display rules, implementation boundaries, and acceptance criteria. Sections
 > 2–8 remain a longer-term product backlog; they are not a commitment to build
 > a complete EMR during the hackathon. Recommendations are proposals unless
@@ -9,10 +10,11 @@
 
 ## Status as of 2026-10-10
 
-Frontend work continues on `frontend/experience-plan`, based on the merged
-`cursor/merge-design-web-backend-573f` branch. The team chose
-primary care as the first setting. The gap-closing work below is partly done;
-the rest is still open. Nothing has been merged to `main`.
+The frontend and backend are merged on `main`. Meridian branding and assistant
+contrast are committed locally, with the next clinical-workspace refactor in
+progress. The team chose primary care as the first setting. The gap-closing
+work below is partly done; the rest remains a backlog. See section 13 for the
+latest implementation boundaries; older status bullets describe earlier passes.
 
 ### Done
 
@@ -803,7 +805,7 @@ judgments; they are not clinical practice guidelines or measured outcomes.
 
 ### 11.1 The promise and the audience
 
-**Round helps a primary-care clinician understand what changed, review the
+**Meridian helps a primary-care clinician understand what changed, review the
 basis for a proposed action, and leave a clear next step.** Make that promise
 visible before explaining agents, anatomy rendering or the database.
 
@@ -1067,3 +1069,167 @@ retains the full measurement collection and date filtering. Problem views no
 longer repeat measurements as both graphs and latest-result lists, reproduce
 generated summaries of those values, or repeat global family history. Related
 notes remain available on expansion. New chart tabs start at the top.
+
+## 13. Backend-aligned clinical workspace and diagnostic data (2026-10-10)
+
+### Clinical direction
+
+Keep Meridian's white chart surfaces, deep teal assistant, restrained jade
+controls, and generous space. Use amber with an explicit label for due tasks
+and proposals awaiting review. Use red for recorded severe allergy reactions;
+do not manufacture critical lab flags from generic numeric thresholds.
+
+The useful principle in the team's proposed architecture is separation of the
+longitudinal record, today's encounter draft, and unapproved proposals. Claims
+that all legacy EMRs are merely billing systems, or that clinical records should
+be mostly quantitative, are too broad to guide this product. Clinical care needs
+both discrete observations and narrative reasoning. Symptoms, imaging impressions,
+pathology interpretation, and assessment/plan require meaningful text. The goal
+is to avoid repeatedly entering the same facts, not to eliminate narrative.
+
+For diagnostics, keep individual measurements separate from the report that
+provides their context and interpretation. HL7 distinguishes Observation from
+DiagnosticReport, which can connect discrete results, images, and narrative
+interpretation. This is a design reference, not a claim that Meridian currently
+implements FHIR interoperability. Sources: [Observation](https://hl7.org/fhir/observation.html),
+[DiagnosticReport](https://hl7.org/fhir/diagnosticreport.html), and the
+[diagnostics module](https://hl7.org/fhir/diagnostics-module.html).
+
+### Current contract: available does not mean complete
+
+| Backend capability | Frontend treatment | Current boundary |
+| --- | --- | --- |
+| Patient search and full chart | Centered search; persistent identity and allergies; longitudinal overview | Record label is derived from the UUID, not a hospital-issued MRN. No code-status or advance-directive fields. |
+| Conditions | Active/history list and direct add form; anatomy detail; reviewed AI updates | Direct problem editing/resolution has no endpoint. AI updates are available through pending proposals. No ICD/SNOMED coding contract. |
+| Medications | Add, edit, stop via recorded status; history; reconciliation | Medication records are not prescriptions, e-prescribing, pharmacy transmission, or an inpatient MAR. |
+| Allergies | Substance, reaction, severity, active/history, direct editing and reconciliation | An explicit NKDA assertion is different from a missing allergy history. |
+| Observations and vital entry | Compact BP, weight, pulse and other recorded trends; exact-values flowsheet | Direct entry currently accepts paired BP, pulse, and weight. Other observations can be read if present. No continuous wearable feed. |
+| Encounter summaries and notes | Recent activity, timeline, recorded procedures | No separate surgical-history registry; no linked encounter diagnosis or completed SOAP/signature workflow. |
+| Visit draft | Open editor for visit date, reason/history, assessment, and plan | One unsigned draft per patient in entry state. No physical-exam field, encounter finalization, order cart, or signing endpoint. |
+| Proposed changes | Before/after review, individual approval, selected reviewed batch approval, rejection | Approval inserts new records and applies existing-record updates after field, patient ownership and stale-value checks. Notes receive real Gemini embeddings. Approval is not a legal visit signature. Provider failures roll back the request. |
+| Typed and audio doctor requests | One command surface; recording, playback/discard, transcription, draft review and spoken responses | Live Gemini classification/drafting, ElevenLabs Scribe transcription and voice synthesis are connected. Configuration comes from the backend; permission and provider failures remain explicit. |
+| Documents | S3 upload; Gemini extraction; dated numeric proposals; approved results and provenance in chart trends | Numeric extraction supports PDF, image, TXT and CSV reports. Missing/ambiguous collection dates are not invented. No report-list/download endpoint; S3 read/delete probes remain denied. |
+| Reminders and appointments | Dated follow-up, status edits, all recorded appointments in history | Scheduling mutations and secretary chat require the secretary role. Do not expose those as unrestricted doctor actions. Reminder job runs across the clinic, not just the viewed patient. |
+| Coverage and eligibility | Separate history/coverage view; optional planned-service review with payer evidence | Uses stored coverage and model/payer documents. Not a live insurer eligibility transaction, claim submission, or guaranteed authorization determination. |
+| Research and screening evidence | Cited results in assistant and research view; reviewed screening proposals | Live Snowflake USPSTF/PubMed retrieval, medical web grounding, Gemini answers and claim verification are connected. Returned citations are grounded in retrieved passages. Clinical applicability still requires clinician review. |
+
+### Refactor implemented in this working tree
+
+- Overview distinguishes the longitudinal record from an explicit visit entry
+  point. The next appointment aligns right. Recent chart activity has a short
+  chronological digest; the full timeline remains available.
+- Allergies include recorded reactions and severity in the fixed safety banner,
+  including assistant full-screen view. Missing safety fields are not invented.
+- Diagnostics is a primary chart section rather than a synthetic lab document.
+  Search recorded tests, inspect latest values, expand trends, and inspect the
+  full dated result history with source and document identifier.
+- Vitals no longer repeats the diagnostic-results module. Pulse is graphed when
+  present; period-average BP uses matching recorded timestamps and sources,
+  reports sample count, and is labeled an arithmetic mean. It is not mean
+  arterial pressure, a treatment target, or a diagnostic conclusion.
+- Visit context remains available beside documentation through an expandable
+  snapshot. Old vitals keep their dates and are never relabeled today's vitals.
+  Save is explicitly an unsigned draft, with no claim to submit orders.
+- Real microphone capture replaces the sample transcript. Process dictation sends
+  recorded audio to the live speech adapter; the transcript and proposed changes
+  are returned for review. Unsupported recording, denied microphone access,
+  provider failures, upload failure and empty extraction remain explicit states.
+- Nonfunctional manual routing/re-routing controls are removed. The backend owns
+  request classification. Chart changes require explicit approval; batch approval
+  includes only proposals the clinician marked reviewed for the same patient.
+
+### Clinical and diagnostic findings: recommended data depth
+
+This is the highest-value next data expansion. Build a report-centered workflow
+without losing the exact result-level data clinicians need. The proposed fields
+below are a product specification, not fields that already exist in the API.
+
+**Common report context.** Preserve patient, report identifier/accession,
+report type, originating organization, ordering clinician, relevant encounter,
+collection/performed time, received time, finalization time, preliminary/final/
+corrected status, original attachment, and report author. A result collection
+is not automatically a named CBC or metabolic panel. Group it as a panel only
+when the incoming source supplies that relationship.
+
+**Laboratory values.** Store a stable test code where available, displayed test
+name, numeric/textual/coded result type, units, original reference interval,
+source-issued abnormal and critical flags, specimen type/site, collection time,
+method, and observation identifier. Keep reference intervals as source data;
+they can vary by method and patient context. An absent range means unavailable,
+not normal. A raw number without units is not suitable for a cross-source trend.
+
+**Panels and interpretation.** Offer compact rows for a panel, an expanded
+result table, and a small trend only when there is meaningful history. Compare
+compatible tests and units across time. Expose the original report beside
+extracted values. Separate the source's interpretation from AI explanation and
+from the clinician's assessment. Do not generate a panel of normal values to
+make a sparse demo appear complete.
+
+**Radiology and imaging.** Prioritize indication, modality, body site/laterality,
+performed time, comparison studies, findings, impression, and recommendations.
+The impression should be easy to scan, with the full report expandable. A
+PACS/DICOM viewer link needs an actual study identifier and integration; an
+anatomy pin is not a substitute for an image or a radiology diagnosis.
+
+**Pathology.** Keep specimen/site/laterality, procedure/collection date,
+preliminary versus final diagnosis, narrative microscopy, structured fields
+when the source provides them, addenda, and the signing pathologist. Do not
+infer staging or malignancy from an isolated phrase. Highlight source-provided
+amendments so the clinician can distinguish the current interpretation from
+an earlier report.
+
+**Microbiology.** Keep specimen and collection time, preliminary/final status,
+organism identification, reported susceptibility with method and interpretive
+category, and the lab's comments. Preserve corrections. Do not derive a
+susceptibility recommendation from an organism name alone.
+
+**Clinical findings and transcription.** Symptoms, relevant negatives,
+physical findings, and assessment are valuable narrative and structured data.
+Voice transcription should be attributed to its source and encounter, reviewable,
+and editable before it becomes a signed clinical note. AI-extracted diagnoses,
+medication changes, and result values remain proposals until confirmation.
+
+**Review and follow-through.** A diagnostic result should eventually have an
+acknowledgment state, reviewing clinician/time, related follow-up task, and
+patient communication status. Reviewing a report, completing a follow-up task,
+sending a reminder, and documenting a patient conversation are separate events.
+Do not equate an SMS send with result review or care completion.
+
+### Additional domains: integrate deliberately
+
+| Domain | Next useful clinical surface | Needed backend support |
+| --- | --- | --- |
+| EHR history | Longitudinal medications/problems, family and surgical history, immunizations, encounter-linked notes | Persistent surgical history and immunization resources; encounter relationships and coding. Billing/claims stay separate from the primary clinical canvas. |
+| Vitals and wearables | Timestamped vitals plus clearly attributed home/device observations | Device identity, acquisition method, measurement quality, cadence, units, and reconciliation. Do not label sporadic office readings real-time. |
+| Genomics | A reviewed report, indication, laboratory interpretation, and source-linked actionable findings | Report/version metadata, variant identifiers and method, interpretation, consent/access policy, and clinical review. No automatic treatment changes from unreviewed variants. |
+| Public health and demographics | Relevant regional guidance linked to the patient's context | Source, geographic scope, publication/update dates and applicability. Population data must remain distinct from a patient's measured history. |
+| Medical literature and guidelines | A question-specific answer with citations and publication/version context | Live doctor adapter and evidence retrieval are connected. Publication/version metadata and deeper patient-specific applicability review need further expansion; chart/plan actions require approval. |
+
+### Recommended build order
+
+1. The doctor model adapter, speech adapter and numeric lab extraction are now
+   connected and verified with real providers through HTTP requests and committed
+   synthetic records in an isolated database. Typed and voice drafting, approval,
+   real note embeddings, clinical answers, screening review, secretary payer
+   lookup, S3 upload and approved lab chart refresh passed. Continue to keep
+   provider credential checks distinct from complete workflow checks. The frontend
+   proxy now allows up to five minutes for these multi-call workflows instead of
+   cutting them off at 30 seconds; improve response speed as a follow-up.
+2. Add document metadata listing and authenticated original-report viewing.
+   Resolve object read/cleanup permissions without exposing storage credentials
+   to the frontend. Preserve document provenance on approved observations.
+3. Expand diagnostics with report/result separation, source flags/reference
+   intervals, and review acknowledgment. Keep reported units and collection dates
+   intact. Fix chart-series grouping to distinguish analyte, unit, and context
+   before importing heterogeneous sources.
+4. Add encounter identity, structured exam/context, explicit finalization and
+   audited amendments. Draft save, chart mutation approval, signing, and order
+   transmission need separate states and endpoints.
+5. Add a practical reviewed order workflow and then source-specific integrations
+   for imaging, immunizations, wearables, genomics, or claims when the team has
+   a concrete user story. Prioritize one complete clinical workflow for the demo
+   over placeholder tabs for every possible medical data source.
+
+The ongoing cloud regression run was stopped at the user's request. The test
+schema isolation fix remains in the working tree. No full backend regression
+pass or new push is claimed for this refactor.
