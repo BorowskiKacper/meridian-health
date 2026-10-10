@@ -25,8 +25,8 @@ async def create_request(request: Request):
     import app.api.db as api_db
     import app.agents.doctor as doctor
 
-    session = api_db.get_session()
     if text_present:
+        session = api_db.get_session()
         result = doctor.route_doctor_request(
             patient_id,
             text,
@@ -39,6 +39,12 @@ async def create_request(request: Request):
     from app.speech.hook import SpeechHook
 
     transcript = SpeechHook().transcribe(audio_bytes)
+    if not isinstance(transcript, str) or not transcript.strip():
+        return error_response(
+            "validation_error",
+            "Audio could not be transcribed.",
+        )
+    session = api_db.get_session()
     result = doctor.route_doctor_request(
         patient_id,
         transcript,

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.errors import validation_message
@@ -16,6 +17,13 @@ from app.api.routes import (
 )
 
 app = FastAPI()
+# The Expo client sends X-Role from a browser origin. Native clients ignore CORS.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(body.router)
 app.include_router(requests.router)
 app.include_router(suggestions.router)
