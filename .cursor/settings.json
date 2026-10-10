@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "twilio-developer-kit": {
+      "enabled": true
+    },
+    "render": {
+      "enabled": true
+    }
+  }
+}

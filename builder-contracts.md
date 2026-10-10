@@ -25,7 +25,7 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 - Snowflake and Google Search receive a de-identified string only. No name, date of birth, phone, member id, or patient id.
 - Gemini model is `gemini-3.6-flash` for classification, agents, vision, summaries, and Google Search grounding. It is one constant, `GEMINI_MODEL`, in `backend/app/config.py`.
 - Note embeddings use `gemini-embedding-001` with `output_dimensionality=768`, stored as `vector(768)`. The column is nullable. Seeded notes have no embedding because seed calls no vendor. `search_patient_notes` uses Postgres full-text search, not vector search.
-- Uploaded files are saved on local disk under `backend/storage/`, which is gitignored. `documents.storage_key` is the file's path relative to that folder. Cloud storage comes later.
+- Uploaded lab photos are stored as objects in the private S3 bucket named by `S3_BUCKET` (`S3_REGION`). `documents.storage_key` is the object key.
 - Reminders are sent over WhatsApp through Twilio. There is no SMS fallback. `TWILIO_FROM_NUMBER` is the WhatsApp sender in `whatsapp:+1...` form and the recipient is `whatsapp:<phone_e164>`. Table, column, and function names keep `sms` (`sms_messages`, `sms_opt_in`, `handle_sms_webhook`) to avoid a rename.
 - Snowflake is called over REST with a programmatic access token (`Authorization: Bearer <SNOWFLAKE_PAT>`). Cortex Search service names are `USPSTF_SEARCH`, `PUBMED_SEARCH`, and `PAYER_DOCS_SEARCH`.
 
@@ -285,7 +285,7 @@ Response is `{ "rejected": [] }`. Chart rows stay as they were.
 }
 ```
 
-`flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image is saved under `backend/storage/` and recorded in `documents`. Observations are not inserted until approval.
+`flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image is uploaded to the private S3 bucket and recorded in `documents`. Observations are not inserted until approval.
 
 ### Reminders and WhatsApp
 
@@ -453,7 +453,7 @@ USPSTF is the baseline. Other sources can extend or depart from it, but only tru
 
 **WhatsApp reminders.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. Message body has no diagnosis, medication, or lab. Stores `twilio_sid` and marks the reminder `sent`. `STOP` flips `sms_opt_in` and does not change the chart.
 
-**Lab photo.** Saves the file under `backend/storage/`, records it in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
+**Lab photo.** Uploads the file to the private S3 bucket, records it in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
 
 **Eligibility.** Reads `coverages`. Does not call an outside payer. A non-empty `order_text` may attach a prior-auth note cited from `search_payer_docs`. The plain-English `summary` is generated after that read. Doctor and secretary share this route.
 

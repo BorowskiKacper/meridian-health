@@ -39,9 +39,9 @@ def list_appointments(
     import app.api.db as api_db
     import app.services.appointments as appointments
 
-    session = api_db.get_session()
-    result = appointments.list_appointments(patient_id, on, session=session)
-    return finish(result)
+    with api_db.get_session() as session:
+        result = appointments.list_appointments(patient_id, on, session=session)
+        return finish(result)
 
 
 @router.post("/appointments")
@@ -55,15 +55,15 @@ def create_appointment(
     import app.api.db as api_db
     import app.services.appointments as appointments
 
-    session = api_db.get_session()
-    result = appointments.create_appointment(
-        body.patient_id,
-        as_aware(body.starts_at),
-        as_aware(body.ends_at),
-        body.reason,
-        session=session,
-    )
-    return finish(result)
+    with api_db.get_session() as session:
+        result = appointments.create_appointment(
+            body.patient_id,
+            as_aware(body.starts_at),
+            as_aware(body.ends_at),
+            body.reason,
+            session=session,
+        )
+        return finish(result)
 
 
 @router.put("/appointments/{appointment_id}")
@@ -78,13 +78,13 @@ def update_appointment(
     import app.api.db as api_db
     import app.services.appointments as appointments
 
-    session = api_db.get_session()
-    result = appointments.update_appointment(
-        appointment_id,
-        starts_at=as_aware(body.starts_at),
-        ends_at=as_aware(body.ends_at),
-        reason=body.reason,
-        status=body.status,
-        session=session,
-    )
-    return finish(result)
+    with api_db.get_session() as session:
+        result = appointments.update_appointment(
+            appointment_id,
+            starts_at=as_aware(body.starts_at),
+            ends_at=as_aware(body.ends_at),
+            reason=body.reason,
+            status=body.status,
+            session=session,
+        )
+        return finish(result)

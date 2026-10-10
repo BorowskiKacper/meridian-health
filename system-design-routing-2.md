@@ -28,7 +28,7 @@ Changes from the first draft:
 Vendors in this build:
 
 - **Gemini:** `gemini-3.6-flash` for classification, agents, lab-photo vision, eligibility summaries and Google Search grounding. Note embeddings use `gemini-embedding-001` at 768 dimensions.
-- **Files:** lab photos are saved on local disk under `backend/storage/`. Cloud storage comes later.
+- **Files:** lab photos are uploaded to the private S3 bucket named by `S3_BUCKET` in `S3_REGION`. `documents.storage_key` is the object key.
 - **Twilio:** reminders go out over WhatsApp only. A STOP reply on WhatsApp opts the patient out.
 - **ElevenLabs:** sits behind one speech hook on `POST /requests`. In this build the hook makes no network call.
 - **Patient-data tools are MCP.** Every time an agent reads or proposes something in Tiger, it goes through the EMR MCP server. Those calls are the **thick arrows**.
@@ -106,7 +106,7 @@ flowchart LR
 
   Tiger[("Tiger Data")]:::db
   Snow[("Snowflake<br/>Cortex Search REST API<br/>guidelines, PubMed,<br/>insurer documents + payer policies")]:::db
-  Files[("Local disk<br/>backend/storage/")]:::db
+  Files[("S3 private bucket<br/>S3_BUCKET")]:::db
 
   Gemini["Gemini API<br/>gemini-3.6-flash"]:::ext
   EL["ElevenLabs<br/>Scribe STT + TTS<br/>behind the speech hook"]:::ext

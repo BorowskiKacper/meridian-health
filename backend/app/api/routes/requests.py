@@ -26,14 +26,14 @@ async def create_request(request: Request):
     import app.agents.doctor as doctor
 
     if text_present:
-        session = api_db.get_session()
-        result = doctor.route_doctor_request(
-            patient_id,
-            text,
-            "typed",
-            session=session,
-        )
-        return finish(result)
+        with api_db.get_session() as session:
+            result = doctor.route_doctor_request(
+                patient_id,
+                text,
+                "typed",
+                session=session,
+            )
+            return finish(result)
 
     audio_bytes = await audio.read()
     from app.speech.hook import SpeechHook
@@ -44,19 +44,19 @@ async def create_request(request: Request):
             "validation_error",
             "Audio could not be transcribed.",
         )
-    session = api_db.get_session()
-    result = doctor.route_doctor_request(
-        patient_id,
-        transcript,
-        "voice",
-        session=session,
-    )
-    if (
-        isinstance(result, dict)
-        and set(result) != {"error"}
-        and result.get("spoken_text") is not None
-    ):
-        copied = dict(result)
-        copied["audio_base64"] = SpeechHook().synthesize(result["spoken_text"])
-        return copied
-    return finish(result)
+    with api_db.get_session() as session:
+        result = doctor.route_doctor_request(
+            patient_id,
+            transcript,
+            "voice",
+            session=session,
+        )
+        if (
+            isinstance(result, dict)
+            and set(result) != {"error"}
+            and result.get("spoken_text") is not None
+        ):
+            copied = dict(result)
+            copied["audio_base64"] = SpeechHook().synthesize(result["spoken_text"])
+            return copied
+        return finish(result)
