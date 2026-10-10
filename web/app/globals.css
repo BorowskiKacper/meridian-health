@@ -1,0 +1,232 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Palette: Garner Health's jade scale, ivory and white surfaces.
+ * Color is reserved for actions (jade) and clinical severity (muted red, amber).
+ * Everything else is ink on ivory or white.
+ */
+:root {
+  --jade-50: #e7faf6;
+  --jade-100: #bbf2e9;
+  --jade-300: #33cab1;
+  --jade-500: #0e8571;
+  --jade-600: #017660;
+  --jade-700: #005748;
+  --jade-900: #00362d;
+
+  --ivory: #faf8f3;
+  --ivory-deep: #f3f0e8;
+  --white: #ffffff;
+
+  --ink: #14211d;
+  --ink-soft: #4e5a55;
+  --ink-faint: #8a938f;
+  --hairline: rgb(0 54 45 / 0.09);
+  --hairline-strong: rgb(0 54 45 / 0.16);
+
+  --critical: #b04a3c;
+  --watch: #a7802f;
+  --clear: #9aa49f;
+
+  --background: var(--ivory);
+  --foreground: var(--ink);
+  --card: var(--white);
+  --card-foreground: var(--ink);
+  --popover: var(--white);
+  --popover-foreground: var(--ink);
+  --primary: var(--jade-600);
+  --primary-foreground: var(--white);
+  --secondary: var(--ivory-deep);
+  --secondary-foreground: var(--ink);
+  --muted: var(--ivory-deep);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--jade-50);
+  --accent-foreground: var(--jade-900);
+  --destructive: var(--critical);
+  --border: var(--hairline);
+  --input: var(--hairline-strong);
+  --ring: rgb(1 118 96 / 0.45);
+  --radius: 0.5rem;
+
+  --chart-1: var(--jade-600);
+  --chart-2: var(--jade-300);
+  --chart-3: var(--jade-900);
+  --chart-4: var(--watch);
+  --chart-5: var(--critical);
+  --sidebar: var(--ivory);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--jade-600);
+  --sidebar-primary-foreground: var(--white);
+  --sidebar-accent: var(--jade-50);
+  --sidebar-accent-foreground: var(--jade-900);
+  --sidebar-border: var(--hairline);
+  --sidebar-ring: var(--ring);
+}
+
+@theme inline {
+  --font-sans: var(--font-open-sans), "Segoe UI", system-ui, sans-serif;
+  --font-serif: var(--font-stix), "Iowan Old Style", Georgia, serif;
+  --font-heading: var(--font-stix), "Iowan Old Style", Georgia, serif;
+
+  --color-jade-50: var(--jade-50);
+  --color-jade-100: var(--jade-100);
+  --color-jade-300: var(--jade-300);
+  --color-jade-500: var(--jade-500);
+  --color-jade-600: var(--jade-600);
+  --color-jade-700: var(--jade-700);
+  --color-jade-900: var(--jade-900);
+  --color-ivory: var(--ivory);
+  --color-ivory-deep: var(--ivory-deep);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-critical: var(--critical);
+  --color-watch: var(--watch);
+  --color-clear: var(--clear);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  h1, h2, h3 {
+    @apply font-serif font-normal text-jade-900;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-[11px] font-semibold tracking-[0.14em] uppercase text-ink-faint;
+  }
+  .numeric {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes listening {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.6); opacity: 0; }
+}
+
+.listening-ring {
+  animation: listening 1.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listening-ring { animation: none; }
+}
+
+/* Labels the scene overlay places over the 3D stage. Built imperatively, so they are styled here. */
+.body-stage[data-tool="probe"] canvas,
+.body-stage[data-tool="measure"] canvas,
+.body-stage[data-tool="mark"] canvas {
+  cursor: crosshair;
+}
+
+.body-labels .tag,
+.body-labels .measure-tag {
+  position: absolute;
+  pointer-events: auto;
+  transform: translate(-50%, calc(-100% - 6px));
+  max-width: 190px;
+  border-radius: 8px;
+  padding: 5px 10px 6px;
+  background: rgb(11 19 17 / 0.88);
+  color: var(--ivory);
+  text-align: left;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.25);
+  backdrop-filter: blur(6px);
+}
+
+.body-labels .tag span {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(250 248 243 / 0.55);
+}
+
+.body-labels .tag strong {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.body-labels .tag.critical span { color: #f0a597; }
+.body-labels .tag.watch span { color: #ecc987; }
+.body-labels .tag.clear span { color: #a9cfc1; }
+.body-labels .tag.is-active { box-shadow: 0 0 0 1px rgb(111 214 193 / 0.7), 0 8px 22px rgb(0 0 0 / 0.25); }
+
+.body-labels .tag input {
+  margin-top: 6px;
+  width: 100%;
+  border: 1px solid rgb(250 248 243 / 0.2);
+  border-radius: 6px;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--ivory);
+  outline: none;
+}
+
+.body-labels .tag input:focus { border-color: rgb(111 214 193 / 0.7); }
+
+.body-labels .measure-tag {
+  transform: translate(-50%, -50%);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}

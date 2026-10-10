@@ -1,0 +1,3 @@
+# Release files are checked byte-for-byte against the manifest.
+# Leave their line endings alone so Windows Git does not add carriage returns.
+3d-anatomy-atlas/packages/data/releases/** -text
