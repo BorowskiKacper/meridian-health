@@ -5,6 +5,16 @@ from app.api.errors import finish
 router = APIRouter()
 
 
+@router.get("/patients")
+def list_patients():
+    import app.api.db as api_db
+    import app.services.chart as chart
+
+    session = api_db.get_session()
+    result = chart.list_chart_patients(session=session)
+    return finish(result)
+
+
 @router.get("/patients/{patient_id}/body-state")
 def get_body_state(patient_id: str, specialty: str):
     import app.api.db as api_db

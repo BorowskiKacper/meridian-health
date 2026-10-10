@@ -6,10 +6,12 @@ from app.db.repositories import (
     list_conditions_by_patient,
     list_conditions_by_region,
     list_encounters_by_patient,
+    list_family_history_by_patient,
     list_medications_by_patient,
     list_medications_by_region,
     list_observations_by_patient,
     list_observations_by_region,
+    list_patients,
     list_specialty_focus,
 )
 
@@ -133,6 +135,32 @@ def _regions(session, patient_id, specialty):
             }
         )
     return regions
+
+
+def list_chart_patients(*, session):
+    patients = []
+    for patient in list_patients(session):
+        family = [
+            {
+                "relationship": row["relationship"],
+                "condition": row["condition"],
+                "age_at_diagnosis": row["age_at_diagnosis"],
+            }
+            for row in list_family_history_by_patient(session, patient["id"])
+        ]
+        patients.append(
+            {
+                "id": str(patient["id"]),
+                "display_name": patient["display_name"],
+                "age": _age(patient["date_of_birth"]),
+                "sex": patient["sex"],
+                "sms_opt_in": bool(patient["sms_opt_in"]),
+                "phone_e164": patient["phone_e164"],
+                "family_history": family,
+            }
+        )
+    patients.sort(key=lambda item: item["display_name"])
+    return {"patients": patients}
 
 
 def get_body_state(patient_id, specialty, *, session):

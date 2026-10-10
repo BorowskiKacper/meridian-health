@@ -3,6 +3,26 @@ from api_support import JANE_ID, UNKNOWN_ID, assert_error, bind_session, call
 BODY_KEYS = {"patient", "specialty", "regions", "timeline", "trends"}
 
 
+def test_list_patients_includes_the_seeded_chart(seeded_db, monkeypatch, client):
+    bind_session(monkeypatch, seeded_db.session)
+
+    response = call(client, "GET", "/patients")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"patients"}
+    jane = next(item for item in body["patients"] if item["id"] == JANE_ID)
+    assert jane["display_name"] == "Jane Doe"
+    assert jane["sex"] == "female"
+    assert jane["sms_opt_in"] is True
+    assert jane["phone_e164"] == "+15555550101"
+    assert {
+        "relationship": "father",
+        "condition": "colorectal cancer",
+        "age_at_diagnosis": 48,
+    } in jane["family_history"]
+
+
 def test_body_state_returns_jane_for_cardiology(seeded_db, monkeypatch, client):
     bind_session(monkeypatch, seeded_db.session)
 

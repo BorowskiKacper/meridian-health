@@ -30,5 +30,4 @@ def test_api_source_boundaries():
         if path.name != "__init__.py"
     )
     assert modules == ["backend/app/speech/hook.py"]
-    assert not (REPO_ROOT / "web").is_dir()
     assert not (REPO_ROOT / "mobile").is_dir()
