@@ -26,6 +26,30 @@ def _reminder_named(session, patient_id, name):
     return matches[0]
 
 
+def test_list_reminders_returns_jane_schedule(seeded_db, monkeypatch, client):
+    bind_session(monkeypatch, seeded_db.session)
+
+    response = call(client, "GET", f"/patients/{JANE_ID}/reminders")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"reminders"}
+    match = next(
+        item for item in body["reminders"] if item["name"] == "Colorectal cancer screening"
+    )
+    assert match["patient_id"] == JANE_ID
+    assert match["due_on"] == "2026-10-01"
+    assert match["status"] == "scheduled"
+
+
+def test_list_reminders_unknown_patient_is_not_found(seeded_db, monkeypatch, client):
+    bind_session(monkeypatch, seeded_db.session)
+
+    response = call(client, "GET", f"/patients/{UNKNOWN_ID}/reminders")
+
+    assert_error(response, 404, "not_found")
+
+
 def test_update_reminder_pauses_and_moves_the_due_date(seeded_db, monkeypatch, client):
     bind_session(monkeypatch, seeded_db.session)
     reminder = _reminder_named(seeded_db.session, JANE_ID, "Colorectal cancer screening")

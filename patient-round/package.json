@@ -1,0 +1,21 @@
+{
+  "name": "patient-round",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/link-atlas.mjs",
+    "dev": "vite --host 127.0.0.1 --port 43131 --strictPort",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "link": "node scripts/link-atlas.mjs"
+  },
+  "dependencies": {
+    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/outfit": "^5.2.8",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "typescript": "5.9.3",
+    "vite": "^8.3.1"
+  }
+}

@@ -17,6 +17,16 @@ class RunRemindersBody(BaseModel):
     as_of: date | None = None
 
 
+@router.get("/patients/{patient_id}/reminders")
+def list_reminders(patient_id: str):
+    import app.api.db as api_db
+    import app.services.reminders as reminders
+
+    with api_db.get_session() as session:
+        result = reminders.list_patient_reminders(patient_id, session=session)
+        return finish(result)
+
+
 @router.put("/patients/{patient_id}/reminders/{reminder_id}")
 def update_reminder(patient_id: str, reminder_id: str, body: ReminderUpdate):
     import app.api.db as api_db

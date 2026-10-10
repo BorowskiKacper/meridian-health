@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from app.db.repositories import (
+    insert_allergy,
     insert_appointment,
     insert_body_region,
     insert_condition,
@@ -73,6 +74,23 @@ def _seed_reference(session):
         )
 
 
+def _seed_allergy(session, patient_id, substance, category, reaction, severity, recorded_on):
+    insert_allergy(
+        session,
+        {
+            "id": _id(),
+            "patient_id": patient_id,
+            "substance": substance,
+            "category": category,
+            "reaction": reaction,
+            "severity": severity,
+            "status": "active",
+            "recorded_on": recorded_on,
+            "verified_by": "seed",
+        },
+    )
+
+
 def _seed_rule(session, name, baseline_age, guideline_source_id):
     rule = insert_reminder_rule(
         session,
@@ -98,6 +116,8 @@ def _seed_jane(session, screening_rule_id):
             "phone_e164": "+15555550101",
         },
     )
+    _seed_allergy(session, JANE_ID, "Penicillin", "drug", "Hives", "moderate", date(2009, 6, 12))
+    _seed_allergy(session, JANE_ID, "Shellfish", "food", "Lip swelling", "severe", date(2015, 2, 3))
     insert_condition(
         session,
         {
@@ -226,6 +246,9 @@ def _seed_john(session):
             "phone_e164": "+15555550102",
         },
     )
+    _seed_allergy(
+        session, JOHN_ID, "No known drug allergies", "nkda", "None", "none", date(2018, 1, 15)
+    )
     insert_condition(
         session,
         {
@@ -341,6 +364,9 @@ def _seed_amy(session):
             "sms_opt_in": True,
             "phone_e164": "+15555550103",
         },
+    )
+    _seed_allergy(
+        session, AMY_ID, "Sulfonamide antibiotics", "drug", "Rash", "mild", date(2012, 11, 20)
     )
     insert_condition(
         session,

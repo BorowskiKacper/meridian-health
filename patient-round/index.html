@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Nora Ellison — chart and body</title>
+    <meta
+      name="description"
+      content="A fictional trauma chart on a 3D anatomy model. Timeline, chat, and approvals drive the marks on the body."
+    />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="chart">
+        <header class="who">
+          <p class="eyebrow">Chart and body</p>
+          <h1 id="patient-name">Nora Ellison</h1>
+          <p class="meta" id="patient-meta"></p>
+          <p class="story" id="patient-story"></p>
+        </header>
+        <nav class="desk" role="tablist" aria-label="Chart">
+          <button type="button" data-desk="body" aria-pressed="true">Body</button>
+          <button type="button" data-desk="region" aria-pressed="false">Region</button>
+          <button type="button" data-desk="chat" aria-pressed="false">Chat</button>
+          <button type="button" data-desk="queue" aria-pressed="false">Queue <span id="queue-count" hidden></span></button>
+        </nav>
+        <div class="desk-panel" data-panel="body">
+          <label class="field">
+            <span>Specialty</span>
+            <select id="specialty">
+              <option value="trauma">Trauma — whole body</option>
+              <option value="chest">Chest</option>
+              <option value="abdomen">Abdomen</option>
+              <option value="ortho">Ortho — limbs</option>
+            </select>
+          </label>
+          <label class="field">
+            <span id="timeline-caption">40 min</span>
+            <input id="timeline" type="range" min="0" max="40" value="40" />
+          </label>
+          <ol id="timeline-events" class="events"></ol>
+          <div class="chart-tools">
+            <button type="button" id="walk" class="solid">Walk the marks</button>
+            <p class="hint" id="walk-hint">Flies the camera to each mark still on the body.</p>
+          </div>
+          <ol id="findings" class="findings"></ol>
+          <form id="lookup" class="lookup" autocomplete="off">
+            <label for="lookup-query">Look up a structure</label>
+            <input id="lookup-query" name="query" placeholder="Aorta, femur, diaphragm…" />
+            <ul id="lookup-results" class="lookup-results" hidden></ul>
+          </form>
+        </div>
+        <div class="desk-panel" data-panel="region" hidden>
+          <article id="region-detail"></article>
+        </div>
+        <div class="desk-panel" data-panel="chat" hidden>
+          <ol id="chat-log" class="chat-log"></ol>
+          <form id="chat" class="chat-form" autocomplete="off">
+            <label for="chat-input">Request</label>
+            <input id="chat-input" name="request" placeholder="Add a fibula watch, ask about the spleen, or check screenings" />
+            <button type="submit" class="solid">Send</button>
+          </form>
+        </div>
+        <div class="desk-panel" data-panel="queue" hidden>
+          <ol id="queue" class="queue"></ol>
+        </div>
+        <p class="fine">
+          Fictional case, not a diagnosis. Models are a preview and have not had a full anatomical review.
+          <a href="https://svitylo.com">Svitylo</a>
+        </p>
+      </aside>
+      <section class="stage" id="stage" data-state="loading">
+        <div id="view"></div>
+        <div id="labels"></div>
+        <div class="hud" id="hud" aria-live="polite"></div>
+        <div class="toolbar" id="toolbar">
+          <div class="tools" role="toolbar" aria-label="3D tools">
+            <button type="button" data-tool="orbit" aria-pressed="true">Orbit</button>
+            <button type="button" data-tool="probe" aria-pressed="false">Probe</button>
+            <button type="button" data-tool="measure" aria-pressed="false">Measure</button>
+            <button type="button" data-tool="mark" aria-pressed="false">Mark</button>
+            <button type="button" id="impacts" aria-pressed="true">Impacts</button>
+            <button type="button" id="cutaway" aria-pressed="false" title="Drops whole structures on the far side of the plane. Marked organs stay.">Cutaway</button>
+          </div>
+          <div class="cut" id="cut-controls" hidden>
+            <div class="axes" role="group" aria-label="Cut direction">
+              <button type="button" data-axis="y" aria-pressed="true">Axial</button>
+              <button type="button" data-axis="z" aria-pressed="false">Coronal</button>
+              <button type="button" data-axis="x" aria-pressed="false">Sagittal</button>
+            </div>
+            <label class="slider">
+              <span id="cut-caption">Cut</span>
+              <input id="cut-range" type="range" min="0" max="1000" value="500" />
+            </label>
+          </div>
+        </div>
+        <div class="loading" id="loading">
+          <p id="loading-text">Opening the films…</p>
+          <div class="bar"><span id="loading-bar"></span></div>
+        </div>
+        <div class="failure" id="failure" hidden>
+          <p id="failure-text"></p>
+          <button type="button" id="retry">Try again</button>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

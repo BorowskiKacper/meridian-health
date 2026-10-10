@@ -1,8 +1,37 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.errors import finish
 
 router = APIRouter()
+
+
+@router.get("/patients/search")
+def search_patients(q: str = Query(default="", max_length=200), limit: int = Query(default=20, ge=1, le=20)):
+    import app.api.db as api_db
+    import app.services.patient_search as patient_search
+
+    with api_db.get_session() as session:
+        return finish(patient_search.search_patients(q, limit, session=session))
+
+
+@router.get("/patients")
+def list_patients():
+    import app.api.db as api_db
+    import app.services.chart as chart
+
+    with api_db.get_session() as session:
+        result = chart.list_chart_patients(session=session)
+        return finish(result)
+
+
+@router.get("/patients/{patient_id}/chart")
+def get_chart(patient_id: str):
+    import app.api.db as api_db
+    import app.services.chart as chart
+
+    with api_db.get_session() as session:
+        result = chart.get_chart(patient_id, session=session)
+        return finish(result)
 
 
 @router.get("/patients/{patient_id}/body-state")

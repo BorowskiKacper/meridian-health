@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    Allergy,
     Appointment,
     AuditLog,
     BodyRegion,
@@ -43,7 +44,9 @@ _UUID_COLUMNS = frozenset(
         "coverage_id",
     }
 )
-_DATE_COLUMNS = frozenset({"date_of_birth", "onset_date", "start_date", "due_on"})
+_DATE_COLUMNS = frozenset(
+    {"date_of_birth", "onset_date", "start_date", "due_on", "recorded_on"}
+)
 _LIST_COLUMNS = frozenset({"benefits", "citations", "validation_flags"})
 _DICT_COLUMNS = frozenset({"before", "after"})
 
@@ -206,6 +209,18 @@ def list_medications_by_region(session: Session, patient_id, body_region_key):
     return _by_patient_region(session, Medication, patient_id, body_region_key)
 
 
+def insert_allergy(session: Session, row):
+    return _insert(session, Allergy, row)
+
+
+def update_allergy(session: Session, row_id, fields):
+    return _update(session, Allergy, row_id, fields)
+
+
+def list_allergies_by_patient(session: Session, patient_id):
+    return _by_patient(session, Allergy, patient_id)
+
+
 def insert_family_history(session: Session, row):
     return _insert(session, FamilyHistory, row)
 
@@ -299,6 +314,10 @@ def list_specialty_focus(session: Session, specialty_key):
         SpecialtyFocus,
         SpecialtyFocus.specialty_key == specialty_key,
     )
+
+
+def list_all_specialty_focus(session: Session):
+    return _list_where(session, SpecialtyFocus)
 
 
 def insert_reminder_rule(session: Session, row):

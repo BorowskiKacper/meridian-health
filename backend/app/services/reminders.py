@@ -2,6 +2,7 @@ from datetime import date, datetime
 from uuid import uuid4
 
 from app.db.repositories import (
+    get_patient,
     get_reminder,
     insert_sms_message,
     list_patients,
@@ -69,6 +70,24 @@ def send_due_reminders(as_of, *, session):
             save_reminder(session, reminder_id, {"status": "sent"})
             sent.append({"reminder_id": reminder_id, "sms_id": sms_id})
     return {"sent": sent, "skipped": skipped}
+
+
+def list_patient_reminders(patient_id, *, session):
+    patient = get_patient(session, patient_id)
+    if patient is None:
+        return _error("not_found", "Patient was not found.")
+    reminders = [
+        {
+            "id": str(row["id"]),
+            "patient_id": str(row["patient_id"]),
+            "name": row["name"],
+            "due_on": _iso_date(row["due_on"]),
+            "status": row["status"],
+        }
+        for row in list_reminders_by_patient(session, patient_id)
+    ]
+    reminders.sort(key=lambda item: (item["due_on"], item["name"]))
+    return {"reminders": reminders}
 
 
 def update_reminder(patient_id, reminder_id, due_on, status, *, session):

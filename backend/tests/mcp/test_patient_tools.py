@@ -38,6 +38,7 @@ OFFICE_SUMMARY = "Office visit"
 CONTEXT_KEYS = {
     "patient_id",
     "age",
+    "allergies",
     "conditions",
     "medications",
     "recent_observations",
@@ -367,6 +368,13 @@ def test_get_patient_context_returns_jane_chart(seeded_db):
     assert isinstance(result["patient_id"], str)
     assert type(result["age"]) is int
     assert result["age"] == age_in_years(patient["date_of_birth"])
+
+    # Allergies reach every agent that drafts a chart or medication change.
+    allergies = {row["substance"]: row for row in result["allergies"]}
+    assert set(allergies) == {"Penicillin", "Shellfish"}
+    assert allergies["Penicillin"]["severity"] == "moderate"
+    assert allergies["Penicillin"]["reaction"] == "Hives"
+    assert allergies["Penicillin"]["recorded_on"] == "2009-06-12"
 
     db_conditions = list_conditions_by_patient(session, JANE_ID)
     assert isinstance(result["conditions"], list)
