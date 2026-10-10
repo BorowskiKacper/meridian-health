@@ -5,170 +5,168 @@ import {
   setAudioModeAsync,
   useAudioRecorder,
 } from "expo-audio";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 import { ApiError, apiBaseUrl, createClient, type AudioPart, type DoctorInput } from "./src/api";
-import { CitationList } from "./src/components/CitationList";
-import { SuggestionCard } from "./src/components/SuggestionCard";
-import { reviewSummary, routeLabel } from "./src/format";
-import { DEMO_PATIENTS } from "./src/patients";
+import {
+  patientMrn,
+  replyText,
+  chatRoute,
+  type AgentTurn,
+  type ChatConversation,
+  type ChatMode,
+  type DoctorTurn,
+} from "./src/chat";
+import { Composer } from "./src/components/composer";
+import { Conversation } from "./src/components/conversation";
 import { playReadBack } from "./src/playback";
-import type { DoctorRequest, Suggestion } from "./src/types";
+import { DEMO_PATIENTS } from "./src/patients";
+import { theme } from "./src/theme";
 
-type UserMessage = { id: string; role: "user"; channel: "typed" | "voice"; text: string };
-type AgentMessage = { id: string; role: "agent"; response: DoctorRequest };
-type NoteMessage = { id: string; role: "note"; text: string };
-type ThreadMessage = UserMessage | AgentMessage | NoteMessage;
-
-let messageCount = 0;
+let sequence = 0;
 
 function nextId(): string {
-  messageCount += 1;
-  return `m${messageCount}`;
+  sequence += 1;
+  return `m${sequence}`;
 }
 
 function messageOf(error: unknown): string {
   if (error instanceof ApiError) return error.message;
-  return "Could not reach the API.";
+  return "The clinic API could not classify this request. The chart model is not configured, so nothing was saved.";
+}
+
+function openConversation(patientId: string, title: string): ChatConversation {
+  return { id: nextId(), patientId, title, messages: [] };
 }
 
 export default function App() {
-  const visit = useMemo(() => createClient(apiBaseUrl()), []);
+  const client = useMemo(() => createClient(apiBaseUrl()), []);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const scrollRef = useRef<ScrollView>(null);
-  const recordingPatient = useRef<string>(DEMO_PATIENTS[0].id);
-  const [patientId, setPatientId] = useState<string>(DEMO_PATIENTS[0].id);
-  const [threads, setThreads] = useState<Record<string, ThreadMessage[]>>({});
-  const [pending, setPending] = useState<Record<string, Suggestion[]>>({});
-  const [handled, setHandled] = useState<Record<string, string>>({});
+  const recordingConversation = useRef<string>("");
+  const jane = DEMO_PATIENTS[0];
+  const [conversations, setConversations] = useState<ChatConversation[]>(() => [
+    openConversation(jane.id, jane.displayName),
+  ]);
+  const [activeId, setActiveId] = useState<string>(() => "");
+  const [mode, setMode] = useState<ChatMode>("auto");
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [queueError, setQueueError] = useState<string | null>(null);
-  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const patient = DEMO_PATIENTS.find((item) => item.id === patientId) ?? DEMO_PATIENTS[0];
-  const thread = threads[patientId] ?? [];
-  const queue = (pending[patientId] ?? []).map((suggestion) => withStatus(suggestion, handled));
+  const resolvedActiveId = activeId || conversations[0]?.id || "";
+  const active = conversations.find((conversation) => conversation.id === resolvedActiveId) ?? null;
+  const patient = DEMO_PATIENTS.find((item) => item.id === active?.patientId) ?? jane;
 
-  useEffect(() => {
-    let active = true;
-    setLoadingQueue(true);
-    setQueueError(null);
-    visit
-      .listPending(patientId)
-      .then((suggestions) => {
-        if (!active) return;
-        setPending((current) => ({ ...current, [patientId]: suggestions }));
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setQueueError(messageOf(error));
-      })
-      .finally(() => {
-        if (active) setLoadingQueue(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [patientId, visit]);
-
-  useEffect(() => {
-    scrollRef.current?.scrollToEnd({ animated: true });
-  }, [thread.length, queue.length]);
-
-  function append(forPatient: string, message: ThreadMessage) {
-    setThreads((current) => ({
-      ...current,
-      [forPatient]: [...(current[forPatient] ?? []), message],
-    }));
+  function updateConversation(id: string, mapper: (conversation: ChatConversation) => ChatConversation) {
+    setConversations((current) =>
+      current.map((conversation) => (conversation.id === id ? mapper(conversation) : conversation)),
+    );
   }
 
-  function replaceUserText(forPatient: string, id: string, text: string) {
-    setThreads((current) => ({
-      ...current,
-      [forPatient]: (current[forPatient] ?? []).map((message) =>
-        message.role === "user" && message.id === id ? { ...message, text } : message,
+  function patchTurn(conversationId: string, turnId: string, patch: Partial<AgentTurn> | Partial<DoctorTurn>) {
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      messages: conversation.messages.map((turn) =>
+        turn.id === turnId ? ({ ...turn, ...patch } as typeof turn) : turn,
       ),
     }));
   }
 
-  async function refresh(forPatient: string) {
-    const suggestions = await visit.listPending(forPatient);
-    setPending((current) => ({ ...current, [forPatient]: suggestions }));
-    setQueueError(null);
+  function say(conversationId: string, text: string) {
+    const turn: AgentTurn = {
+      id: nextId(),
+      role: "agent",
+      text,
+      pending: false,
+      suggestions: [],
+      answer: null,
+      audioBase64: null,
+    };
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      messages: [...conversation.messages, turn],
+    }));
   }
 
-  async function submit(forPatient: string, input: DoctorInput, userText: string) {
-    const userId = nextId();
-    const channel = "audio" in input ? "voice" : "typed";
-    append(forPatient, { id: userId, role: "user", channel, text: userText });
+  async function submit(conversationId: string, patientId: string, input: DoctorInput, userText: string) {
+    const doctorId = nextId();
+    const agentId = nextId();
+    const doctor: DoctorTurn = { id: doctorId, role: "doctor", text: userText };
+    const agent: AgentTurn = {
+      id: agentId,
+      role: "agent",
+      text: "",
+      pending: true,
+      suggestions: [],
+      answer: null,
+      audioBase64: null,
+    };
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      messages: [...conversation.messages, doctor, agent],
+    }));
     setBusy(true);
     try {
-      const response = await visit.sendRequest(forPatient, input);
-      if (channel === "voice" && response.transcript.trim()) {
-        replaceUserText(forPatient, userId, response.transcript);
+      const response = await client.sendRequest(patientId, input);
+      if ("audio" in input && response.transcript.trim()) {
+        patchTurn(conversationId, doctorId, { text: response.transcript });
       }
-      append(forPatient, { id: nextId(), role: "agent", response });
+      const route = chatRoute(response.route) ?? undefined;
+      patchTurn(conversationId, agentId, {
+        text: replyText(response),
+        pending: false,
+        route,
+        suggestions: response.suggestions,
+        answer: response.answer,
+        audioBase64: response.audio_base64,
+      });
       if (response.audio_base64) {
         try {
           playReadBack(response.audio_base64);
         } catch {
-          // The read-back text is still on screen when playback is blocked.
+          // The reply stays on screen when playback is blocked.
         }
       }
     } catch (error) {
-      append(forPatient, { id: nextId(), role: "note", text: messageOf(error) });
-      setBusy(false);
-      return;
-    }
-    try {
-      await refresh(forPatient);
-    } catch (error) {
-      setQueueError(messageOf(error));
+      patchTurn(conversationId, agentId, { text: messageOf(error), pending: false });
     } finally {
       setBusy(false);
     }
   }
 
-  async function sendTyped() {
-    const text = draft.trim();
-    if (!text || busy || recording) return;
+  function sendText(text: string) {
+    const value = text.trim();
+    if (!value || !active || busy || recording) return;
     setDraft("");
-    await submit(patientId, { text }, text);
+    void submit(active.id, active.patientId, { text: value }, value);
   }
 
   async function startDictation() {
-    if (busy || recording) return;
+    if (!active || busy || recording) return;
     try {
       const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        append(patientId, {
-          id: nextId(),
-          role: "note",
-          text: "Microphone permission is required to dictate.",
-        });
+        say(active.id, "Microphone permission is required to dictate.");
         return;
       }
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
-      recordingPatient.current = patientId;
+      recordingConversation.current = active.id;
       setRecording(true);
     } catch {
       setRecording(false);
-      append(patientId, { id: nextId(), role: "note", text: "The microphone could not start." });
+      say(active.id, "The microphone could not start.");
     }
   }
 
@@ -182,227 +180,202 @@ export default function App() {
   }
 
   async function sendDictation() {
-    const forPatient = recordingPatient.current;
+    const conversationId = recordingConversation.current;
+    const conversation = conversations.find((item) => item.id === conversationId);
     setRecording(false);
     try {
       await recorder.stop();
     } catch {
-      append(forPatient, { id: nextId(), role: "note", text: "The recording could not be stopped." });
+      if (conversation) say(conversation.id, "The recording could not be stopped.");
       return;
     }
+    if (!conversation) return;
     const uri = recorder.uri;
     if (!uri) {
-      append(forPatient, { id: nextId(), role: "note", text: "No audio was captured." });
+      say(conversation.id, "No audio was captured.");
       return;
     }
     const audio = await audioPartFromUri(uri);
     if (!audio) {
-      append(forPatient, { id: nextId(), role: "note", text: "No audio was captured." });
+      say(conversation.id, "No audio was captured.");
       return;
     }
-    await submit(forPatient, { audio }, "Dictation");
+    await submit(conversation.id, conversation.patientId, { audio }, "Dictating…");
   }
 
-  async function approve(id: string) {
-    const forPatient = patientId;
-    setBusyId(id);
-    try {
-      const result = await visit.approve([id]);
-      setHandled((current) => ({ ...current, [id]: "approved" }));
-      const summary = reviewSummary(
-        result.reminder_review.answer,
-        result.reminder_review.suggestions.length,
-      );
-      if (summary) append(forPatient, { id: nextId(), role: "note", text: summary });
-    } catch (error) {
-      append(forPatient, { id: nextId(), role: "note", text: messageOf(error) });
-      setBusyId(null);
+  function dictate() {
+    if (recording) {
+      void sendDictation();
       return;
     }
+    void startDictation();
+  }
+
+  async function approve(messageId: string, suggestionId: string) {
+    if (!active) return;
+    const conversationId = active.id;
+    setBusyId(suggestionId);
     try {
-      await refresh(forPatient);
+      const result = await client.approve([suggestionId]);
+      markSuggestion(conversationId, messageId, suggestionId, "approved");
+      const review = result.reminder_review.answer?.trim();
+      if (review) {
+        const turn: AgentTurn = {
+          id: nextId(),
+          role: "agent",
+          text: review,
+          pending: false,
+          route: "screening",
+          suggestions: [],
+          answer: null,
+          audioBase64: null,
+        };
+        updateConversation(conversationId, (conversation) => ({
+          ...conversation,
+          messages: [...conversation.messages, turn],
+        }));
+      }
     } catch (error) {
-      setQueueError(messageOf(error));
+      say(conversationId, messageOf(error));
     } finally {
       setBusyId(null);
     }
   }
 
-  async function reject(id: string, reason: string) {
-    const forPatient = patientId;
-    setBusyId(id);
+  async function reject(messageId: string, suggestionId: string) {
+    if (!active) return;
+    const conversationId = active.id;
+    setBusyId(suggestionId);
     try {
-      await visit.reject([id], reason);
-      setHandled((current) => ({ ...current, [id]: "rejected" }));
-      append(forPatient, { id: nextId(), role: "note", text: "Suggestion rejected." });
+      await client.reject([suggestionId], "Not accurate");
+      markSuggestion(conversationId, messageId, suggestionId, "rejected");
     } catch (error) {
-      append(forPatient, { id: nextId(), role: "note", text: messageOf(error) });
-      setBusyId(null);
-      return;
-    }
-    try {
-      await refresh(forPatient);
-    } catch (error) {
-      setQueueError(messageOf(error));
+      say(conversationId, messageOf(error));
     } finally {
       setBusyId(null);
     }
   }
 
-  async function addToPlan(response: DoctorRequest) {
-    const text = response.answer?.text.trim() ?? "";
-    if (!text) return;
-    const forPatient = patientId;
-    setBusy(true);
-    try {
-      await visit.addToPlan(forPatient, response.request_id, text, response.answer?.citations ?? []);
-      append(forPatient, { id: nextId(), role: "note", text: "Added to the plan as a suggestion." });
-    } catch (error) {
-      append(forPatient, { id: nextId(), role: "note", text: messageOf(error) });
-      setBusy(false);
-      return;
-    }
-    try {
-      await refresh(forPatient);
-    } catch (error) {
-      setQueueError(messageOf(error));
-    } finally {
-      setBusy(false);
-    }
+  function markSuggestion(conversationId: string, messageId: string, suggestionId: string, status: string) {
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      messages: conversation.messages.map((turn) => {
+        if (turn.id !== messageId || turn.role !== "agent") return turn;
+        return {
+          ...turn,
+          suggestions: turn.suggestions.map((suggestion) =>
+            suggestion.id === suggestionId ? { ...suggestion, status } : suggestion,
+          ),
+        };
+      }),
+    }));
+  }
+
+  function newConversation(patientId: string) {
+    const match = DEMO_PATIENTS.find((item) => item.id === patientId);
+    if (!match || recording) return;
+    const conversation = openConversation(match.id, match.displayName);
+    setConversations((current) => [...current, conversation]);
+    setActiveId(conversation.id);
+    setMenuOpen(false);
+    setDraft("");
   }
 
   return (
     <View style={styles.screen}>
-      <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.frame}
-      >
-        <View style={styles.header}>
-          <Text style={styles.kicker}>Doctor</Text>
-          <Text style={styles.title}>Visit</Text>
-          <Text style={styles.subtitle}>Type or dictate. One request goes to the agents.</Text>
-        </View>
-        <View style={styles.patients}>
-          {DEMO_PATIENTS.map((item) => {
-            const selected = item.id === patient.id;
-            return (
-              <Pressable
-                accessibilityLabel={item.displayName}
-                accessibilityState={{ selected }}
-                disabled={recording}
-                key={item.id}
-                onPress={() => setPatientId(item.id)}
-                style={[styles.chip, selected && styles.chipSelected]}
-              >
-                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                  {item.displayName}
+      <StatusBar style="light" />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.frame}>
+        <View style={styles.window}>
+          <View style={styles.header}>
+            <View accessibilityRole="tablist" style={styles.tabs}>
+              {conversations.map((conversation) => {
+                const selected = conversation.id === resolvedActiveId;
+                return (
+                  <Pressable
+                    accessibilityLabel={conversation.title}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
+                    disabled={recording}
+                    key={conversation.id}
+                    onPress={() => setActiveId(conversation.id)}
+                    style={[styles.tab, selected && styles.tabOn]}
+                  >
+                    <Text style={[styles.tabText, selected ? styles.tabTextOn : styles.tabTextOff]}>
+                      {conversation.title}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              accessibilityLabel="New conversation"
+              disabled={recording}
+              onPress={() => setMenuOpen((open) => !open)}
+              style={styles.plus}
+            >
+              <Text style={styles.plusText}>+</Text>
+            </Pressable>
+          </View>
+
+          {active ? (
+            <View style={styles.column}>
+              <View style={styles.identity}>
+                <Text style={styles.assistant}>Assistant</Text>
+                <Text style={styles.who}>
+                  {patient.displayName} · {patientMrn(patient.id)}
                 </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <ScrollView
-          contentContainerStyle={styles.thread}
-          ref={scrollRef}
-          style={styles.scroll}
-        >
-          {loadingQueue ? <Text style={styles.meta}>Loading suggestions…</Text> : null}
-          {queueError ? <Text style={styles.error}>{queueError}</Text> : null}
-          {queue.length > 0 ? (
-            <View style={styles.queue}>
-              <Text style={styles.section}>Waiting for approval</Text>
-              {queue.map((suggestion) => (
-                <SuggestionCard
-                  busy={busyId === suggestion.id}
-                  key={suggestion.id}
-                  onApprove={(id) => {
-                    void approve(id);
-                  }}
-                  onReject={(id, reason) => {
-                    void reject(id, reason);
-                  }}
-                  suggestion={suggestion}
-                />
-              ))}
+              </View>
+              <Conversation
+                busyId={busyId}
+                conversation={active}
+                onApprove={(messageId, suggestionId) => {
+                  void approve(messageId, suggestionId);
+                }}
+                onPlay={playReadBack}
+                onReject={(messageId, suggestionId) => {
+                  void reject(messageId, suggestionId);
+                }}
+                onStarter={sendText}
+                patientName={patient.displayName}
+              />
+              <Composer
+                busy={busy}
+                listening={recording}
+                mode={mode}
+                onCancelDictation={() => {
+                  void cancelDictation();
+                }}
+                onDictate={dictate}
+                onMode={setMode}
+                onSend={() => sendText(draft)}
+                onText={setDraft}
+                patientName={patient.displayName}
+                text={draft}
+              />
             </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>Start a conversation with the plus button.</Text>
+            </View>
+          )}
+
+          {menuOpen ? (
+            <>
+              <Pressable accessibilityLabel="Close menu" onPress={() => setMenuOpen(false)} style={styles.scrim} />
+              <View style={styles.menu}>
+                <Text style={styles.menuLabel}>New conversation about</Text>
+                {DEMO_PATIENTS.map((item) => (
+                  <Pressable key={item.id} onPress={() => newConversation(item.id)} style={styles.menuItem}>
+                    <Text style={styles.menuName}>{item.displayName}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
           ) : null}
-          {thread.length === 0 ? (
-            <Text style={styles.empty}>
-              Ask a clinical question, check screenings, or update the chart. Chart changes stay
-              suggestions until you approve them.
-            </Text>
-          ) : (
-            thread.map((message) => (
-              <ThreadBubble
-                busy={busy || busyId !== null}
-                key={message.id}
-                message={message}
-                onAddToPlan={(response) => {
-                  void addToPlan(response);
-                }}
-                onApprove={(id) => {
-                  void approve(id);
-                }}
-                onReject={(id, reason) => {
-                  void reject(id, reason);
-                }}
-                statusFor={(id) => handled[id]}
-              />
-            ))
-          )}
-        </ScrollView>
-        <View style={styles.composer}>
-          {recording ? (
-            <View style={styles.recordingRow}>
-              <Text style={styles.recordingLabel}>Recording</Text>
-              <Pressable accessibilityLabel="Cancel dictation" onPress={() => void cancelDictation()} style={styles.secondary}>
-                <Text style={styles.secondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable accessibilityLabel="Send dictation" onPress={() => void sendDictation()} style={styles.primary}>
-                <Text style={styles.primaryText}>Send</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.composeRow}>
-              <TextInput
-                accessibilityLabel="Message"
-                editable={!busy}
-                multiline
-                onChangeText={setDraft}
-                placeholder="Ask a question or update the chart"
-                placeholderTextColor="#8a8178"
-                style={styles.input}
-                value={draft}
-              />
-              <Pressable
-                accessibilityLabel="Send"
-                disabled={busy || !draft.trim()}
-                onPress={() => void sendTyped()}
-                style={[styles.primary, (busy || !draft.trim()) && styles.disabled]}
-              >
-                <Text style={styles.primaryText}>{busy ? "Sending" : "Send"}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Dictate"
-                disabled={busy}
-                onPress={() => void startDictation()}
-                style={[styles.dictate, busy && styles.disabled]}
-              >
-                <Text style={styles.dictateText}>Dictate</Text>
-              </Pressable>
-            </View>
-          )}
         </View>
       </KeyboardAvoidingView>
     </View>
   );
-}
-
-function withStatus(suggestion: Suggestion, handled: Record<string, string>): Suggestion {
-  const status = handled[suggestion.id];
-  if (!status) return suggestion;
-  return { ...suggestion, status };
 }
 
 async function audioPartFromUri(uri: string): Promise<AudioPart | null> {
@@ -420,191 +393,52 @@ async function audioPartFromUri(uri: string): Promise<AudioPart | null> {
   };
 }
 
-function ThreadBubble({
-  message,
-  busy,
-  statusFor,
-  onApprove,
-  onReject,
-  onAddToPlan,
-}: {
-  message: ThreadMessage;
-  busy: boolean;
-  statusFor: (id: string) => string | undefined;
-  onApprove: (id: string) => void;
-  onReject: (id: string, reason: string) => void;
-  onAddToPlan: (response: DoctorRequest) => void;
-}) {
-  if (message.role === "note") {
-    return <Text style={styles.note}>{message.text}</Text>;
-  }
-  if (message.role === "user") {
-    return (
-      <View style={styles.userWrap}>
-        <Text style={styles.channel}>{message.channel === "voice" ? "Dictated" : "Typed"}</Text>
-        <View style={styles.userBubble}>
-          <Text style={styles.userText}>{message.text}</Text>
-        </View>
-      </View>
-    );
-  }
-  const { response } = message;
-  const suggestions = response.suggestions.map((suggestion) =>
-    withStatus(suggestion, statusMap(statusFor, response.suggestions)),
-  );
-  return (
-    <View style={styles.agentBubble}>
-      <Text style={styles.route}>{routeLabel(response.route)}</Text>
-      {response.spoken_text ? <Text style={styles.spoken}>{response.spoken_text}</Text> : null}
-      {response.audio_base64 ? (
-        <Pressable
-          accessibilityLabel="Play read-back"
-          onPress={() => playReadBack(response.audio_base64 as string)}
-          style={styles.play}
-        >
-          <Text style={styles.playText}>Play read-back</Text>
-        </Pressable>
-      ) : null}
-      {response.answer?.text ? <Text style={styles.answer}>{response.answer.text}</Text> : null}
-      <CitationList citations={response.answer?.citations ?? []} />
-      {response.answer?.text ? (
-        <Pressable
-          accessibilityLabel="Add to plan"
-          disabled={busy}
-          onPress={() => onAddToPlan(response)}
-          style={[styles.secondary, busy && styles.disabled]}
-        >
-          <Text style={styles.secondaryText}>Add to plan</Text>
-        </Pressable>
-      ) : null}
-      {suggestions.map((suggestion) => (
-        <SuggestionCard
-          busy={busy}
-          key={suggestion.id}
-          onApprove={onApprove}
-          onReject={onReject}
-          suggestion={suggestion}
-        />
-      ))}
-    </View>
-  );
-}
-
-function statusMap(statusFor: (id: string) => string | undefined, suggestions: Suggestion[]): Record<string, string> {
-  const handled: Record<string, string> = {};
-  for (const suggestion of suggestions) {
-    const status = statusFor(suggestion.id);
-    if (status) handled[suggestion.id] = status;
-  }
-  return handled;
-}
-
 const styles = StyleSheet.create({
-  screen: { backgroundColor: "#e7e0d6", flex: 1 },
-  frame: {
-    alignSelf: "center",
-    backgroundColor: "#f7f4ef",
-    flex: 1,
-    maxWidth: 480,
-    width: "100%",
-  },
-  header: { paddingBottom: 8, paddingHorizontal: 20, paddingTop: 18 },
-  kicker: {
-    color: "#1f6f5b",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  title: { color: "#1f1a17", fontSize: 32, fontWeight: "700", marginTop: 2 },
-  subtitle: { color: "#6d645c", fontSize: 14, marginTop: 4 },
-  patients: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingVertical: 8 },
-  chip: {
-    backgroundColor: "#fffdf9",
-    borderColor: "#e4d9cc",
-    borderRadius: 999,
-    borderWidth: 1,
+  screen: { backgroundColor: theme.jade900, flex: 1 },
+  frame: { flex: 1 },
+  window: { alignSelf: "center", flex: 1, maxWidth: 768, width: "100%" },
+  header: {
+    alignItems: "flex-end",
+    borderBottomColor: theme.ivory15,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingTop: Platform.OS === "ios" ? 52 : 10,
   },
-  chipSelected: { backgroundColor: "#1f6f5b", borderColor: "#1f6f5b" },
-  chipText: { color: "#1f1a17", fontSize: 14, fontWeight: "600" },
-  chipTextSelected: { color: "#f4fbf8" },
-  scroll: { flex: 1 },
-  thread: { gap: 12, paddingBottom: 16, paddingHorizontal: 20, paddingTop: 8 },
-  section: { color: "#6d645c", fontSize: 12, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase" },
-  queue: { gap: 8 },
-  empty: { color: "#6d645c", fontSize: 16, lineHeight: 23, marginTop: 12 },
-  meta: { color: "#6d645c", fontSize: 13 },
-  error: { color: "#8c3a32", fontSize: 14, lineHeight: 20 },
-  note: { color: "#6d645c", fontSize: 14, lineHeight: 20 },
-  userWrap: { alignItems: "flex-end", gap: 4 },
-  channel: { color: "#8a8178", fontSize: 11, fontWeight: "600" },
-  userBubble: {
-    backgroundColor: "#1f6f5b",
-    borderRadius: 16,
-    maxWidth: "88%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  tabs: { flex: 1, flexDirection: "row", gap: 4 },
+  tab: { borderBottomColor: "transparent", borderBottomWidth: 2, height: 36, justifyContent: "center", paddingHorizontal: 8 },
+  tabOn: { borderBottomColor: theme.jade300 },
+  tabText: { fontSize: 12 },
+  tabTextOn: { color: theme.ivory },
+  tabTextOff: { color: theme.ivory45 },
+  plus: { alignItems: "center", height: 28, justifyContent: "center", marginBottom: 6, width: 28 },
+  plusText: { color: theme.ivory45, fontSize: 22, lineHeight: 24 },
+  column: { flex: 1, paddingHorizontal: 24 },
+  identity: {
+    alignItems: "center",
+    borderBottomColor: theme.ivory14,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 16,
   },
-  userText: { color: "#f4fbf8", fontSize: 16, lineHeight: 22 },
-  agentBubble: {
-    backgroundColor: "#fffdf9",
-    borderColor: "#e4d9cc",
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 8,
-    padding: 14,
-  },
-  route: { color: "#1f6f5b", fontSize: 12, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase" },
-  spoken: { color: "#1f1a17", fontSize: 16, lineHeight: 22 },
-  answer: { color: "#1f1a17", fontSize: 16, lineHeight: 23 },
-  play: { alignSelf: "flex-start" },
-  playText: { color: "#1f6f5b", fontSize: 14, fontWeight: "700" },
-  composer: {
-    borderTopColor: "#e4d9cc",
-    borderTopWidth: 1,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-  },
-  composeRow: { alignItems: "flex-end", flexDirection: "row", gap: 8 },
-  recordingRow: { alignItems: "center", flexDirection: "row", gap: 8 },
-  recordingLabel: { color: "#8c3a32", flex: 1, fontSize: 16, fontWeight: "700" },
-  input: {
-    backgroundColor: "#fffdf9",
-    borderColor: "#e4d9cc",
-    borderRadius: 14,
-    borderWidth: 1,
-    color: "#1f1a17",
-    flex: 1,
-    fontSize: 16,
-    maxHeight: 120,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  primary: {
-    backgroundColor: "#1f6f5b",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  primaryText: { color: "#f4fbf8", fontSize: 15, fontWeight: "700" },
-  dictate: {
-    backgroundColor: "#8c3a32",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  dictateText: { color: "#fff7f5", fontSize: 15, fontWeight: "700" },
-  secondary: {
-    borderColor: "#1f6f5b",
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 12,
+  assistant: { color: theme.jade300, fontSize: 12, fontWeight: "600" },
+  who: { color: theme.ivory65, fontSize: 12 },
+  empty: { alignItems: "center", flex: 1, justifyContent: "center", paddingHorizontal: 32 },
+  emptyText: { color: theme.ivory65, fontSize: 14, textAlign: "center" },
+  scrim: { ...StyleSheet.absoluteFill },
+  menu: {
+    backgroundColor: theme.white,
+    borderRadius: 8,
     paddingVertical: 8,
+    position: "absolute",
+    right: 12,
+    top: 52,
+    width: 220,
+    zIndex: 2,
   },
-  secondaryText: { color: "#1f6f5b", fontSize: 14, fontWeight: "700" },
-  disabled: { opacity: 0.45 },
+  menuLabel: { color: theme.inkFaint, fontSize: 12, paddingHorizontal: 12, paddingVertical: 6 },
+  menuItem: { paddingHorizontal: 12, paddingVertical: 10 },
+  menuName: { color: theme.ink, fontSize: 14 },
 });
