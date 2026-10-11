@@ -7,7 +7,10 @@ The script reads DATABASE_URL from backend/.env when that file exists, otherwise
 from the environment. Chart rows live in public. Workspace rows live in clinic.
 Every other schema is left alone. It does not drop tables and does not run
 python -m app.bootstrap. It removes the canned "reviewed today" visit notes so
-notes history matches the seeded charts. The seeded notes and the synthetic
+notes history matches the seeded charts. Every workspace job is one turn in
+the agent chat window, for General or for a patient. Those jobs are removed,
+so a paired phone or desktop does not replay any of that thread. The checked-in
+demo prompt cache is not read or written. The seeded notes and the synthetic
 panel are left in place. After it finishes, hard-reload the chart.
 """
 
@@ -54,6 +57,12 @@ SENTENCES = {
         "Draft a note for Amy Lee stating that the recorded medications and screening plan were reviewed today.",
     ),
 }
+# Exact general-chat presets. Kept here so a future edit cannot collide with a patient sentence.
+GENERAL = (
+    "What is the difference between screening and diagnostic testing?",
+    "How should absolute and relative risk reduction be interpreted in clinical research?",
+    "What information belongs in a concise SOAP note?",
+)
 # Bodies loaded by seed.py and demo.py. Practice resets must not remove these.
 SEEDED_NOTES = (
     (JANE, "LDL is above the patient's goal."),
@@ -151,11 +160,14 @@ def database_url():
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
         raise Stop("DATABASE_URL is not set. Put it in backend/.env or the environment.")
+    # SQLAlchemy URLs use postgresql+psycopg://. psycopg.connect wants postgresql://.
+    if url.startswith("postgresql+psycopg://"):
+        url = "postgresql://" + url[len("postgresql+psycopg://") :]
     return url
 
 
 def main():
-    all_sentences = [text for texts in SENTENCES.values() for text in texts]
+    all_sentences = [text for texts in SENTENCES.values() for text in texts] + list(GENERAL)
     if len(all_sentences) != len(set(all_sentences)):
         raise Stop("Duplicate sentences.")
     conn = psycopg.connect(database_url(), row_factory=dict_row)
@@ -562,6 +574,27 @@ def release_reminder(cur, reminder_id):
         print(f"cleared sms reminder_id on {cur.rowcount} row(s) for {reminder_id}")
 
 
+def chat_history(cur):
+    cur.execute(
+        """
+        SELECT patient_id::text AS patient_id, count(*) AS n
+        FROM clinic.workspace_jobs
+        GROUP BY patient_id
+        ORDER BY patient_id NULLS FIRST
+        """
+    )
+    return cur.fetchall()
+
+
+def print_chat_history(label, rows):
+    if not rows:
+        print(f"agent chat history {label}: 0")
+        return
+    for row in rows:
+        name = "General" if row["patient_id"] is None else PATIENTS.get(row["patient_id"], row["patient_id"])
+        print(f"agent chat history {label} {name}: {row['n']}")
+
+
 def clear_workspaces(cur):
     cur.execute(
         """
@@ -583,6 +616,7 @@ def clear_workspaces(cur):
     )
     if cur.fetchone()["n"]:
         raise Stop("A workspace chunk has an unknown owner. Stopped.")
+    chat_jobs = chat_history(cur)
     cur.execute("SELECT id::text AS id FROM clinic.workspace_jobs")
     job_ids = [row["id"] for row in cur.fetchall()]
     cur.execute("DELETE FROM clinic.workspace_events WHERE job_id IS NOT NULL")
@@ -606,6 +640,7 @@ def clear_workspaces(cur):
     if cur.rowcount != len(job_ids):
         raise Stop("Workspace job delete count did not match.")
     print(f"workspace jobs deleted: {cur.rowcount}")
+    print_chat_history("deleted", chat_jobs)
     cur.execute("UPDATE clinic.workspaces SET sequence = 0, desktop_cursor = 0")
     print(f"workspaces reset: {cur.rowcount}")
 
@@ -675,6 +710,10 @@ def confirm(cur, suggestion_ids, before, removed_review_notes):
     if cur.fetchone()["n"] != 0:
         raise Stop("workspace_jobs is not empty.")
     print("workspace_jobs: 0")
+    remaining_chat = chat_history(cur)
+    if remaining_chat:
+        raise Stop("Agent chat history remains.")
+    print("agent chat history: 0")
     cur.execute(
         """
         SELECT count(*) AS n FROM clinic.workspaces

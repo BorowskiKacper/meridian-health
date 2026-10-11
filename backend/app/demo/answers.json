@@ -650,5 +650,33 @@
       "spoken_text": null,
       "audio_base64": null
     }
+  },
+  "general-documentation": {
+    "prompt": {
+      "id": "general-documentation",
+      "patient_id": null,
+      "route": "clinical_question",
+      "label": "Clinical documentation",
+      "text": "What information belongs in a concise SOAP note?"
+    },
+    "captured_at": "2026-10-11T14:04:36.850948+00:00",
+    "response": {
+      "route": "clinical_question",
+      "transcript": "What information belongs in a concise SOAP note?",
+      "answer": {
+        "text": "The supplied evidence lacks details and clinical guidance defining the elements required for a concise SOAP note.",
+        "citations": [],
+        "sections": [
+          {
+            "title": "Missing information",
+            "text": "The supplied evidence lacks details and clinical guidance defining the elements required for a concise SOAP note.",
+            "source_ids": []
+          }
+        ]
+      },
+      "suggestions": [],
+      "spoken_text": null,
+      "audio_base64": null
+    }
   }
 }
