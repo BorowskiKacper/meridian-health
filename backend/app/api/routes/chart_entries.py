@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from uuid import UUID
 from app.api.errors import finish
-from app.schemas.chart_entries import Submission, Vitals, MedicationEntry, AllergyEntry, ProblemEntry, VisitDraft, Review, Inactivate, NoKnownDrugAllergies, FollowUp
+from app.schemas.chart_entries import Submission, Vitals, MedicationEntry, AllergyEntry, ProblemEntry, VisitDraft, FinalizeVisit, Review, Inactivate, NoKnownDrugAllergies, FollowUp
 
 router = APIRouter()
 
@@ -84,6 +84,14 @@ def update_follow_up(patient_id: UUID, record_id: UUID, payload: FollowUp):
     import app.services.chart_entries as entries
     with api_db.get_session() as session:
         return finish(entries.update_follow_up(patient_id, record_id, payload, session=session))
+
+
+@router.post('/patients/{patient_id}/visit-draft/finalize')
+def finalize_visit(patient_id: UUID, payload: FinalizeVisit):
+    import app.api.db as api_db
+    import app.services.chart_entries as entries
+    with api_db.get_session() as session:
+        return finish(entries.finalize_visit(patient_id, payload, session=session))
 
 
 @router.post('/patients/{patient_id}/chart-review')

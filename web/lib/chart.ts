@@ -85,9 +85,9 @@ export function patientFromChart(chart: PatientChart): Patient {
     })),
     ...chart.notes.map<ChartNote>((row) => ({
       id: row.id,
-      minute: minuteAt(row.created_at, span),
-      at: row.created_at,
-      when: formatMonth(row.created_at),
+      minute: minuteAt(row.visit_date ? `${row.visit_date}T12:00:00` : row.created_at, span),
+      at: row.visit_date ? `${row.visit_date}T12:00:00` : row.created_at,
+      when: formatMonth(row.visit_date ? `${row.visit_date}T12:00:00` : row.created_at),
       text: row.body,
       kind: "note",
     })),
@@ -313,7 +313,7 @@ function timeSpan(chart: PatientChart): { start: number; end: number } {
     ...chart.conditions.map((row) => row.onset_date),
     ...chart.medications.map((row) => row.start_date),
     ...chart.encounters.map((row) => row.occurred_at),
-    ...chart.notes.map((row) => row.created_at),
+    ...chart.notes.flatMap((row) => [row.created_at, row.visit_date ? `${row.visit_date}T12:00:00` : row.created_at]),
     ...chart.series.flatMap((row) => row.points.map((point) => point.at)),
   ]
     .map((value) => (value ? Date.parse(value) : Number.NaN))

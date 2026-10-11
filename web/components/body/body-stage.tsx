@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
-import { Crosshair, Layers, LocateFixed, Rotate3d, Ruler, Search, StickyNote, X, Zap } from "lucide-react";
+import { Crosshair, Layers, LocateFixed, Maximize2, Minimize2, PersonStanding, Rotate3d, Ruler, Search, StickyNote, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { BodyScene } from "./scene/controller";
@@ -27,6 +27,8 @@ export function BodyStage({
   snapshot,
   retry,
   className,
+  fullscreen = false,
+  onFullscreen,
 }: {
   viewRef: RefObject<HTMLDivElement | null>;
   labelsRef: RefObject<HTMLDivElement | null>;
@@ -34,6 +36,8 @@ export function BodyStage({
   snapshot: SceneSnapshot;
   retry: () => void;
   className?: string;
+  fullscreen?: boolean;
+  onFullscreen?: () => void;
 }) {
   const ready = snapshot.status === "ready";
 
@@ -55,7 +59,7 @@ export function BodyStage({
             )}
           </div>
           <Lookup scene={scene} />
-          <Toolbar scene={scene} snapshot={snapshot} />
+          <Toolbar scene={scene} snapshot={snapshot} fullscreen={fullscreen} onFullscreen={onFullscreen} />
         </>
       )}
 
@@ -89,7 +93,17 @@ export function BodyStage({
   );
 }
 
-function Toolbar({ scene, snapshot }: { scene: BodyScene | null; snapshot: SceneSnapshot }) {
+function Toolbar({
+  scene,
+  snapshot,
+  fullscreen,
+  onFullscreen,
+}: {
+  scene: BodyScene | null;
+  snapshot: SceneSnapshot;
+  fullscreen: boolean;
+  onFullscreen?: () => void;
+}) {
   return (
     <div className="absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-4">
       {snapshot.cutaway && (
@@ -140,6 +154,10 @@ function Toolbar({ scene, snapshot }: { scene: BodyScene | null; snapshot: Scene
           ))}
         </div>
         <span aria-hidden className="mx-1 h-5 w-px bg-white/12" />
+        <StageButton pressed={snapshot.skin} hint="Skin · S" onClick={() => scene?.toggleSkin()}>
+          <PersonStanding />
+          Skin
+        </StageButton>
         <StageButton pressed={snapshot.impacts} hint="Impact arrows · I" onClick={() => scene?.toggleImpacts()}>
           <Zap />
           Impacts
@@ -149,9 +167,14 @@ function Toolbar({ scene, snapshot }: { scene: BodyScene | null; snapshot: Scene
           Cutaway
         </StageButton>
         <span aria-hidden className="mx-1 h-5 w-px bg-white/12" />
-        <StageButton hint="Front view" onClick={() => scene?.resetView()}>
+        <StageButton hint="Whole body, front view" onClick={() => scene?.resetView()}>
           <LocateFixed />
         </StageButton>
+        {onFullscreen && (
+          <StageButton pressed={fullscreen} hint={fullscreen ? "Exit full screen · F" : "Full screen · F"} onClick={onFullscreen}>
+            {fullscreen ? <Minimize2 /> : <Maximize2 />}
+          </StageButton>
+        )}
         {(snapshot.measures > 0 || snapshot.notes > 0) && (
           <StageButton
             hint="Clear measurements and notes"

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, getCapabilities, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult } from "./api";
+import { approveSuggestions, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import type {
@@ -48,6 +48,10 @@ export interface PatientView {
 }
 
 interface State {
+  routePreviews: Record<string, { status: "checking" | "ready" | "error"; text: string; audio?: Blob; route?: RequestRoute; description?: string; error?: string }>;
+  cancelRoutePreview: (conversationId: string) => void;
+  confirmRoutePreview: (conversationId: string, route?: RequestRoute) => void;
+  sendConfirmed: (text: string, audio?: Blob, route?: RequestRoute, conversationId?: string, reviewedTranscript?: string) => void;
   patients: Record<string, Patient>;
   tabs: WorkTab[];
   activeTabId: string | null;
@@ -79,9 +83,12 @@ interface State {
 
   newConversation: (patientId: string) => void;
   activateConversation: (id: string) => void;
+  closeConversation: (id: string) => void;
   setMode: (mode: Mode) => void;
   setLayout: (layout: Layout) => void;
 
+  requestModes: Record<string, import("./api").RequestRoute | undefined>;
+  setRequestMode: (conversationId: string, route?: import("./api").RequestRoute) => void;
   send: (text: string, audio?: Blob) => void;
   reroute: (messageId: string, route: Agent) => void;
   approve: (id: string) => void;
@@ -166,6 +173,18 @@ export const useStore = create<State>()((set, get) => {
     capabilities: null,
     approvingIds: [],
     approvalErrors: {},
+    requestModes: {},
+    routePreviews: {},
+    cancelRoutePreview: (id) => set((s) => ({ routePreviews: Object.fromEntries(Object.entries(s.routePreviews).filter(([key]) => key !== id)) })),
+    confirmRoutePreview: (id, chosenRoute) => {
+      const preview = get().routePreviews[id];
+      if (preview?.status !== "ready" || !preview.route) return;
+      const route = chosenRoute ?? preview.route;
+      if (get().requestModes[id]) get().setRequestMode(id, route);
+      get().cancelRoutePreview(id);
+      get().sendConfirmed(preview.text, preview.audio, route, id, preview.audio ? preview.text : undefined);
+    },
+    setRequestMode: (id, route) => set((s) => ({ requestModes: { ...s.requestModes, [id]: route } })),
     refreshPatient,
     openPatient: async (patientId) => {
       await refreshPatient(patientId);
@@ -181,14 +200,12 @@ export const useStore = create<State>()((set, get) => {
         const [chart, capabilities] = await Promise.all([loadWorkspace(), getCapabilities().catch(() => null)]);
         const patients = Object.fromEntries(chart.patients.map((patient) => [patient.id, patient]));
         const first = chart.patients[0];
-        const conversations: Conversation[] = first
-          ? chart.patients.map((patient) => ({
+        const conversations: Conversation[] = [{ id: "general", patientId: null, title: "General", messages: [] }, ...chart.patients.map((patient) => ({
               id: `conv-${patient.id}`,
               patientId: patient.id,
               title: patient.name,
               messages: [],
-            }))
-          : [];
+            }))];
         const tabs: WorkTab[] = first
           ? (["overview"] as const).map((kind) => ({
               id: `tab-${kind}-${first.id}`,
@@ -265,13 +282,67 @@ export const useStore = create<State>()((set, get) => {
     },
 
     activateConversation: (id) => set({ activeConversationId: id }),
+    closeConversation: (id) => set((s) => {
+      const index = s.conversations.findIndex((conversation) => conversation.id === id);
+      if (index < 0 || s.conversations[index].patientId === null) return {};
+      const conversations = s.conversations.filter((conversation) => conversation.id !== id);
+      return {
+        conversations,
+        activeConversationId: s.activeConversationId === id
+          ? (conversations[Math.max(0, index - 1)]?.id ?? null)
+          : s.activeConversationId,
+        requestModes: Object.fromEntries(Object.entries(s.requestModes).filter(([key]) => key !== id)),
+        routePreviews: Object.fromEntries(Object.entries(s.routePreviews).filter(([key]) => key !== id)),
+      };
+    }),
 
     setMode: (mode) => set({ mode }),
     setLayout: (layout) => set({ layout }),
 
     send: (text, audio) => {
+      let id = get().activeConversationId;
+      if (!id) {
+        const state = get();
+        const patientId = state.tabs.find((t) => t.id === state.activeTabId)?.patientId ?? Object.keys(state.patients)[0];
+        if (!patientId) return;
+        get().newConversation(patientId);
+        id = get().activeConversationId!;
+      }
+      const conversation = get().conversations.find((c) => c.id === id);
+      if (!conversation || conversation.messages.some((m) => m.pending) || get().routePreviews[id]?.status === "checking" || get().routePreviews[id]?.status === "ready") return;
+      if (conversation.patientId === null) {
+        get().sendConfirmed(text, audio, "clinical_question", id);
+        return;
+      }
+      const patientId = conversation.patientId;
+      const mode = get().requestModes[id];
+      if (!mode && !audio && OPEN_TAB[text.trim().toLowerCase()]) {
+        get().sendConfirmed(text, undefined, undefined, id);
+        return;
+      }
+      const preview = { status: "checking" as const, text, audio };
+      const conversationId = id;
+      set((s) => ({ routePreviews: { ...s.routePreviews, [conversationId]: preview } }));
+      void (async () => {
+        try {
+          const result = await previewRequest(patientId, text, audio);
+          if (get().routePreviews[conversationId] !== preview) return;
+          if (mode && mode === result.route) {
+            get().cancelRoutePreview(conversationId);
+            get().sendConfirmed(result.transcript, audio, mode, conversationId, audio ? result.transcript : undefined);
+          } else {
+            set((s) => ({ routePreviews: { ...s.routePreviews, [conversationId]: { status: "ready", text: result.transcript, audio, route: result.route, description: result.description } } }));
+          }
+        } catch (error) {
+          if (get().routePreviews[conversationId] !== preview) return;
+          set((s) => ({ routePreviews: { ...s.routePreviews, [conversationId]: { status: "error", text, audio, error: explain(error, "Could not determine the workflow. Try again; nothing was submitted.") } } }));
+        }
+      })();
+    },
+
+    sendConfirmed: (text, audio, routeOverride, conversationOverride, reviewedTranscript) => {
       const state = get();
-      let conversationId = state.activeConversationId;
+      let conversationId = conversationOverride ?? state.activeConversationId;
       if (!conversationId) {
         const tab = state.tabs.find((t) => t.id === state.activeTabId);
         const patientId = tab?.patientId ?? Object.keys(state.patients)[0];
@@ -281,11 +352,13 @@ export const useStore = create<State>()((set, get) => {
       }
       const conversation = get().conversations.find((c) => c.id === conversationId);
       if (!conversation) return;
+      if (conversation.messages.some((message) => message.pending)) return;
       const doctor: Message = { id: uid("msg"), role: "doctor", text };
-      const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true };
+      const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true, route: routeOverride ? ROUTE_LABEL[routeOverride] : undefined };
       updateConversation(conversationId, (c) => ({ ...c, messages: [...c.messages, doctor, reply] }));
-      const localTab = audio ? undefined : OPEN_TAB[text.trim().toLowerCase()];
-      if (localTab) {
+      const requestMode = routeOverride ?? get().requestModes[conversationId];
+      const localTab = audio || requestMode || !conversation.patientId ? undefined : OPEN_TAB[text.trim().toLowerCase()];
+      if (localTab && conversation.patientId) {
         get().openTab(localTab, conversation.patientId);
         updateMessage(conversationId, reply.id, {
           text: "Opened it beside the chart.",
@@ -298,10 +371,10 @@ export const useStore = create<State>()((set, get) => {
       }
       void (async () => {
         try {
-          const result = audio ? await postVoiceRequest(conversation.patientId, audio) : await postRequest(conversation.patientId, text);
+          const result = conversation.patientId === null ? await postGeneralChat(text, audio) : audio ? await postVoiceRequest(conversation.patientId, audio, requestMode, reviewedTranscript) : await postRequest(conversation.patientId, text, requestMode);
           if (audio) updateMessage(conversationId, doctor.id, { text: result.transcript || "Voice request (no transcript returned)" });
           const route = ROUTE_LABEL[result.route];
-          const researchId = result.answer ? uid("research") : undefined;
+          const researchId = result.answer && result.route === "clinical_question" ? uid("research") : undefined;
           if (result.answer && researchId) {
             const answer = result.answer;
             set((s) => ({
@@ -310,18 +383,22 @@ export const useStore = create<State>()((set, get) => {
                 [researchId]: {
                   id: researchId,
                   patientId: conversation.patientId,
-                  question: text,
+                  question: result.transcript || text,
                   answer: answer.text,
-                  basis: "Answer from the clinic API.",
+                  basis: "",
+                  sections: answer.sections,
                   citations: answer.citations.map((citation) => ({
                     source: citation.title || citation.source_id || "Source",
                     passage: citation.passage || "",
+                    id: citation.source_id,
+                    tier: citation.tier,
+                    locator: citation.locator,
                   })),
                 },
               },
             }));
           }
-          const linked = result.suggestions.map((row) =>
+          const linked = (conversation.patientId ? result.suggestions : []).map((row) =>
             suggestionAction(row, { conversationId, messageId: reply.id }),
           );
           set((s) => ({
@@ -341,10 +418,13 @@ export const useStore = create<State>()((set, get) => {
             audioBase64: result.audio_base64 ?? undefined,
             pending: false,
           });
-          try { await refreshPatient(conversation.patientId); } catch { set({ notice: "The request completed, but the chart could not refresh. Reload before continuing." }); }
+          if (conversation.patientId) {
+            try { await refreshPatient(conversation.patientId); } catch { set({ notice: "The request completed, but the chart could not refresh. Reload before continuing." }); }
+          }
         } catch (error) {
           updateMessage(conversationId, reply.id, {
             text: explain(error, "The assistant request could not finish. Try again; no chart changes were approved."),
+            error: true,
             requestText: text,
             pending: false,
           });

@@ -72,15 +72,15 @@ function TabStrip() {
             if (event.button === 1) closeTab(tab.id);
           }}
           className={cn(
-            "group relative flex h-9 shrink-0 cursor-default items-center gap-2 border-b-2 pr-1 pl-3 text-[13px] transition-colors",
+            "group relative flex h-9 shrink-0 items-center gap-2 rounded-t-md border-b-2 pr-1 pl-3 text-[13px] transition-colors duration-150 hover:bg-jade-100",
             tab.id === activeTabId
               ? "border-jade-600 text-ink"
-              : "border-transparent text-ink-faint hover:text-ink-soft",
+              : "border-transparent text-ink-faint hover:text-jade-900",
             dragId === tab.id && "opacity-40",
             overIndex === index && dragId !== tab.id && "before:absolute before:top-2 before:bottom-2 before:-left-0.5 before:w-0.5 before:bg-jade-600",
           )}
         >
-          <button type="button" aria-current={tab.id === activeTabId ? "page" : undefined} className="flex items-center gap-1.5 outline-none" onClick={() => activateTab(tab.id)}>
+          <button type="button" aria-current={tab.id === activeTabId ? "page" : undefined} className="flex h-full cursor-pointer items-center gap-1.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-jade-600" onClick={() => activateTab(tab.id)}>
             <PatientMark patientId={tab.patientId} />
             <TabTitle tab={tab} />
           </button>
