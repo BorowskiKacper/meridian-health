@@ -18,7 +18,12 @@ from app.db.repositories import (
     list_suggestions,
 )
 from app.services.email import unsubscribe
-from app.services.reminders import send_due_reminders, update_reminder
+from app.services.reminders import (
+    reminder_send_message,
+    send_due_reminders,
+    send_patient_reminders,
+    update_reminder,
+)
 
 JANE_ID = "11111111-1111-4111-8111-111111111111"
 JOHN_ID = "22222222-2222-4222-8222-222222222222"
@@ -48,8 +53,8 @@ def invoke(fn, *args, session, **kwargs):
 def install_email(monkeypatch):
     calls = []
 
-    def send_email(to_email, body):
-        calls.append((to_email, body))
+    def send_email(to_email, variables):
+        calls.append((to_email, variables))
         return "re_" + str(len(calls))
 
     monkeypatch.setattr(email_module, "send_email", send_email, raising=False)
@@ -132,12 +137,15 @@ def assert_sent(session, calls, reminder, address, forbidden, email_id):
     matched = [index for index, call in enumerate(calls) if call[0] == address]
     assert len(matched) == 1
     index = matched[0]
-    to_email, body = calls[index]
+    to_email, variables = calls[index]
     assert to_email == address
+    patient = get_patient(session, reminder["patient_id"])
     link = email_module.unsubscribe_link(reminder["patient_id"])
-    assert body == (
-        "You have a clinic reminder. Please contact the office to schedule a visit.\n"
-        + link
+    assert variables == email_module.template_variables(
+        patient["display_name"], reminder["name"], reminder["due_on"], link
+    )
+    body = email_module.reminder_text(
+        patient["display_name"], reminder["name"], reminder["due_on"], link
     )
     assert link.startswith(PUBLIC_BASE + "/email/unsubscribe?token=")
     assert_hides_chart(body, forbidden)
@@ -210,6 +218,56 @@ def test_as_of_mid_september_sends_only_amy(seeded_db, monkeypatch):
     assert_still_scheduled(session, john)
     assert_no_call(calls, JANE_EMAIL)
     assert_no_call(calls, JOHN_EMAIL)
+
+
+def test_patient_send_reaches_only_that_chart(seeded_db, monkeypatch):
+    session = seeded_db.session
+    jane, john, amy = seeded_reminders(session)
+    calls = install_email(monkeypatch)
+
+    result = invoke(send_patient_reminders, JANE_ID, date(2026, 10, 15), session=session)
+
+    sent_ids, skipped_ids = partition(result)
+    assert sent_ids.keys() == {jane["id"]}
+    assert skipped_ids == {}
+    assert reminder_send_message(result) == "Sent the reminder email."
+    assert_sent(session, calls, jane, JANE_EMAIL, JANE_FORBIDDEN, sent_ids[jane["id"]])
+    assert_still_scheduled(session, amy)
+    assert_still_scheduled(session, john)
+    assert_no_call(calls, AMY_EMAIL)
+    assert_no_call(calls, JOHN_EMAIL)
+
+
+def test_patient_send_skips_an_opted_out_due_reminder(seeded_db, monkeypatch):
+    session = seeded_db.session
+    jane, john, amy = seeded_reminders(session)
+    calls = install_email(monkeypatch)
+
+    result = invoke(send_patient_reminders, JOHN_ID, date(2026, 11, 1), session=session)
+
+    sent_ids, skipped_ids = partition(result)
+    assert sent_ids == {}
+    assert skipped_ids == {john["id"]: "opted_out"}
+    assert reminder_send_message(result) == "No email was sent. This patient is opted out of reminders."
+    assert calls == []
+    assert_still_scheduled(session, john)
+    assert_still_scheduled(session, jane)
+    assert_still_scheduled(session, amy)
+
+
+def test_patient_send_leaves_a_future_reminder_scheduled(seeded_db, monkeypatch):
+    session = seeded_db.session
+    jane, _, _ = seeded_reminders(session)
+    calls = install_email(monkeypatch)
+
+    result = invoke(send_patient_reminders, JANE_ID, date(2026, 9, 15), session=session)
+
+    sent_ids, skipped_ids = partition(result)
+    assert sent_ids == {}
+    assert skipped_ids == {}
+    assert reminder_send_message(result) == "No email was sent. There is no scheduled reminder that is due."
+    assert calls == []
+    assert_still_scheduled(session, jane)
 
 
 def test_as_of_november_sends_jane_and_amy_and_skips_john(seeded_db, monkeypatch):
@@ -461,7 +519,7 @@ def test_failed_send_leaves_the_reminder_scheduled(seeded_db, monkeypatch):
     session = seeded_db.session
     amy = reminder_named(session, AMY_ID, "Follow-up labs")
 
-    def send_email(to_email, body):
+    def send_email(to_email, variables):
         raise RuntimeError("resend rejected the message")
 
     monkeypatch.setattr(email_module, "send_email", send_email, raising=False)
@@ -498,9 +556,16 @@ def test_send_email_posts_to_resend_and_returns_the_message_id(monkeypatch):
 
     monkeypatch.setattr(config, "RESEND_API_KEY", "re_test")
     monkeypatch.setattr(config, "EMAIL_FROM", "Clinic <reminders@example.com>")
+    monkeypatch.setattr(config, "EMAIL_TEMPLATE_ID", "clinic-reminder")
     monkeypatch.setattr(email_module.httpx, "post", post)
+    variables = {
+        "PATIENT_NAME": "Jane Doe",
+        "REMINDER_NAME": "Follow-up labs",
+        "DUE_ON": "September 1, 2026",
+        "UNSUBSCRIBE_URL": "https://clinic.example/email/unsubscribe?token=abc",
+    }
 
-    message_id = email_module.send_email("jane.doe@example.com", "Clinic sentence")
+    message_id = email_module.send_email("jane.doe@example.com", variables)
 
     assert message_id == "re_abc"
     assert captured["url"] == "https://api.resend.com/emails"
@@ -508,8 +573,7 @@ def test_send_email_posts_to_resend_and_returns_the_message_id(monkeypatch):
     assert captured["json"] == {
         "from": "Clinic <reminders@example.com>",
         "to": ["jane.doe@example.com"],
-        "subject": "Clinic reminder",
-        "text": "Clinic sentence",
+        "template": {"id": "clinic-reminder", "variables": variables},
     }
 
 

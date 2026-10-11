@@ -112,7 +112,7 @@ def _install(monkeypatch):
     def transcribe(self, audio):
         raise AssertionError("transcribe was called")
 
-    def send_email(to_email, body):
+    def send_email(to_email, variables):
         raise AssertionError("send_email was called")
 
     monkeypatch.setattr("app.agents.doctor.model.complete", complete)

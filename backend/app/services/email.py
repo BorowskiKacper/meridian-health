@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import html
 import uuid
+from datetime import date, datetime
 
 import httpx
 
@@ -9,8 +11,8 @@ from app.db.repositories import get_patient, update_patient
 from app.integrations import IntegrationError
 
 _RESEND_URL = "https://api.resend.com/emails"
-_SUBJECT = "Clinic reminder"
 _CONFIRMATION = "You are unsubscribed from clinic reminders."
+_TEMPLATE_KEYS = ("PATIENT_NAME", "REMINDER_NAME", "DUE_ON", "UNSUBSCRIBE_URL")
 
 
 def unsubscribe_token(patient_id):
@@ -39,9 +41,45 @@ def unsubscribe_link(patient_id):
     return f"{base}/email/unsubscribe?token={unsubscribe_token(patient_id)}"
 
 
-def send_email(to_email, body):
+def format_due(value):
+    if isinstance(value, datetime):
+        value = value.date()
+    if isinstance(value, date):
+        return f"{value.strftime('%B')} {value.day}, {value.year}"
+    return str(value)[:10]
+
+
+def reminder_text(patient_name, reminder_name, due_on, unsubscribe_url):
+    return (
+        f"Hello {patient_name},\n"
+        f"You have a clinic reminder: {reminder_name}. "
+        f"It is due on {format_due(due_on)}. "
+        "Please contact the office to schedule a visit.\n"
+        f"{unsubscribe_url}"
+    )
+
+
+def template_variables(patient_name, reminder_name, due_on, unsubscribe_url):
+    values = {
+        "PATIENT_NAME": patient_name,
+        "REMINDER_NAME": reminder_name,
+        "DUE_ON": format_due(due_on),
+        "UNSUBSCRIBE_URL": unsubscribe_url,
+    }
+    return {key: html.escape(str(values[key]), quote=True) for key in _TEMPLATE_KEYS}
+
+
+def send_email(to_email, variables):
     if not config.RESEND_API_KEY:
         raise IntegrationError("Resend", "Email is not configured on the server.")
+    template_id = config.EMAIL_TEMPLATE_ID.strip()
+    if not template_id:
+        raise IntegrationError("Resend", "The email template is not configured on the server.")
+    if not isinstance(variables, dict) or any(
+        not isinstance(variables.get(key), str) or not variables[key].strip()
+        for key in _TEMPLATE_KEYS
+    ):
+        raise IntegrationError("Resend", "The email service did not accept this reminder.")
     try:
         response = httpx.post(
             _RESEND_URL,
@@ -52,8 +90,10 @@ def send_email(to_email, body):
             json={
                 "from": config.EMAIL_FROM,
                 "to": [to_email],
-                "subject": _SUBJECT,
-                "text": body,
+                "template": {
+                    "id": template_id,
+                    "variables": {key: variables[key] for key in _TEMPLATE_KEYS},
+                },
             },
             timeout=30,
         )

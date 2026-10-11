@@ -5,8 +5,8 @@ from api_support import AMY_ID, JANE_ID, UNKNOWN_ID, assert_error, bind_session,
 def _install_email(monkeypatch):
     calls = []
 
-    def send_email(to_email, body):
-        calls.append((to_email, body))
+    def send_email(to_email, variables):
+        calls.append((to_email, variables))
         return "re_1"
 
     monkeypatch.setattr("app.services.email.send_email", send_email)
