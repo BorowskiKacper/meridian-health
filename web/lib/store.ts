@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
+import { approveSuggestions, createPlanItem, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import type {
@@ -94,6 +94,7 @@ interface State {
   approveSelected: (ids: string[]) => Promise<boolean>;
   reject: (id: string) => void;
   approveMessage: (messageId: string) => void;
+  addToPlan: (researchId: string) => Promise<void>;
 
   extractLab: (patientId: string, file: File) => Promise<DocumentResult | undefined>;
   runReminders: (patientId: string) => void;
@@ -373,6 +374,8 @@ export const useStore = create<State>()((set, get) => {
                   answer: answer.text,
                   basis: "",
                   sections: answer.sections,
+                  requestId: result.request_id ?? null,
+                  apiCitations: answer.citations,
                   citations: answer.citations.map((citation) => ({
                     source: citation.title || citation.source_id || "Source",
                     passage: citation.passage || "",
@@ -481,6 +484,27 @@ export const useStore = create<State>()((set, get) => {
         .map((a) => a.id);
       if (!ids.length) return;
       void get().approveSelected(ids);
+    },
+
+    addToPlan: async (researchId) => {
+      const result = get().research[researchId];
+      const text = result?.answer.trim();
+      const patientId = result?.patientId;
+      if (!result || !patientId || !text || result.plan?.status === "saving" || result.plan?.status === "added") return;
+      const setPlan = (plan: ResearchResult["plan"]) => set((s) => ({ research: { ...s.research, [researchId]: { ...s.research[researchId]!, plan } } }));
+      setPlan({ status: "saving" });
+      let row;
+      try {
+        row = await createPlanItem(patientId, result.requestId ?? null, text, result.apiCitations ?? []);
+      } catch (error) {
+        setPlan({ status: "error", message: explain(error, "The plan item could not be added. Try again.") });
+        return;
+      }
+      const action = suggestionAction(row);
+      set((s) => ({ actions: [...s.actions.filter((a) => a.id !== action.id), action] }));
+      setPlan({ status: "added", message: "Added as a suggestion awaiting approval." });
+      try { await refreshPatient(patientId); }
+      catch { setPlan({ status: "added", message: "Added as a suggestion awaiting approval. The chart could not refresh." }); }
     },
 
     extractLab: async (patientId, file) => {

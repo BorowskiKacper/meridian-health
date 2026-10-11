@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/data";
 import { bloodPressure, isVital, weightTrend } from "@/lib/clinical";
 import { Page, PageHeader } from "@/components/system/primitives";
 import { MeasurementList } from "@/components/charts/measurement-list";
-import { entryButton } from "@/components/chart-entry/entry-form";
+import { VitalsDialog } from "@/components/chart-entry/vitals-dialog";
 
 export function OverviewTab({ patientId }: { patientId: string }) {
   const patient = useStore((s) => s.patients[patientId]);
@@ -17,20 +17,27 @@ export function OverviewTab({ patientId }: { patientId: string }) {
   const problems = patient.problems.filter((p) => p.status !== "resolved");
   const meds = patient.medications.filter((m) => m.status === "active");
   const weight = weightTrend(patient.trends);
+  const lastNote = patient.notes.filter((n) => n.kind === "note").sort((a, b) => b.at.localeCompare(a.at))[0];
+  const vitals = [...bloodPressure(patient.trends), ...patient.trends.filter((t) => /^(heart rate|pulse|respiratory rate|(body )?temperature)$/i.test(t.name)), ...(weight ? [weight] : [])];
   const labs = patient.trends.filter((t) => !isVital(t));
   const due = patient.reminders.filter((r) => r.status !== "done" && r.status !== "paused").sort((a, b) => a.dueOn.localeCompare(b.dueOn));
   return (
     <Page wide>
       <PageHeader eyebrow="Longitudinal record" title="Chart overview" actions={<button type="button" className="flex h-9 items-center gap-2 rounded-md border border-hairline-strong px-3 text-[13px] text-jade-700 hover:bg-jade-50" onClick={() => openTab("body", patientId)}>Explore anatomy <ArrowUpRight className="size-3.5" /></button>} />
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-hairline bg-ivory p-4"><div><p className="text-[13px] font-semibold">Today’s visit</p><p className="mt-1 text-[12px] text-ink-soft">Document separately from the longitudinal record.</p></div><div className="flex flex-wrap gap-2"><button type="button" className={entryButton} onClick={() => openTab("vitals", patientId)}>Record vitals</button><button type="button" className="rounded-md bg-jade-900 px-3 py-2 text-[13px] font-medium text-white" onClick={() => openTab("visit", patientId)}>Open visit draft</button></div></div>
+      <OverviewSection className="mt-6" title="Last visit note" action="Full timeline" onAction={() => openTab("timeline", patientId)}>
+        {lastNote ? <article className="rounded-lg border border-hairline bg-ivory p-4"><time className="text-[12px] text-ink-faint" dateTime={lastNote.at}>{formatDate(lastNote.at)}</time><p className="mt-2 whitespace-pre-line text-[14px] leading-relaxed text-ink">{lastNote.text}</p></article> : <p className="text-sm text-ink-faint">No previous visit note recorded.</p>}
+      </OverviewSection>
+
+      <section className="mt-7">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="font-sans text-[15px] font-semibold">Vitals</h2><div className="flex flex-wrap items-center gap-4"><button type="button" onClick={() => openTab("vitals", patientId)} className="text-[12px] text-jade-700 hover:underline">All vitals & trends →</button><VitalsDialog patientId={patientId} /></div></div>
+        <MeasurementList series={vitals} showChange />
+      </section>
+
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-hairline bg-ivory p-4"><div><p className="text-[13px] font-semibold">Today’s visit</p><p className="mt-1 text-[12px] text-ink-soft">Document separately from the longitudinal record.</p></div><button type="button" className="rounded-md bg-jade-900 px-3 py-2 text-[13px] font-medium text-white" onClick={() => openTab("visit", patientId)}>Open visit draft</button></div>
       <div className="mt-5 flex flex-wrap justify-between gap-x-8 gap-y-5 border-y border-hairline py-4 text-[13px]">
         <div className="min-w-0 flex-1 basis-56"><p className="eyebrow">Last recorded encounter</p><p className="mt-1.5 font-semibold">{lastVisit ? formatDate(lastVisit.at) : "Not recorded"}</p>{lastVisit && <details className="mt-1 text-ink-soft"><summary className="cursor-pointer text-[12px]">Encounter summary</summary><p className="mt-2 leading-relaxed">{lastVisit.summary}</p></details>}</div>
-        <div className="min-w-0 flex-1 basis-56 text-right"><p className="eyebrow">Next scheduled visit</p><p className="mt-1.5 font-semibold">{patient.nextAppointment ? formatDate(patient.nextAppointment.at) : "Not recorded"}</p><p className="mt-1 text-ink-soft">{patient.nextAppointment?.reason ?? "No scheduled appointment in this chart."}</p></div>
+        <div className="min-w-0 flex-1 basis-56 text-right"><p className="eyebrow">Next scheduled visit</p><p className="mt-1.5 font-semibold">{patient.nextAppointment ? formatDate(patient.nextAppointment.at) : "Not scheduled"}</p></div>
       </div>
-
-      <OverviewSection title="Latest vitals" action="All vitals & trends" onAction={() => openTab("vitals", patientId)}>
-        <MeasurementList series={[...bloodPressure(patient.trends), ...(weight ? [weight] : []), ...patient.trends.filter((trend) => /^heart rate$|^pulse$/i.test(trend.name))]} />
-      </OverviewSection>
 
       <div className="mt-7 divide-y divide-hairline border-y border-hairline">
         <OverviewDisclosure key={`problems-${patientId}`} title="Active problems" count={problems.length} action="Open problem list" onAction={() => openTab("problems", patientId)}>

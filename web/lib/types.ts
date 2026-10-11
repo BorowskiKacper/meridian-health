@@ -203,6 +203,12 @@ export interface ResearchResult {
   basis: string;
   citations: Citation[];
   sections?: { title: string; text: string; source_ids: string[] }[];
+  /** Server request id for patient research; null when it was never returned. */
+  requestId?: string | null;
+  /** Citations in the API shape, sent unchanged when adding the answer to the plan. */
+  apiCitations?: import("./api").CitationRow[];
+  /** In-memory state of "Add to plan" for this result. */
+  plan?: { status: "saving" | "added" | "error"; message?: string };
 }
 
 export interface Message {

@@ -215,3 +215,44 @@ test("General chat is always available and never attaches the open patient", asy
   assert.equal(useStore.getState().research[reply.researchId].patientId, null);
   assert.equal(useStore.getState().actions.length, 0);
 });
+
+test("add to plan posts the API citations, queues a pending research suggestion, and keeps failures retryable", async () => {
+  setup();
+  const citation = { source_id: "study", title: "Study", passage: "Evidence.", locator: "https://pubmed.ncbi.nlm.nih.gov/123/", tier: "literature" };
+  const research = { id: "r1", patientId: "patient", question: "Q", answer: "  Start an SGLT2 inhibitor.  ", basis: "", citations: [{ source: "Study", passage: "Evidence.", id: "study", tier: "literature" }], requestId: "req-1", apiCitations: [citation] };
+  useStore.setState({ actions: [], research: { r1: research } });
+  api.createPlanItem = async () => { throw new api.ApiError("Plan unavailable", 400); };
+  await useStore.getState().addToPlan("r1");
+  assert.equal(useStore.getState().research.r1.plan.status, "error");
+  assert.equal(useStore.getState().research.r1.plan.message, "Plan unavailable");
+  assert.equal(useStore.getState().actions.length, 0);
+  let sent;
+  api.createPlanItem = async (...args) => { sent = args; return { id: "s1", patient_id: "patient", kind: "plan_item", status: "pending", target_table: "notes", before: {}, after: { body: args[2] }, reason: args[2], confidence: 1, citations: args[3], source: "research_add_to_plan" }; };
+  let refreshedWith;
+  // The server's pending list includes the new suggestion, so refresh keeps it queued.
+  chart.reloadPatient = async () => { refreshedWith = useStore.getState().actions; return { patient: { id: "patient" }, actions: refreshedWith }; };
+  await useStore.getState().addToPlan("r1");
+  assert.ok(refreshedWith.some((a) => a.id === "s1"));
+  assert.deepEqual(sent, ["patient", "req-1", "Start an SGLT2 inhibitor.", [citation]]);
+  const action = useStore.getState().actions.find((a) => a.id === "s1");
+  assert.equal(action.status, "pending");
+  assert.equal(action.agent, "research");
+  assert.equal(useStore.getState().research.r1.plan.status, "added");
+  await useStore.getState().addToPlan("r1");
+  assert.equal(useStore.getState().actions.filter((a) => a.id === "s1").length, 1);
+});
+
+test("general questions and empty answers never offer add to plan", async () => {
+  setup();
+  let calls = 0;
+  api.createPlanItem = async () => { calls++; };
+  useStore.setState({ research: { g: { id: "g", patientId: null, question: "Q", answer: "General answer", basis: "", citations: [] }, e: { id: "e", patientId: "patient", question: "Q", answer: "  ", basis: "", citations: [] } } });
+  await useStore.getState().addToPlan("g");
+  await useStore.getState().addToPlan("e");
+  assert.equal(calls, 0);
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { ResearchResult } = require("../components/agent/research-result.tsx");
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(ResearchResult, { result: useStore.getState().research.g })), /Add to plan/);
+  assert.match(renderToStaticMarkup(React.createElement(ResearchResult, { result: { ...useStore.getState().research.g, patientId: "patient" } })), /Add to plan/);
+});

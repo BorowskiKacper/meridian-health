@@ -364,6 +364,15 @@ export function approveSuggestions(suggestionIds: string[]) {
   );
 }
 
+/** Creates a pending plan_item suggestion; nothing is written to the chart until it is approved. */
+export function createPlanItem(patientId: string, requestId: string | null, text: string, citations: CitationRow[]) {
+  return api<SuggestionRow>("/suggestions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ patient_id: patientId, request_id: requestId, text, citations }),
+  });
+}
+
 export function rejectSuggestions(suggestionIds: string[], reason: string) {
   return api<{ rejected: SuggestionRow[] }>("/suggestions/reject", {
     method: "POST",

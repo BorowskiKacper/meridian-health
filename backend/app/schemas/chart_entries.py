@@ -15,12 +15,14 @@ class Vitals(Submission):
     diastolic: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     weight_kg: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     pulse: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    respiratory_rate: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    temperature_f: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
     @model_validator(mode='after')
     def validate_measurements(self):
         if (self.systolic is None) != (self.diastolic is None):
             raise ValueError('Record both blood-pressure values.')
-        if all((v is None for v in (self.systolic, self.weight_kg, self.pulse))):
+        if all((v is None for v in (self.systolic, self.weight_kg, self.pulse, self.respiratory_rate, self.temperature_f))):
             raise ValueError('Enter at least one measurement.')
         if self.observed_at > datetime.now(timezone.utc) + timedelta(minutes=5):
             raise ValueError('The measurement date cannot be in the future.')
