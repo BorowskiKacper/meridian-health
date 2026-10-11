@@ -21,7 +21,7 @@ export function workspaceClient(root: string) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
     try {
-      const response = await fetch(`${root.replace(/\/$/, '')}/workspaces${path}`, { ...init, signal: controller.signal, headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+      const response = await fetch(`${root.replace(/\/$/, '')}/workspaces${path}`, { ...init, cache: 'no-store', signal: controller.signal, headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
       const body = await response.json();
       if (!response.ok) throw new ApiError(response.status, 'workspace_error', body.error?.message ?? body.detail ?? 'Request could not complete.');
       return body as T;

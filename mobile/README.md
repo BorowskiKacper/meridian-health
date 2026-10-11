@@ -10,7 +10,7 @@ npm start
 
 Scan the Expo development QR with an SDK 57-compatible Expo Go client, or use `npm run web` for browser testing. `EXPO_PUBLIC_API_URL` may point to another deployed Meridian API; it defaults to the Render URL above and never defaults to localhost. Both clients must use an API deployment connected to the same database.
 
-The phone has one conversation and a text/dictation composer. Patient identity is resolved from the prompt. Missing or ambiguous patients produce inline clarification rather than a permanent patient selector. After resolving a patient, follow-up prompts retain that context. General clinical questions can run without a patient.
+The phone has one conversation and a text/dictation composer. Patient identity is resolved from the prompt. Missing or ambiguous patients produce inline clarification rather than a permanent patient selector. Answer these questions using the request's patient field, a candidate button, or its explicit voice-answer control. The main composer sends new requests by default; an older unanswered question never captures them. After resolving a patient, follow-up prompts retain that context. General clinical questions can run without a patient.
 
 Accepted requests persist on the backend. Clear read-only commands such as “Open Amy Lee’s vitals” bypass AI classification and the research queue. Mixed requests still use the assistant and durable background jobs. Research, citations, proposals, and validated navigation commands synchronize to the desktop.
 

@@ -9,6 +9,7 @@ import { workspaceClient, type WorkspaceJob } from '../workspace-api';
 import { deliveryStatus } from '../workspace-status';
 import { CitationList } from '../components/CitationList';
 import { SuggestionCard } from '../components/SuggestionCard';
+import { DictationButton } from '../components/DictationButton';
 
 export default function Companion() {
   const client = useMemo(() => workspaceClient(apiBaseUrl()), []);
@@ -32,7 +33,9 @@ export default function Companion() {
   const pendingSubmission = useRef<{ id: string; text?: string; audio?: AudioPart; patientId: string | null } | null>(null);
   const retryAudio = useRef<AudioPart | undefined>(undefined);
   const scroll = useRef<ScrollView>(null);
-  const waiting = jobs.find((job) => job.status === 'needs_patient');
+  const [clarifyingJobId, setClarifyingJobId] = useState<string | null>(null);
+  const updates = useRef(0);
+  const waiting = jobs.find((job) => job.id === clarifyingJobId && job.status === 'needs_patient');
 
   useEffect(() => { void loadDevice().then(setToken).catch(() => setError('Saved pairing could not load. Please pair again.')).finally(() => setLoading(false)); }, []);
   useEffect(() => {
@@ -43,13 +46,17 @@ export default function Companion() {
     const refresh = async () => {
       if (polling || stopped) return;
       polling = true;
+      const version = updates.current;
       try {
         const state = await client.state(token);
         if (!stopped) {
-          setJobs(state.jobs); setConnected(true);
-          const own = state.jobs.find((j) => j.id === lastPhoneJob.current);
-          if (own && (own.status === 'completed' || own.status === 'needs_patient')) {
-            setPatient(own.patient_name); setPatientId(own.patient_id);
+          setConnected(true);
+          if (version === updates.current) {
+            setJobs(state.jobs);
+            const own = state.jobs.find((j) => j.id === lastPhoneJob.current);
+            if (own && (own.status === 'completed' || own.status === 'needs_patient')) {
+              setPatient(own.patient_name); setPatientId(own.patient_id);
+            }
           }
         }
       } catch (e) {
@@ -66,6 +73,7 @@ export default function Companion() {
   useEffect(() => { scroll.current?.scrollToEnd({ animated: true }); }, [jobs.length, waiting?.id]);
 
   const replaceJob = (job: WorkspaceJob) => {
+    updates.current += 1;
     lastPhoneJob.current = job.id;
     if (job.patient_name) { setPatient(job.patient_name); setPatientId(job.patient_id); }
     setJobs((all) => [...all.filter((j) => j.id !== job.id), job]);
@@ -78,6 +86,7 @@ export default function Companion() {
     try {
       if (waiting) {
         replaceJob(audio ? await client.clarifyVoice(token, waiting.id, audio) : await client.clarify(token, waiting.id, text));
+        setClarifyingJobId(null);
       } else {
         const existing = pendingSubmission.current;
         const submission = existing && (audio ? existing.audio === audio : existing.text === text.trim()) ? existing : { id: Crypto.randomUUID(), text: audio ? undefined : text.trim(), audio, patientId: audio ? recordingContext.current : patientId };
@@ -109,10 +118,10 @@ export default function Companion() {
       }
     } catch { setRecording(false); setError('The recording could not finish. Try again or type your prompt.'); }
   };
-  const choose = async (job: WorkspaceJob, patientId: string) => {
+  const choose = async (job: WorkspaceJob, patientId?: string, query = '') => {
     if (!token || busy) return;
     setBusy(true); setError('');
-    try { replaceJob(await client.clarify(token, job.id, '', patientId)); }
+    try { replaceJob(await client.clarify(token, job.id, query, patientId)); }
     catch (e) { report(e); } finally { setBusy(false); }
   };
   const review = async (id: string, approve: boolean, reason = '') => {
@@ -145,7 +154,7 @@ export default function Companion() {
         <View style={styles.answer}>
           {job.patient_name && <Text style={styles.patient}>{job.patient_name}</Text>}
           {job.status === 'queued' || job.status === 'running' ? <Text accessibilityLiveRegion="polite" style={styles.muted}>{job.status === 'queued' ? 'Request received…' : 'Working on your request…'}</Text> : null}
-          {job.question && job.status === 'needs_patient' && <><Text style={styles.answerText}>{job.question}</Text>{job.candidates?.map((p) => <Pressable key={p.id} disabled={busy} style={styles.choice} onPress={() => void choose(job, p.id)}><Text style={styles.answerText}>{p.display_name}</Text><Text style={styles.small}>DOB {p.date_of_birth}</Text></Pressable>)}</>}
+          {job.question && job.status === 'needs_patient' && <><Text style={styles.answerText}>{job.question}</Text>{job.candidates?.map((p) => <Pressable key={p.id} disabled={busy} style={styles.choice} onPress={() => void choose(job, p.id)}><Text style={styles.answerText}>{p.display_name}</Text><Text style={styles.small}>DOB {p.date_of_birth}</Text></Pressable>)}<PatientClarification busy={busy || recording} onUse={(query) => void choose(job, undefined, query)} onVoice={() => setClarifyingJobId(job.id)} /></>}
           {job.error && <Text accessibilityRole="alert" style={styles.error}>{job.error}</Text>}
           {job.response?.answer && <AnswerText text={job.response.answer.text} />}
           {job.response?.answer?.citations.length ? <Evidence job={job} /> : null}
@@ -157,11 +166,23 @@ export default function Companion() {
     <View style={styles.composer}>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       {retryRecording && !busy && error ? <Pressable onPress={() => void send(retryAudio.current)}><Text style={styles.small}>Retry recording</Text></Pressable> : null}
+      {waiting && <View style={{ gap: 4 }}><Text style={styles.small}>Answering patient question: {waiting.text || 'Voice request'}</Text><Pressable disabled={busy || recording} onPress={() => setClarifyingJobId(null)}><Text style={styles.evidence}>Start a new request instead</Text></Pressable></View>}
       {(recording ? listeningPatient : patient) && <Text style={styles.patient}>{recording ? listeningPatient : patient}</Text>}
-      <TextInput accessibilityLabel={waiting ? 'Patient name or record ID' : 'Clinical prompt'} multiline editable={!busy && !recording} style={styles.input} value={text} onChangeText={setText} placeholder={waiting ? 'Which patient?' : recording ? 'Listening…' : 'Ask or dictate…'} placeholderTextColor="#74877d" />
-      <View style={styles.actions}><Pressable disabled={busy} accessibilityLabel={recording ? 'Stop and send dictation' : 'Start dictation'} onPress={() => void record()} style={[styles.mic, recording && styles.recording]}><Text style={styles.micText}>{recording ? 'Stop & send' : 'Dictate'}</Text></Pressable><Pressable disabled={busy || recording || !text.trim()} style={[styles.send, (busy || recording || !text.trim()) && styles.disabled]} onPress={() => void send()}><Text style={styles.primaryText}>{busy ? 'Sending…' : 'Send'}</Text></Pressable></View>
+      <DictationButton recording={recording} busy={busy} onPress={() => void record()} />
+      <View style={styles.typedComposer}>
+        <TextInput accessibilityLabel={waiting ? 'Patient name or record ID' : 'Clinical prompt'} multiline editable={!busy && !recording} style={styles.input} value={text} onChangeText={setText} placeholder={waiting ? 'Which patient?' : 'Or type a request…'} placeholderTextColor="#74877d" />
+        <Pressable accessibilityRole="button" accessibilityLabel="Send typed request" disabled={busy || recording || !text.trim()} style={[styles.send, (busy || recording || !text.trim()) && styles.disabled]} onPress={() => void send()}><Text style={styles.sendText}>Send</Text></Pressable>
+      </View>
     </View>
   </KeyboardAvoidingView></SafeAreaView>;
+}
+
+function PatientClarification({ busy, onUse, onVoice }: { busy: boolean; onUse: (query: string) => void; onVoice: () => void }) {
+  const [query, setQuery] = useState('');
+  return <View style={{ gap: 8 }}><View style={styles.typedComposer}>
+    <TextInput accessibilityLabel="Patient name or record ID for this request" placeholder="Patient name or record ID" placeholderTextColor="#74877d" maxLength={200} editable={!busy} value={query} onChangeText={setQuery} style={styles.input} />
+    <Pressable accessibilityRole="button" disabled={busy || !query.trim()} onPress={() => onUse(query)} style={[styles.send, (busy || !query.trim()) && styles.disabled]}><Text style={styles.sendText}>Use patient</Text></Pressable>
+  </View><Pressable accessibilityRole="button" disabled={busy} onPress={onVoice}><Text style={styles.evidence}>Answer patient question by voice</Text></Pressable></View>;
 }
 
 function Evidence({ job }: { job: WorkspaceJob }) {
@@ -185,7 +206,7 @@ const styles = StyleSheet.create({
   user: { alignSelf: 'flex-end', maxWidth: '90%', backgroundColor: '#dbe8df', borderRadius: 8, padding: 13 }, userText: { color: '#234d3d', fontSize: 15, lineHeight: 23 },
   answer: { gap: 12 }, answerText: { color: '#273d31', fontSize: 15, lineHeight: 24 }, patient: { color: '#356750', fontSize: 12, fontWeight: '600' },
   choice: { backgroundColor: '#fffdf7', borderWidth: 1, borderColor: '#cbdacf', borderRadius: 8, padding: 13, gap: 4 }, evidence: { fontSize: 13, color: '#46647a' },
-  composer: { padding: 18, gap: 10, borderTopWidth: 1, borderColor: '#d4dfd7', backgroundColor: '#fffdf7' }, input: { minHeight: 55, maxHeight: 130, fontSize: 16, color: '#273d31', paddingVertical: 5 },
-  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, mic: { paddingHorizontal: 15, paddingVertical: 12, backgroundColor: '#e4eee7', borderRadius: 8 }, micText: { color: '#30564b', fontSize: 14, fontWeight: '600' }, recording: { backgroundColor: '#e8cfc3' },
-  send: { backgroundColor: '#30564b', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 8 }, disabled: { opacity: 0.45 }, error: { color: '#9a422f', fontSize: 13, lineHeight: 20 },
+  composer: { padding: 18, gap: 12, borderTopWidth: 1, borderColor: '#d4dfd7', backgroundColor: '#fffdf7' }, input: { flex: 1, minHeight: 48, maxHeight: 100, fontSize: 16, color: '#273d31', paddingHorizontal: 12, paddingVertical: 12 },
+  typedComposer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#d4dfd7', borderRadius: 10, backgroundColor: '#f4f7f3' },
+  send: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 8 }, sendText: { color: '#30564b', fontSize: 14, fontWeight: '600' }, disabled: { opacity: 0.45 }, error: { color: '#9a422f', fontSize: 13, lineHeight: 20 },
 });

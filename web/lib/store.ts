@@ -8,7 +8,7 @@ import { approveSuggestions, createPlanItem, getCapabilities, postGeneralChat, p
 import { isVital } from "./clinical";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
-import { getWorkspaceToken, submitWorkspace, clarifyWorkspace, clarifyWorkspaceVoice, type WorkspaceJob } from './workspace-api';
+import { getWorkspaceToken, submitWorkspace, type WorkspaceJob } from './workspace-api';
 import type {
   Agent,
   AuditRow,
@@ -339,15 +339,6 @@ export const useStore = create<State>()((set, get) => {
     setLayout: (layout) => set({ layout }),
 
     send: (text, audio) => {
-      if (getWorkspaceToken()) {
-        const state = get();
-        const conversation = state.conversations.find((c) => c.id === state.activeConversationId);
-        const waiting = conversation?.messages.map((m) => state.workspaceJobs[m.workspaceJobId ?? '']).find((j) => j?.status === 'needs_patient');
-        if (waiting) {
-          void (audio ? clarifyWorkspaceVoice(waiting.id, audio) : clarifyWorkspace(waiting.id, text)).then((job) => get().syncWorkspaceJob(job)).catch((error) => set({ notice: explain(error, 'Patient clarification could not be confirmed. Try again.') }));
-          return;
-        }
-      }
       let id = get().activeConversationId;
       if (!id) {
         const state = get();

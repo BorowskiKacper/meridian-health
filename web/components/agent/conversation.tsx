@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -112,10 +112,23 @@ function AgentMessage({ message, mode, general }: { message: Message; mode?: str
 
 function PatientClarification({ jobId }: { jobId: string }) {
   const job = useStore((s) => s.workspaceJobs[jobId]);
-  if (job?.status !== 'needs_patient' || !job.candidates?.length) return null;
-  return <div className="mt-3 flex flex-col gap-2">{job.candidates.map((patient) => <button type="button" key={patient.id} className="rounded-md border border-white/20 px-3 py-2 text-left text-[13px] text-ivory hover:bg-white/10" onClick={() => {
-    void clarifyWorkspace(jobId, '', patient.id).then((next) => useStore.getState().syncWorkspaceJob(next)).catch((error) => useStore.setState({ notice: error.message }));
-  }}>{patient.display_name} · DOB {patient.date_of_birth}</button>)}</div>;
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (job?.status !== 'needs_patient') return null;
+  const clarify = async (patientId?: string) => {
+    if (busy || (!patientId && !query.trim())) return;
+    setBusy(true);
+    try { await useStore.getState().syncWorkspaceJob(await clarifyWorkspace(jobId, patientId ? '' : query, patientId)); setQuery(''); }
+    catch (error) { useStore.setState({ notice: error instanceof Error ? error.message : 'Patient clarification could not be confirmed.' }); }
+    finally { setBusy(false); }
+  };
+  return <div className="mt-3 flex flex-col gap-2">
+    {job.candidates?.map((patient) => <button type="button" disabled={busy} key={patient.id} className="rounded-md border border-white/20 px-3 py-2 text-left text-[13px] text-ivory hover:bg-white/10 disabled:opacity-50" onClick={() => void clarify(patient.id)}>{patient.display_name} · DOB {patient.date_of_birth}</button>)}
+    <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void clarify(); }}>
+      <input aria-label="Patient name or record ID for this request" placeholder="Patient name or record ID" maxLength={200} value={query} disabled={busy} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 rounded-md border border-white/20 bg-white/10 px-3 py-2 text-[13px] text-ivory placeholder:text-ivory/60" />
+      <button type="submit" disabled={busy || !query.trim()} className="rounded-md border border-white/20 px-3 py-2 text-[13px] text-ivory hover:bg-white/10 disabled:opacity-50">{busy ? 'Finding…' : 'Use patient'}</button>
+    </form>
+  </div>;
 }
 
 function RouteLine({ message, general }: { message: Message; general?: boolean }) {

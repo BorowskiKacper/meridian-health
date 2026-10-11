@@ -27,6 +27,24 @@ function setup() {
   return { action, conversation };
 }
 
+test('an unanswered patient question does not capture a new workspace prompt', async (t) => {
+  const workspace = require('./workspace-api.ts');
+  const original = workspace.submitWorkspace;
+  const originalClarify = workspace.clarifyWorkspace;
+  workspace.setWorkspaceToken('test-device');
+  t.after(() => { workspace.setWorkspaceToken(null); workspace.submitWorkspace = original; workspace.clarifyWorkspace = originalClarify; });
+  const old = { id: 'old', status: 'needs_patient', text: 'Open Amy Lee problems', patient_id: null, patient_name: null, desktop_applied: false };
+  useStore.setState({ conversations: [{ id: 'general', patientId: null, title: 'General', messages: [{ id: 'old-message', role: 'doctor', text: old.text, workspaceJobId: old.id }] }], activeConversationId: 'general', workspaceJobs: { old }, routePreviews: {}, patients: {}, actions: [] });
+  workspace.clarifyWorkspace = () => { throw new Error('New prompts must not clarify an older request'); };
+  let submitted;
+  workspace.submitWorkspace = async (text) => { submitted = text; return { ...old, id: 'new', status: 'queued', text }; };
+  useStore.getState().send('Open a different chart');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(submitted, 'Open a different chart');
+  assert.equal(useStore.getState().workspaceJobs.old.status, 'needs_patient');
+  assert.ok(useStore.getState().conversations[0].messages.some((m) => m.role === 'doctor' && m.text === 'Open a different chart'));
+});
+
 test("closing patient chats preserves General and clears only the closed chat's routing state", () => {
   const general = { id: "general", patientId: null, title: "General", messages: [] };
   const first = { id: "first", patientId: "patient", messages: [] };
