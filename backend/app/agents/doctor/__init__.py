@@ -20,9 +20,6 @@ _IDENTIFIERS = re.compile(
     r"Dec(?:ember)?)\b\.?\s+\d{1,2}(?:st|nd|rd|th)?,\s*\d{4}\b)"
 )
 
-_TRUSTED_EVIDENCE = "Trusted evidence was not found."
-
-
 def route_doctor_request(patient_id, text, channel, *, session, route=None):
     import app.agents.doctor.model as model
 
@@ -158,7 +155,7 @@ def _research_answer(patient_id, text, session):
     if sections:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=4) as pool:
-            checked = list(pool.map(lambda section: verify_claims(section["text"], citations), sections))
+            checked = list(pool.map(lambda section: verify_claims(section["text"], citations, allow_any_tier=True), sections))
         used = {}
         for section, result in zip(sections, checked):
             if not result["text"]:
@@ -168,13 +165,7 @@ def _research_answer(patient_id, text, session):
             verified_sections.append({"title": section["title"], "text": result["text"], "source_ids": [c["source_id"] for c in result["citations"]]})
         verified = {"text": "\n\n".join(s["text"] for s in verified_sections), "citations": list(used.values())}
     else:
-        verified = verify_claims(body.get("text") or "", citations)
-    if research.get("recommends_action") is True and not _has_tier(
-        verified["citations"],
-        "baseline",
-        "guideline",
-    ):
-        return {"text": _TRUSTED_EVIDENCE, "citations": []}
+        verified = verify_claims(body.get("text") or "", citations, allow_any_tier=True)
     result = {"text": verified["text"], "citations": verified["citations"]}
     if verified_sections:
         result["sections"] = verified_sections

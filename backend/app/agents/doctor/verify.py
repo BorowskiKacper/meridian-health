@@ -1,10 +1,13 @@
 """Check cited sentences and drop any citation a surviving sentence does not use."""
 
 
-def verify_claims(text, citations):
+def verify_claims(text, citations, *, allow_any_tier=False):
     import app.agents.doctor.model as model
 
-    verdict = model.complete("verify", {"text": text, "citations": citations})
+    payload = {"text": text, "citations": citations}
+    if allow_any_tier:
+        payload["allow_any_tier"] = True
+    verdict = model.complete("verify", payload)
     kept = set()
     sentences = []
     for item in verdict.get("supported") or []:

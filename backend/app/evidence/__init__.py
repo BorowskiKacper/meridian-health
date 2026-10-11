@@ -100,6 +100,13 @@ def search_medical_web(text):
     return {"passages": passages}
 
 
+def search_research_web(text):
+    """Grounded web search for research. Every resolved page is kept."""
+    reject_identifiers(text)
+    payload = grounding.grounded_search(text)
+    return {"passages": _citations_from_grounding(payload, "web", None)}
+
+
 def search_payer_docs(text):
     """Search fictional payer documents. Tier is payer."""
     reject_identifiers(text)
