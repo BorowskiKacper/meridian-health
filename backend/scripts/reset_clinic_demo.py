@@ -61,7 +61,7 @@ SENTENCES = {
 GENERAL = (
     "What is the difference between screening and diagnostic testing?",
     "How should absolute and relative risk reduction be interpreted in clinical research?",
-    "What information belongs in a concise SOAP note?",
+    "At what age does the USPSTF recommend offering colorectal cancer screening to average-risk adults?",
 )
 # Bodies loaded by seed.py and demo.py. Practice resets must not remove these.
 SEEDED_NOTES = (

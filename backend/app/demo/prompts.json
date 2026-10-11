@@ -77,10 +77,10 @@
     "text": "How should absolute and relative risk reduction be interpreted in clinical research?"
   },
   {
-    "id": "general-documentation",
+    "id": "general-colorectal",
     "patient_id": null,
     "route": "clinical_question",
-    "label": "Clinical documentation",
-    "text": "What information belongs in a concise SOAP note?"
+    "label": "Colorectal start age",
+    "text": "At what age does the USPSTF recommend offering colorectal cancer screening to average-risk adults?"
   }
 ]

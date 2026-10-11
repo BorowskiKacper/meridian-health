@@ -651,26 +651,41 @@
       "audio_base64": null
     }
   },
-  "general-documentation": {
+  "general-colorectal": {
     "prompt": {
-      "id": "general-documentation",
+      "id": "general-colorectal",
       "patient_id": null,
       "route": "clinical_question",
-      "label": "Clinical documentation",
-      "text": "What information belongs in a concise SOAP note?"
+      "label": "Colorectal start age",
+      "text": "At what age does the USPSTF recommend offering colorectal cancer screening to average-risk adults?"
     },
-    "captured_at": "2026-10-11T14:04:36.850948+00:00",
+    "captured_at": "2026-10-11T15:45:28.311140+00:00",
     "response": {
       "route": "clinical_question",
-      "transcript": "What information belongs in a concise SOAP note?",
+      "transcript": "At what age does the USPSTF recommend offering colorectal cancer screening to average-risk adults?",
       "answer": {
-        "text": "The supplied evidence lacks details and clinical guidance defining the elements required for a concise SOAP note.",
-        "citations": [],
-        "sections": [
+        "text": "The US Preventive Services Task Force (USPSTF) recommends offering colorectal cancer screening starting at age 45 years for average-risk adults, and continuing screening through age 75 years.",
+        "citations": [
           {
-            "title": "Missing information",
-            "text": "The supplied evidence lacks details and clinical guidance defining the elements required for a concise SOAP note.",
-            "source_ids": []
+            "source_id": "uspstf:colorectal-cancer-screening#14",
+            "title": "USPSTF Colorectal Cancer: Screening: Starting and Stopping Ages",
+            "passage": "The USPSTF recommends offering colorectal cancer screening starting at age 45 years. Although the absolute risk of developing colorectal cancer is much lower in adults younger than 50 years (20.0 new colorectal cancer cases per 100,000 persons aged 40 to 49 years, 47.8 new cases per 100,000 persons aged 50 to 59 years, and 105.2 new cases per 100,000 persons 60 years or older14), age-period-cohort analysis indicates a recent trend for increasing risk of colorectal cancer in birth cohorts of adults younger than 50 years.15 The benefit of reducing colorectal cancer deaths by screening for colorectal cancer in adults 50 years or older is well established through trial data. Some of these trials16-18 also included adults younger than 50 years, although results are not reported separately for younger age groups.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "uspstf:colorectal-cancer-screening#33",
+            "title": "USPSTF Colorectal Cancer: Screening: Other Related USPSTF Recommendations",
+            "passage": "In the current recommendation, while continuing to recommend colorectal cancer screening in adults aged 50 to 75 years (A recommendation), the USPSTF now recommends offering screening starting at age 45 years (B recommendation). As it did in 2016, the USPSTF continues to conclude that screening in adults aged 76 to 85 years should be an individual decision (C recommendation) and screening should be discontinued after age 85 years.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "uspstf:colorectal-cancer-screening#2",
+            "title": "USPSTF Colorectal Cancer: Screening: Clinician Summary",
+            "passage": "What does the USPSTF recommend? For adults aged 50 to 75 years:Screen all adults aged 50 to 75 years for colorectal cancer. Grade A For adults aged 45 to 49 years:Screen adults aged 45 to 49 years for colorectal cancer. Grade B For adults aged 76 to 85 years:Selectively screen adults aged 76 to 85 years for colorectal cancer, considering the patient’s overall health, prior screening history, and patient’s preferences. Grade C To whom does this recommendation apply? Adults 45 years and older who do not have signs or symptoms of colorectal cancer and who are at average risk for colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis]).",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening",
+            "tier": "baseline"
           }
         ]
       },
