@@ -153,6 +153,16 @@
   }
 }
 
+.workspace-backdrop {
+  background-color: var(--jade-50);
+  background-image: radial-gradient(
+    ellipse farthest-corner at top left,
+    color-mix(in srgb, var(--jade-50) 70%, var(--clinical-surface)) 0%,
+    color-mix(in srgb, var(--jade-50) 78%, var(--assistant-surface)) 40%,
+    color-mix(in srgb, var(--jade-50) 55%, var(--assistant-surface)) 100%
+  );
+}
+
 .chart-workspace { container-type: inline-size; }
 .body-overview { display: grid; gap: 28px; }
 .anatomy-stage { height: clamp(340px, calc(100dvh - 510px), 640px); }

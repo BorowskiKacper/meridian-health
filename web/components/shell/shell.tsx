@@ -23,7 +23,7 @@ export function Shell() {
 
   if (status !== "ready") {
     return (
-      <div className="grid h-full place-items-center bg-jade-50 px-6 text-ink">
+      <div className="workspace-backdrop grid h-full place-items-center px-6 text-ink">
         <div className="max-w-md text-center">
           <h1 className="font-serif text-3xl text-jade-900">
             Meridian
@@ -44,7 +44,7 @@ export function Shell() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-jade-50 text-ink">
+    <div className="workspace-backdrop flex h-full flex-col text-ink">
       <header className="flex h-16 shrink-0 items-center gap-5 px-5">
         <span className="shrink-0 font-serif text-[32px] leading-none tracking-tight text-jade-900">Meridian</span>
         <span className="hidden min-w-0 truncate border-l border-hairline-strong pl-5 text-[13px] text-ink-soft sm:block">Your AI-native clinical workspace</span>
