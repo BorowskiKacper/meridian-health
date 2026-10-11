@@ -144,6 +144,11 @@ def test_navigation_is_durable_scoped_and_acknowledged_only_after_snapshot(clien
     ('I want to see John Roe’s information', 'John Roe', 'overview'),
     ('Show me Jane Doe\'s chart', 'Jane Doe', 'overview'),
     ('Show John Roe\'s labs', 'John Roe', 'lab'),
+    ('Open the approvals', None, 'queue'),
+    ('Open the approvals tab', None, 'queue'),
+    ('Show me the pending approvals', None, 'queue'),
+    ('Open the approvals for Amy Lee', 'Amy Lee', 'queue'),
+    ('Open the queue', None, 'queue'),
 ])
 def test_read_only_navigation_parser(text, query, view):
     assert parse_navigation(text) == {'patient_query': query, 'needs_patient': True, 'route': None, 'views': [view]}

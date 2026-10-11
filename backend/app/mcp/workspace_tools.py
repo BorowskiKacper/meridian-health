@@ -28,6 +28,7 @@ def parse_navigation(text):
         'allergies': 'allergies', 'labs': 'lab', 'lab results': 'lab', 'diagnostics': 'lab',
         'visit draft': 'visit', 'follow-up': 'reminders', 'follow up': 'reminders',
         'history': 'history', 'timeline': 'timeline', 'body': 'body', '3d view': 'body', 'queue': 'queue',
+        'approvals': 'queue', 'approval': 'queue', 'pending approvals': 'queue',
     }
     match = re.fullmatch(r'(?:(?:please|(?:can|could|would) you(?: please)?)\s+)?(?:open(?: up)?|show(?: me)?|display|bring up|pull up|take me to|(?:switch|go|navigate|change) to|(?:i\s+(?:want|would like)\s+to\s+|i[’\x27]d like to\s+|let me\s+)?see)\s+(.+?)(?:\s+on\s+(?:my|the)\s+(?:laptop|desktop))?[.!?]?', text.strip(), re.I)
     if not match:
