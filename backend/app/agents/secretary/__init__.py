@@ -40,6 +40,13 @@ def answer_secretary(patient_id, text, *, session):
     import app.mcp.tools as tools
     from app.db.repositories import insert_request
 
+    from app.privacy.names import bind_patient_name, display_name_for
+
+    with bind_patient_name(display_name_for(session, patient_id)):
+        return _bound_secretary(patient_id, text, session, model, tools, evidence, insert_request)
+
+
+def _bound_secretary(patient_id, text, session, model, tools, evidence, insert_request):
     response = model.complete("secretary", {"text": text, "coverage": tools.get_coverage(patient_id, session=session)})
     for call in response.get("tool_calls") or []:
         _execute_tool(call, patient_id, session, tools, evidence)

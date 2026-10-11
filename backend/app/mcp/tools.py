@@ -45,7 +45,9 @@ def preview_request_route(patient_id, text, *, session):
     if not isinstance(text, str) or not text.strip():
         return _error("validation_error", "A nonempty request or recognized transcript is required.")
     from app.agents.doctor.model import complete
-    route = complete("classify", {"text": text})["route"]
+    from app.privacy.names import bind_patient_name
+    with bind_patient_name(patient.get("display_name")):
+        route = complete("classify", {"text": text})["route"]
     descriptions = {
         "chart_update": "Draft proposed chart changes for your review.",
         "clinical_question": "Research a clinical question using the patient chart and evidence.",
