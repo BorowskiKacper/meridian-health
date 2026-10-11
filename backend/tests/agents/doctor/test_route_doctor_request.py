@@ -439,14 +439,54 @@ def test_screening_send_emails_only_the_open_patient(seeded_db, monkeypatch):
 
     assert result["route"] == "check_screenings"
     assert result["suggestions"] == []
-    assert result["answer"] == {"text": "Sent the reminder email.", "citations": []}
-    assert [call[0] for call in calls] == ["jane.doe@example.com"]
+    assert result["answer"] == {"text": "Sent the reminder email for Jane Doe.", "citations": []}
+    assert [call[0] for call in calls] == ["vicchen199@gmail.com"]
+    assert calls[0][1]["PATIENT_NAME"] == "Jane Doe"
+    assert calls[0][1]["REMINDER_NAME"] == "Colorectal cancer screening"
     jane = next(row for row in list_reminders_by_patient(session, JANE_ID) if row["name"] == "Colorectal cancer screening")
     assert jane["status"] == "sent"
     amy = next(row for row in list_reminders_by_patient(session, "33333333-3333-4333-8333-333333333333"))
     assert amy["status"] == "scheduled"
     assert payloads(model, "reminders") == []
     assert payloads(model, "classify") == []
+
+
+def test_send_prompt_reaches_an_opted_out_patient_and_nobody_else(seeded_db, monkeypatch):
+    import app.services.email as email_module
+
+    session = seeded_db.session
+    calls = []
+
+    def send_email(to_email, variables):
+        calls.append((to_email, variables))
+        return "re_john"
+
+    monkeypatch.setattr(email_module, "send_email", send_email)
+    monkeypatch.setattr("app.agents.doctor._as_of_today", lambda: date(2026, 10, 11))
+    monkeypatch.setattr("app.config.EMAIL_PUBLIC_BASE_URL", "https://clinic.example")
+    monkeypatch.setattr("app.config.EMAIL_UNSUBSCRIBE_SECRET", "unsubscribe-secret")
+    model = DoctorModel(reminders={"up_to_date": True, "answer": "Should not run.", "suggestions": []})
+    install(monkeypatch, model)
+
+    result = invoke(
+        route_doctor_request,
+        "22222222-2222-4222-8222-222222222222",
+        "Send the reminder now.",
+        "typed",
+        session=session,
+    )
+
+    assert result["route"] == "check_screenings"
+    assert result["answer"] == {"text": "Sent the reminder email for John Roe.", "citations": []}
+    assert [call[0] for call in calls] == ["vicchen199@gmail.com"]
+    assert calls[0][1]["PATIENT_NAME"] == "John Roe"
+    assert calls[0][1]["REMINDER_NAME"] == "Lung cancer screening"
+    john = next(row for row in list_reminders_by_patient(session, "22222222-2222-4222-8222-222222222222"))
+    assert john["status"] == "sent"
+    jane = next(row for row in list_reminders_by_patient(session, JANE_ID) if row["name"] == "Colorectal cancer screening")
+    assert jane["status"] == "scheduled"
+    assert payloads(model, "classify") == []
+    assert payloads(model, "reminders") == []
 
 
 def test_screening_question_about_sending_does_not_email(seeded_db, monkeypatch):

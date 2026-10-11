@@ -10,8 +10,11 @@ python -m app.bootstrap. It removes the canned "reviewed today" visit notes so
 notes history matches the seeded charts. Every workspace job is one turn in
 the agent chat window, for General or for a patient. Those jobs are removed,
 so a paired phone or desktop does not replay any of that thread. The checked-in
-demo prompt cache is not read or written. The seeded notes and the synthetic
-panel are left in place. After it finishes, hard-reload the chart.
+demo prompt cache is not read or written. The seeded notes are left in place.
+Every demo patient's email is set to vicchen199@gmail.com. Reminder rows for
+Jane, John, Amy, and the synthetic panel are put back, including rows a
+"Send the reminder now" practice marked sent, so that prompt can be practiced
+again on each chart. After it finishes, hard-reload the chart.
 """
 
 import os
@@ -79,16 +82,20 @@ CANNED_REVIEW_NOTES = (
     (JOHN, "Recorded medications and screening plan were reviewed today for John Roe."),
     (AMY, "Recorded medications and screening plan were reviewed today for Amy Lee."),
 )
-PANEL = (
-    "44444444-4444-4444-8444-444444444441",
-    "44444444-4444-4444-8444-444444444442",
-    "44444444-4444-4444-8444-444444444443",
-    "44444444-4444-4444-8444-444444444444",
-    "44444444-4444-4444-8444-444444444445",
-    "44444444-4444-4444-8444-444444444446",
-    "44444444-4444-4444-8444-444444444447",
-    "44444444-4444-4444-8444-444444444448",
-)
+PANEL_PATIENTS = {
+    "44444444-4444-4444-8444-444444444441": "Rosa Alvarez",
+    "44444444-4444-4444-8444-444444444442": "Marcus Chen",
+    "44444444-4444-4444-8444-444444444443": "Helen Okonkwo",
+    "44444444-4444-4444-8444-444444444444": "Daniel Brooks",
+    "44444444-4444-4444-8444-444444444445": "Priya Shah",
+    "44444444-4444-4444-8444-444444444446": "Samuel Wright",
+    "44444444-4444-4444-8444-444444444447": "Naomi Fischer",
+    "44444444-4444-4444-8444-444444444448": "Luis Ortega",
+}
+PANEL = tuple(PANEL_PATIENTS)
+# Same inbox as app.services.reminders.DEMO_REMINDER_TO. "Send the reminder now"
+# mails only that chart here, so a reset must put this address back on every chart.
+DEMO_REMINDER_TO = "vicchen199@gmail.com"
 CHART_TABLES = ("conditions", "medications", "observations", "family_history")
 ALLOW = {
     "conditions": ("name", "status", "onset_date", "body_region_key"),
@@ -118,6 +125,22 @@ REMINDERS = (
     (JOHN, "Influenza vaccine", date(2026, 10, 15), "scheduled"),
     (AMY, "Follow-up labs", date(2026, 9, 1), "scheduled"),
     (AMY, "Cervical cancer screening", date(2027, 4, 1), "scheduled"),
+)
+ROSA, MARCUS, HELEN, DANIEL, PRIYA, SAMUEL, NAOMI, LUIS = PANEL
+PANEL_REMINDERS = (
+    (ROSA, "Blood pressure check", date(2026, 11, 18), "scheduled"),
+    (ROSA, "Influenza vaccine", date(2026, 10, 20), "sent"),
+    (MARCUS, "A1c recheck", date(2026, 11, 13), "scheduled"),
+    (MARCUS, "Diabetic eye exam", date(2027, 2, 1), "scheduled"),
+    (HELEN, "Colorectal cancer screening", date(2026, 10, 30), "sent"),
+    (HELEN, "Mammography", date(2027, 1, 15), "scheduled"),
+    (DANIEL, "Influenza vaccine", date(2026, 10, 15), "scheduled"),
+    (PRIYA, "Cervical cancer screening", date(2029, 5, 14), "scheduled"),
+    (SAMUEL, "Colonoscopy surveillance", date(2028, 6, 1), "scheduled"),
+    (NAOMI, "Mammography", date(2026, 11, 1), "sent"),
+    (NAOMI, "A1c recheck", date(2027, 5, 27), "scheduled"),
+    (LUIS, "Lung cancer screening", date(2027, 3, 1), "scheduled"),
+    (LUIS, "Influenza vaccine", date(2026, 10, 15), "sent"),
 )
 
 
@@ -178,6 +201,8 @@ def main():
                 suggestion_ids = undo_sentences(cur)
                 removed_review_notes = remove_canned_review_notes(cur)
                 restore_reminders(cur)
+                restore_panel_reminders(cur)
+                set_demo_emails(cur)
                 clear_workspaces(cur)
                 confirm(cur, suggestion_ids, before, removed_review_notes)
         print("COMMITTED")
@@ -532,6 +557,60 @@ def restore_reminders(cur):
             )
 
 
+def restore_panel_reminders(cur):
+    cur.execute(
+        """
+        SELECT id::text AS id, patient_id::text AS patient_id, name, due_on, status
+        FROM public.reminder_schedule
+        WHERE patient_id = ANY(%s::uuid[])
+        FOR UPDATE
+        """,
+        (list(PANEL),),
+    )
+    grouped = {}
+    for row in cur.fetchall():
+        grouped.setdefault((row["patient_id"], row["name"]), []).append(row)
+    wanted = {(patient_id, name): (due_on, status) for patient_id, name, due_on, status in PANEL_REMINDERS}
+    if set(grouped) != set(wanted):
+        missing = sorted(set(wanted) - set(grouped))
+        extra = sorted(set(grouped) - set(wanted))
+        raise Stop(f"Panel reminders do not match the restore list. missing={missing} extra={extra}")
+    for patient_id, name, due_on, status in PANEL_REMINDERS:
+        rows = grouped[(patient_id, name)]
+        if len(rows) != 1:
+            raise Stop(f"Expected one {name} reminder for {PANEL_PATIENTS[patient_id]}.")
+        row = rows[0]
+        if row["due_on"] == due_on and row["status"] == status:
+            continue
+        cur.execute(
+            """
+            UPDATE public.reminder_schedule
+            SET due_on = %s, status = %s
+            WHERE id = %s AND patient_id = %s
+            """,
+            (due_on, status, row["id"], patient_id),
+        )
+        if cur.rowcount != 1:
+            raise Stop(f"Did not update panel reminder {row['id']}.")
+        print(
+            f"updated reminder {PANEL_PATIENTS[patient_id]} / {name}: "
+            f"{row['due_on']} {row['status']} -> {due_on} {status}"
+        )
+
+
+def set_demo_emails(cur):
+    patient_ids = list(PATIENTS) + list(PANEL)
+    cur.execute(
+        """
+        UPDATE public.patients
+        SET email = %s
+        WHERE id = ANY(%s::uuid[]) AND email IS DISTINCT FROM %s
+        """,
+        (DEMO_REMINDER_TO, patient_ids, DEMO_REMINDER_TO),
+    )
+    print(f"patient emails set to {DEMO_REMINDER_TO}: {cur.rowcount}")
+
+
 def choose_keeper(cur, rows, due_on, status):
     referenced = []
     for row in rows:
@@ -703,9 +782,46 @@ def confirm(cur, suggestion_ids, before, removed_review_notes):
     print("seeded notes unchanged")
     if count_patients(cur, "public.notes", PANEL) != before["panel_notes"]:
         raise Stop("Synthetic panel notes changed.")
+    print("synthetic panel notes unchanged")
     if count_patients(cur, "public.reminder_schedule", PANEL) != before["panel_reminders"]:
-        raise Stop("Synthetic panel reminders changed.")
-    print("synthetic panel notes and reminders unchanged")
+        raise Stop("Synthetic panel reminder count changed.")
+    cur.execute(
+        """
+        SELECT p.display_name, r.name, r.due_on::text AS due_on, r.status
+        FROM public.reminder_schedule r
+        JOIN public.patients p ON p.id = r.patient_id
+        WHERE r.patient_id = ANY(%s::uuid[])
+        ORDER BY p.display_name, r.due_on, r.name
+        """,
+        (list(PANEL),),
+    )
+    panel_actual = [
+        (row["display_name"], row["name"], row["due_on"], row["status"]) for row in cur.fetchall()
+    ]
+    panel_expected = [
+        (PANEL_PATIENTS[patient_id], name, due_on.isoformat(), status)
+        for patient_id, name, due_on, status in PANEL_REMINDERS
+    ]
+    panel_expected.sort(key=lambda item: (item[0], item[2], item[1]))
+    if panel_actual != panel_expected:
+        raise Stop(f"Panel reminder list mismatch.\n actual={panel_actual}\n expected={panel_expected}")
+    print("PANEL REMINDERS")
+    for item in panel_actual:
+        print(" | ".join(item))
+    inbox_ids = list(PATIENTS) + list(PANEL)
+    cur.execute(
+        """
+        SELECT id::text AS id, email
+        FROM public.patients
+        WHERE id = ANY(%s::uuid[])
+        ORDER BY id
+        """,
+        (inbox_ids,),
+    )
+    inboxes = cur.fetchall()
+    if len(inboxes) != len(inbox_ids) or any(row["email"] != DEMO_REMINDER_TO for row in inboxes):
+        raise Stop(f"Reminder inbox was not {DEMO_REMINDER_TO} on every demo patient.")
+    print(f"reminder inbox {DEMO_REMINDER_TO}: {len(inboxes)} patients")
     cur.execute("SELECT count(*) AS n FROM clinic.workspace_jobs")
     if cur.fetchone()["n"] != 0:
         raise Stop("workspace_jobs is not empty.")
@@ -783,7 +899,7 @@ def confirm(cur, suggestion_ids, before, removed_review_notes):
             if cur.fetchone()["n"] != count:
                 raise Stop(f"{schema}.{name} count changed.")
     print("other schemas unchanged")
-    print("untouched clinic rows unchanged: patients, encounters, coverages, appointments, documents, eligibility_checks, email_messages, sms_messages")
+    print("untouched clinic rows unchanged: patient count, email_opt_in, encounters, coverages, appointments, documents, eligibility_checks, email_messages, sms_messages")
 
 
 if __name__ == "__main__":

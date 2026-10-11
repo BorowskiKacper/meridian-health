@@ -68,7 +68,9 @@ def _bound_doctor_request(patient_id, text, channel, *, session, route):
 
     if route is not None and route not in {"chart_update", "clinical_question", "check_screenings"}:
         return {"error": {"code": "validation_error", "message": "Unknown request route."}}
-    if route is None:
+    if asks_to_send_reminder(text):
+        route = "check_screenings"
+    elif route is None:
         route = model.complete("classify", {"text": text})["route"]
     stored = insert_request(
         session,
@@ -92,10 +94,24 @@ def _bound_doctor_request(patient_id, text, channel, *, session, route):
     elif route == "clinical_question":
         answer = _research_answer(patient_id, text, session)
     elif route == "check_screenings" and asks_to_send_reminder(text):
-        from app.services.reminders import reminder_send_message, send_patient_reminders
+        from app.services.reminders import DEMO_REMINDER_TO, reminder_send_message, send_patient_reminders
 
-        outcome = send_patient_reminders(patient_id, _as_of_today(), session=session)
-        answer = {"text": reminder_send_message(outcome), "citations": []}
+        outcome = send_patient_reminders(
+            patient_id,
+            _as_of_today(),
+            session=session,
+            to_email=DEMO_REMINDER_TO,
+            include_future=True,
+            ignore_opt_out=True,
+        )
+        answer = {
+            "text": reminder_send_message(
+                outcome,
+                patient_name=display_name_for(session, patient_id),
+                include_future=True,
+            ),
+            "citations": [],
+        }
     elif route == "check_screenings":
         review = run_reminder_agent(patient_id, "doctor_request", session=session)
         if review["suggestions"]:

@@ -19,6 +19,7 @@ from app.db.repositories import (
 )
 from app.services.email import unsubscribe
 from app.services.reminders import (
+    DEMO_REMINDER_TO,
     reminder_send_message,
     send_due_reminders,
     send_patient_reminders,
@@ -253,6 +254,35 @@ def test_patient_send_skips_an_opted_out_due_reminder(seeded_db, monkeypatch):
     assert_still_scheduled(session, john)
     assert_still_scheduled(session, jane)
     assert_still_scheduled(session, amy)
+
+
+def test_prompt_send_uses_the_demo_inbox_for_a_future_opted_out_reminder(seeded_db, monkeypatch):
+    session = seeded_db.session
+    jane, john, amy = seeded_reminders(session)
+    calls = install_email(monkeypatch)
+
+    result = invoke(
+        send_patient_reminders,
+        JOHN_ID,
+        date(2026, 10, 11),
+        session=session,
+        to_email=DEMO_REMINDER_TO,
+        include_future=True,
+        ignore_opt_out=True,
+    )
+
+    sent_ids, skipped_ids = partition(result)
+    assert sent_ids.keys() == {john["id"]}
+    assert skipped_ids == {}
+    assert reminder_send_message(result, patient_name="John Roe", include_future=True) == (
+        "Sent the reminder email for John Roe."
+    )
+    assert_sent(session, calls, john, DEMO_REMINDER_TO, JOHN_FORBIDDEN, sent_ids[john["id"]])
+    assert_still_scheduled(session, jane)
+    assert_still_scheduled(session, amy)
+    assert_no_call(calls, JOHN_EMAIL)
+    assert_no_call(calls, JANE_EMAIL)
+    assert_no_call(calls, AMY_EMAIL)
 
 
 def test_patient_send_leaves_a_future_reminder_scheduled(seeded_db, monkeypatch):
