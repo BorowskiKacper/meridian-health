@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from app.db.repositories import (
+    get_body_region,
     insert_body_region,
     insert_condition,
     insert_encounter,
@@ -20,6 +21,7 @@ from app.db.repositories import (
     insert_reminder,
     insert_reminder_rule,
     insert_specialty_focus,
+    list_all_specialty_focus,
     list_reminder_rules,
 )
 
@@ -76,7 +78,7 @@ def _at(year, month, day, hour=0, minute=0):
 def seed_demo(session, base_seed):
     """Run ``base_seed`` (the ``seed`` function from seed.py) then add depth."""
     patient_ids = base_seed(session)
-    _reference(session)
+    ensure_reference(session)
     rules = {row["name"]: row["id"] for row in list_reminder_rules(session)}
     _jane(session, rules)
     _john(session, rules)
@@ -84,17 +86,33 @@ def seed_demo(session, base_seed):
     return patient_ids
 
 
-def _reference(session):
+def ensure_reference(session):
+    """Insert regions, focus rows, and reminder rules, skipping any already stored.
+
+    A database that already has the original patients never re-runs the demo
+    seed. Panel charts still reference these keys, so bootstrap calls this
+    before inserting them.
+    """
     for region_key, display_name, mesh_name in EXTRA_REGIONS:
+        if get_body_region(session, region_key) is not None:
+            continue
         insert_body_region(
             session,
             {"region_key": region_key, "display_name": display_name, "mesh_name": mesh_name},
         )
+    present_focus = {
+        (row["specialty_key"], row["region_key"]) for row in list_all_specialty_focus(session)
+    }
     for specialty_key, region_key in EXTRA_FOCUS:
+        if (specialty_key, region_key) in present_focus:
+            continue
         insert_specialty_focus(
             session, {"specialty_key": specialty_key, "region_key": region_key}
         )
+    present_rules = {row["name"] for row in list_reminder_rules(session)}
     for name, baseline_age, source in EXTRA_RULES:
+        if name in present_rules:
+            continue
         insert_reminder_rule(
             session,
             {
