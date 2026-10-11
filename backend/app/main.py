@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,7 +21,20 @@ from app.api.routes import (
     webhooks,
 )
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app):
+    worker = None
+    if not api_db.tests_replaced_session():
+        from app.services.workspace_worker import start_worker
+        worker = start_worker(runtime.get_engine())
+    yield
+    if worker:
+        worker.set()
+
+
+app = FastAPI(lifespan=lifespan)
+from app.api.routes import workspaces
+app.include_router(workspaces.router)
 
 
 @app.get("/capabilities")

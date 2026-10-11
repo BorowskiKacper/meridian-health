@@ -217,6 +217,7 @@ export interface Message {
   pending?: boolean;
   error?: boolean;
   audioBase64?: string;
+  workspaceJobId?: string;
 }
 
 export interface Conversation {

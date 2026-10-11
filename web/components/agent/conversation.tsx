@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ActionCard } from "./action-card";
 import { Composer } from "./composer";
 import { ResearchResult } from "./research-result";
+import { clarifyWorkspace } from '@/lib/workspace-api';
 
 export const routeLabel: Record<Route, string> = {
   chart: "Proposed chart changes",
@@ -90,6 +91,7 @@ function AgentMessage({ message, mode, general }: { message: Message; mode?: str
     <div>
       {message.route && <RouteLine message={message} general={general} />}
       {!message.researchId && <p role={message.error ? "alert" : undefined} className={cn("agent-text mt-1.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink", message.error && "rounded-md border border-white/25 p-3")}>{message.text}</p>}
+      {message.workspaceJobId && <PatientClarification jobId={message.workspaceJobId} />}
       {message.audioBase64 && <audio controls className="mt-3 h-9 max-w-full" aria-label="Spoken assistant response" src={`data:audio/mpeg;base64,${message.audioBase64}`} />}
       {message.researchId && <ResearchBlock researchId={message.researchId} />}
       {actions.length > 0 && (
@@ -106,6 +108,14 @@ function AgentMessage({ message, mode, general }: { message: Message; mode?: str
       )}
     </div>
   );
+}
+
+function PatientClarification({ jobId }: { jobId: string }) {
+  const job = useStore((s) => s.workspaceJobs[jobId]);
+  if (job?.status !== 'needs_patient' || !job.candidates?.length) return null;
+  return <div className="mt-3 flex flex-col gap-2">{job.candidates.map((patient) => <button type="button" key={patient.id} className="rounded-md border border-white/20 px-3 py-2 text-left text-[13px] text-ivory hover:bg-white/10" onClick={() => {
+    void clarifyWorkspace(jobId, '', patient.id).then((next) => useStore.getState().syncWorkspaceJob(next)).catch((error) => useStore.setState({ notice: error.message }));
+  }}>{patient.display_name} · DOB {patient.date_of_birth}</button>)}</div>;
 }
 
 function RouteLine({ message, general }: { message: Message; general?: boolean }) {

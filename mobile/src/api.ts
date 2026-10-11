@@ -30,7 +30,7 @@ export function apiBaseUrl(): string {
   if (typeof configured === "string" && configured.trim()) {
     return configured.trim().replace(/\/$/, "");
   }
-  return "http://localhost:8000";
+  return "https://hackknight-fall-26.onrender.com";
 }
 
 export function filenameForMime(mime: string): string {

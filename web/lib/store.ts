@@ -5,6 +5,7 @@ import { ApiError } from "./api";
 import { approveSuggestions, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
+import { getWorkspaceToken, submitWorkspace, clarifyWorkspace, type WorkspaceJob } from './workspace-api';
 import type {
   Agent,
   AuditRow,
@@ -48,6 +49,8 @@ export interface PatientView {
 }
 
 interface State {
+  workspaceJobs: Record<string, WorkspaceJob>;
+  syncWorkspaceJob: (job: WorkspaceJob) => Promise<void>;
   routePreviews: Record<string, { status: "checking" | "ready" | "error"; text: string; audio?: Blob; route?: RequestRoute; description?: string; error?: string }>;
   cancelRoutePreview: (conversationId: string) => void;
   confirmRoutePreview: (conversationId: string, route?: RequestRoute) => void;
@@ -154,6 +157,31 @@ export const useStore = create<State>()((set, get) => {
   };
 
   return {
+    workspaceJobs: {},
+    syncWorkspaceJob: async (job) => {
+      if (JSON.stringify(get().workspaceJobs[job.id]) === JSON.stringify(job)) return;
+      if (job.patient_id && !get().patients[job.patient_id]) await refreshPatient(job.patient_id);
+      const previous = get().workspaceJobs[job.id];
+      const existingConversation = get().conversations.find((c) => c.messages.some((m) => m.workspaceJobId === job.id));
+      let conversationId = existingConversation?.id;
+      if (job.patient_id) conversationId = conversationFor(job.patient_id);
+      if (!conversationId) conversationId = 'general';
+      const response = job.response;
+      const researchId = response?.answer && response.route === 'clinical_question' ? job.id : undefined;
+      const replyId = `workspace-${job.id}-reply`;
+      const text = job.error ?? job.question ?? response?.answer?.text ?? (job.status === 'completed' ? response?.suggestions.length ? `Drafted ${response.suggestions.length} chart changes for review.` : 'Prepared your requested views.' : 'Working on your request.');
+      const doctor: Message = { id: `workspace-${job.id}-doctor`, role: 'doctor', text: job.text || 'Voice request', workspaceJobId: job.id };
+      const reply: Message = { id: replyId, role: 'agent', text, workspaceJobId: job.id, pending: job.status === 'queued' || job.status === 'running', error: job.status === 'failed', researchId, route: response?.route === 'navigate' ? 'navigate' : response ? ROUTE_LABEL[response.route] : undefined };
+      const target = conversationId;
+      set((s) => ({
+        workspaceJobs: { ...s.workspaceJobs, [job.id]: job },
+        ...(job.status === 'needs_patient' && previous?.status !== 'needs_patient' ? { activeConversationId: target, layout: s.layout === 'workspace' ? 'split' as const : s.layout } : {}),
+        conversations: s.conversations.map((c) => ({ ...c, messages: [...c.messages.filter((m) => m.workspaceJobId !== job.id), ...(c.id === target ? [doctor, reply] : [])] })),
+        actions: response ? [...s.actions.filter((a) => !response.suggestions.some((p) => p.id === a.id)), ...response.suggestions.map((p) => suggestionAction(p, { conversationId: target, messageId: replyId }))] : s.actions,
+        research: researchId && response?.answer ? { ...s.research, [researchId]: { id: researchId, patientId: job.patient_id, question: job.text, answer: response.answer.text, basis: '', sections: response.answer.sections, citations: response.answer.citations.map((c) => ({ source: c.title || c.source_id || 'Source', passage: c.passage || '', id: c.source_id, tier: c.tier, locator: c.locator })) } } : s.research,
+      }));
+      if (job.patient_id && previous?.response?.suggestions.some((p) => response?.suggestions.find((n) => n.id === p.id)?.status !== p.status)) await refreshPatient(job.patient_id);
+    },
     patients: {},
     tabs: [],
     activeTabId: null,
@@ -300,6 +328,24 @@ export const useStore = create<State>()((set, get) => {
     setLayout: (layout) => set({ layout }),
 
     send: (text, audio) => {
+      if (getWorkspaceToken()) {
+        const state = get();
+        const conversation = state.conversations.find((c) => c.id === state.activeConversationId);
+        const waiting = conversation?.messages.map((m) => state.workspaceJobs[m.workspaceJobId ?? '']).find((j) => j?.status === 'needs_patient');
+        const submissionId = crypto.randomUUID();
+        void (async () => {
+          try {
+            if (!waiting) await get().syncWorkspaceJob({ id: submissionId, status: 'queued', text, patient_id: conversation?.patientId ?? null, patient_name: null, desktop_applied: false });
+            const job = waiting ? await clarifyWorkspace(waiting.id, text) : await submitWorkspace(text, audio, conversation?.patientId, state.requestModes[conversation?.id ?? ''], submissionId);
+            await get().syncWorkspaceJob(job);
+          } catch (error) {
+            const message = explain(error, 'Request acceptance could not be confirmed. Check the conversation before sending again.');
+            if (!waiting) await get().syncWorkspaceJob({ id: submissionId, status: 'failed', text, patient_id: conversation?.patientId ?? null, patient_name: null, desktop_applied: false, error: message });
+            set({ notice: message });
+          }
+        })();
+        return;
+      }
       let id = get().activeConversationId;
       if (!id) {
         const state = get();

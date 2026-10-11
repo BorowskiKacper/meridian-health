@@ -1,22 +1,28 @@
-# Visit
+# Meridian mobile companion
 
-Expo client for talking with the doctor agents. It calls the HTTP API and does not open the database or ElevenLabs.
+A conversation-first Expo SDK 57 app. Pair once with **Connect phone** on the desktop, then type or dictate requests. Pairing stays active across app restarts until either device disconnects the phone. Only an unused pairing code expires after five minutes.
 
-Typed text and dictation share `POST /requests`. Send `patient_id` and exactly one of `text` or `audio`, with `X-Role: doctor`. There is no Dictate/Ask toggle. The server classifies the transcript as a chart update, a clinical question, or a screening review.
-
-Dictation uploads the recording. ElevenLabs Scribe (`scribe_v2`) and the spoken read-back run in `backend/app/speech/hook.py`. The read-back voice is `ELEVENLABS_VOICE_ID`, or the first voice on the account. The app plays `audio_base64` when the response includes it and shows `spoken_text`. A speech failure returns 503. Typing still works.
-
-The contract has no patient-list route. Jane Doe, John Roe, and Amy Lee are the seeded demo patients from `backend/seed/seed.py`.
-
-Suggestions stay pending until `POST /suggestions/approve` or `POST /suggestions/reject`. A research answer can be saved with `POST /suggestions` (add to plan). That does not write the chart.
-
-## Run
-
-```bash
-cd mobile
-npm install
-npm test
-EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
+```powershell
+npm ci
+$env:EXPO_PUBLIC_API_URL = 'https://hackknight-fall-26.onrender.com'
+npm start
 ```
 
-`EXPO_PUBLIC_API_URL` defaults to `http://localhost:8000`.
+Scan the Expo development QR with an SDK 57-compatible Expo Go client, or use `npm run web` for browser testing. `EXPO_PUBLIC_API_URL` may point to another deployed Meridian API; it defaults to the Render URL above and never defaults to localhost. Both clients must use an API deployment connected to the same database.
+
+The phone has one conversation and a text/dictation composer. Patient identity is resolved from the prompt. Missing or ambiguous patients produce inline clarification rather than a permanent patient selector. After resolving a patient, follow-up prompts retain that context. General clinical questions can run without a patient.
+
+Accepted requests are durable backend jobs. Research, citations, proposals, and validated navigation commands synchronize to the desktop. “Ready for your laptop” means processing completed; “Opened on laptop” requires the desktop to apply and acknowledge the result. The laptop can reconnect later without losing accepted work. Render must be awake and reachable for processing.
+
+Chart proposals require explicit approval, available on either device. Opening a view never approves chart changes. Native device tokens use Expo SecureStore; browser tokens use localStorage. Patient conversations and results are stored on the backend, not in persistent device storage. Pairing is device authorization, not authenticated clinician identity.
+
+Dictation uses Expo Audio and backend transcription. Completed jobs remove uploaded audio. Speech/provider failures remain visible, and typing is available. Retry an uncertain submission with the same idempotency key.
+
+Validation:
+
+```powershell
+npm test
+npm run typecheck
+npm run lint
+npx expo export --platform web
+```

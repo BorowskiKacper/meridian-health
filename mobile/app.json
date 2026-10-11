@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Visit",
-    "slug": "visit",
+    "name": "Meridian",
+    "slug": "meridian",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -19,15 +19,20 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Visit to use the microphone to dictate a request."
+          "microphonePermission": "Allow Meridian to use the microphone for clinical prompts."
         }
-      ]
-    ]
+      ],
+      "expo-router",
+      "expo-secure-store",
+      "expo-asset"
+    ],
+    "scheme": "meridian"
   }
 }

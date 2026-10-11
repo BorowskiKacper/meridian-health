@@ -43,7 +43,7 @@ export function SuggestionCard({ suggestion, busy, onApprove, onReject }: Props)
             onPress={() => onApprove(suggestion.id)}
             style={[styles.approve, busy && styles.disabled]}
           >
-            <Text style={styles.approveText}>Approve</Text>
+            <Text style={styles.approveText}>{busy ? "Approving..." : "Approve"}</Text>
           </Pressable>
           <Pressable
             accessibilityLabel={`Reject ${suggestion.reason || suggestion.kind}`}
@@ -83,27 +83,27 @@ export function SuggestionCard({ suggestion, busy, onApprove, onReject }: Props)
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#fffdf9",
-    borderColor: "#e4d9cc",
+    backgroundColor: "#fffdf7",
+    borderColor: "#cbdacf",
     borderRadius: 12,
     borderWidth: 1,
     gap: 6,
     padding: 12,
   },
   kind: {
-    color: "#6d645c",
+    color: "#62776b",
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
-  reason: { color: "#1f1a17", fontSize: 16, lineHeight: 22 },
-  diff: { color: "#3f3833", fontSize: 14, lineHeight: 20 },
-  meta: { color: "#6d645c", fontSize: 13 },
+  reason: { color: "#273d31", fontSize: 16, lineHeight: 22 },
+  diff: { color: "#556b60", fontSize: 14, lineHeight: 20 },
+  meta: { color: "#62776b", fontSize: 13 },
   flag: { color: "#8c3a32", fontSize: 13, fontWeight: "600" },
   actions: { flexDirection: "row", gap: 8, marginTop: 4 },
   approve: {
-    backgroundColor: "#1f6f5b",
+    backgroundColor: "#30564b",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -119,10 +119,10 @@ const styles = StyleSheet.create({
   rejectText: { color: "#8c3a32", fontSize: 14, fontWeight: "600" },
   rejectBox: { gap: 8 },
   reasonInput: {
-    borderColor: "#e4d9cc",
+    borderColor: "#cbdacf",
     borderRadius: 10,
     borderWidth: 1,
-    color: "#1f1a17",
+    color: "#273d31",
     fontSize: 15,
     paddingHorizontal: 10,
     paddingVertical: 8,

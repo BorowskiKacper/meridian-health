@@ -48,6 +48,27 @@ test("closing patient chats preserves General and clears only the closed chat's 
   assert.deepEqual(useStore.getState().conversations, [general]);
 });
 
+test("workspace result replay preserves evidence and never duplicates messages", async () => {
+  useStore.setState({ conversations: [{ id: 'general', patientId: null, title: 'General', messages: [] }], workspaceJobs: {}, research: {}, actions: [] });
+  const job = { id: 'shared-result', status: 'completed', text: 'General research', patient_id: null, patient_name: null, desktop_applied: false, response: { route: 'clinical_question', suggestions: [], answer: { text: 'Evidence answer', citations: [{ title: 'Study', source_id: 'source', locator: 'https://pubmed.ncbi.nlm.nih.gov/1/', passage: 'Evidence passage', tier: 'literature' }] } } };
+  await useStore.getState().syncWorkspaceJob(job);
+  await useStore.getState().syncWorkspaceJob(job);
+  await useStore.getState().syncWorkspaceJob({ ...job, desktop_applied: true });
+  assert.equal(useStore.getState().conversations[0].messages.length, 2);
+  assert.equal(useStore.getState().research[job.id].citations[0].passage, 'Evidence passage');
+  assert.equal(useStore.getState().research[job.id].patientId, null);
+});
+
+test("a workspace clarification moves into view without choosing an ambiguous patient", async () => {
+  useStore.setState({ conversations: [{ id: 'general', patientId: null, title: 'General', messages: [] }], activeConversationId: 'other', workspaceJobs: {}, layout: 'workspace' });
+  const job = { id: 'clarify', status: 'needs_patient', text: 'Open Amy trends', patient_id: null, patient_name: null, desktop_applied: false, question: 'Which patient?', candidates: [{ id: 'amy', display_name: 'Amy', date_of_birth: '1990-01-01' }] };
+  await useStore.getState().syncWorkspaceJob(job);
+  assert.equal(useStore.getState().activeConversationId, 'general');
+  assert.equal(useStore.getState().layout, 'split');
+  assert.equal(useStore.getState().conversations[0].patientId, null);
+  assert.equal(useStore.getState().conversations[0].messages.at(-1).text, 'Which patient?');
+});
+
 test("approval acknowledges immediately, ignores duplicate clicks and stays quiet", async () => {
   const { action, conversation } = setup();
   const request = deferred();

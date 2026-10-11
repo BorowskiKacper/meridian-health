@@ -332,3 +332,47 @@ class Appointment(Base):
     ends_at: Mapped[object] = _instant()
     reason: Mapped[str] = _required_text()
     status: Mapped[str] = _required_string()
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    desktop_hash: Mapped[str] = _required_string()
+    phone_hash: Mapped[str | None] = mapped_column(PlainString, nullable=True)
+    code_hash: Mapped[str | None] = mapped_column(PlainString, nullable=True, unique=True)
+    code_expires_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    patient_id: Mapped[uuid.UUID | None] = _uuid_fk("patients", nullable=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    desktop_cursor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[object] = _instant()
+
+
+class WorkspaceJob(Base):
+    __tablename__ = "workspace_jobs"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    workspace_id: Mapped[uuid.UUID] = _uuid_fk("workspaces")
+    patient_id: Mapped[uuid.UUID | None] = _uuid_fk("patients", nullable=True)
+    transcript: Mapped[str] = _required_text()
+    status: Mapped[str] = _required_string()
+    channel: Mapped[str] = _required_string()
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lease_until: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[object] = _instant()
+
+
+class WorkspaceEvent(Base):
+    __tablename__ = "workspace_events"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    workspace_id: Mapped[uuid.UUID] = _uuid_fk("workspaces")
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = _required_string()
+    job_id: Mapped[uuid.UUID | None] = _uuid_fk("workspace_jobs", nullable=True)
+
+
+class WorkspaceChunk(Base):
+    """Bounded compressed chunks respect the database's inline storage contract."""
+    __tablename__ = "workspace_chunks"
+    owner_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    slot: Mapped[str] = mapped_column(PlainString, primary_key=True)
+    part: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[str] = _required_text()

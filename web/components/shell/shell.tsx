@@ -7,6 +7,7 @@ import type { Layout } from "@/lib/types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AgentWindow } from "@/components/agent/agent-window";
 import { Workspace } from "./workspace";
+import { WorkspaceLink } from './workspace-link';
 
 export function Shell() {
   const layout = useStore((s) => s.layout);
@@ -47,10 +48,11 @@ export function Shell() {
       <header className="flex h-16 shrink-0 items-center gap-5 px-5">
         <span className="shrink-0 font-serif text-[32px] leading-none tracking-tight text-jade-900">Meridian</span>
         <span className="hidden min-w-0 truncate border-l border-hairline-strong pl-5 text-[13px] text-ink-soft sm:block">Your AI-native clinical workspace</span>
+        <WorkspaceLink />
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Workspace view"
-            className="ml-auto flex h-9 shrink-0 items-center gap-2 rounded-md border border-hairline-strong bg-clinical-surface px-3 text-[13px] font-semibold text-jade-900 hover:bg-jade-100"
+            className="flex h-9 shrink-0 items-center gap-2 rounded-md border border-hairline-strong bg-clinical-surface px-3 text-[13px] font-semibold text-jade-900 hover:bg-jade-100"
           >
             <PanelsTopLeft className="size-4" />
             View: {layout === "split" ? "Split" : layout === "workspace" ? "Chart" : "Assistant"}
