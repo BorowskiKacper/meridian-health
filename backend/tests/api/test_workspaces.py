@@ -110,6 +110,8 @@ def test_navigation_is_durable_scoped_and_acknowledged_only_after_snapshot(clien
     ('Please show her medications on my laptop', None, 'medications'),
     ('Open the blood pressure trends', None, 'vitals'),
     ('Open Amy Lee chart', 'Amy Lee', 'overview'),
+    ('Can you open up Amy Lee\u2019s chart?', 'Amy Lee', 'overview'),
+    ('Could you please show me the medications for Amy Lee?', 'Amy Lee', 'medications'),
 ])
 def test_read_only_navigation_parser(text, query, view):
     assert parse_navigation(text) == {'patient_query': query, 'needs_patient': True, 'route': None, 'views': [view]}

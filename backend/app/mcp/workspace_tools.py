@@ -27,7 +27,7 @@ def parse_navigation(text):
         'visit draft': 'visit', 'follow-up': 'reminders', 'follow up': 'reminders',
         'history': 'history', 'timeline': 'timeline', 'body': 'body', '3d view': 'body', 'queue': 'queue',
     }
-    match = re.fullmatch(r'(?:please\s+)?(?:open|show|display|bring up|pull up)\s+(.+?)(?:\s+on\s+(?:my|the)\s+(?:laptop|desktop))?[.!]?', text.strip(), re.I)
+    match = re.fullmatch(r'(?:(?:please|(?:can|could|would) you(?: please)?)\s+)?(?:open(?: up)?|show(?: me)?|display|bring up|pull up|take me to)\s+(.+?)(?:\s+on\s+(?:my|the)\s+(?:laptop|desktop))?[.!?]?', text.strip(), re.I)
     if not match:
         return None
     request = match[1]
