@@ -27,6 +27,27 @@ function setup() {
   return { action, conversation };
 }
 
+test("closing patient chats preserves General and clears only the closed chat's routing state", () => {
+  const general = { id: "general", patientId: null, title: "General", messages: [] };
+  const first = { id: "first", patientId: "patient", messages: [] };
+  const second = { id: "second", patientId: "other", messages: [] };
+  useStore.setState({
+    conversations: [general, first, second], activeConversationId: "first",
+    requestModes: { first: "chart_update", second: "clinical_question" },
+    routePreviews: { first: { status: "ready", text: "Change weight", route: "chart_update" } },
+  });
+  useStore.getState().closeConversation("second");
+  assert.equal(useStore.getState().activeConversationId, "first");
+  assert.equal(useStore.getState().requestModes.first, "chart_update");
+  useStore.getState().closeConversation("first");
+  assert.equal(useStore.getState().activeConversationId, "general");
+  assert.deepEqual(useStore.getState().conversations, [general]);
+  assert.deepEqual(useStore.getState().requestModes, {});
+  assert.deepEqual(useStore.getState().routePreviews, {});
+  useStore.getState().closeConversation("general");
+  assert.deepEqual(useStore.getState().conversations, [general]);
+});
+
 test("approval acknowledges immediately, ignores duplicate clicks and stays quiet", async () => {
   const { action, conversation } = setup();
   const request = deferred();

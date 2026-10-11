@@ -83,6 +83,7 @@ interface State {
 
   newConversation: (patientId: string) => void;
   activateConversation: (id: string) => void;
+  closeConversation: (id: string) => void;
   setMode: (mode: Mode) => void;
   setLayout: (layout: Layout) => void;
 
@@ -281,6 +282,19 @@ export const useStore = create<State>()((set, get) => {
     },
 
     activateConversation: (id) => set({ activeConversationId: id }),
+    closeConversation: (id) => set((s) => {
+      const index = s.conversations.findIndex((conversation) => conversation.id === id);
+      if (index < 0 || s.conversations[index].patientId === null) return {};
+      const conversations = s.conversations.filter((conversation) => conversation.id !== id);
+      return {
+        conversations,
+        activeConversationId: s.activeConversationId === id
+          ? (conversations[Math.max(0, index - 1)]?.id ?? null)
+          : s.activeConversationId,
+        requestModes: Object.fromEntries(Object.entries(s.requestModes).filter(([key]) => key !== id)),
+        routePreviews: Object.fromEntries(Object.entries(s.routePreviews).filter(([key]) => key !== id)),
+      };
+    }),
 
     setMode: (mode) => set({ mode }),
     setLayout: (layout) => set({ layout }),
