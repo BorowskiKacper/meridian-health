@@ -276,6 +276,42 @@ test("Auto waits for confirmation and cancelled previews cannot submit late", as
   assert.equal(submissions, 0);
 });
 
+test("chat navigation switches chart sections and patients without classifying", async () => {
+  const amy = { id: "amy", name: "Amy Lee" }, john = { id: "john", name: "John Roe" };
+  const conversations = () => [{ id: "conv-amy", patientId: "amy", messages: [] }, { id: "conv-john", patientId: "john", messages: [] }];
+  useStore.setState({ patients: { amy, john }, conversations: conversations(), activeConversationId: "conv-amy", tabs: [{ id: "amy-lab", kind: "lab", patientId: "amy" }], activeTabId: null, requestModes: {}, routePreviews: {}, layout: "agent" });
+  let classified = 0;
+  api.previewRequest = async () => { classified++; return { route: "chart_update", transcript: "Open labs and draft a note", description: "Draft." }; };
+  const messages = (id) => useStore.getState().conversations.find((c) => c.id === id).messages;
+  useStore.getState().send("Switch to the labs tab");
+  assert.equal(useStore.getState().activeTabId, "amy-lab", "an open tab is reused");
+  assert.equal(useStore.getState().layout, "split");
+  for (const [text, kind] of [["go to medications", "medications"], ["show blood pressure", "vitals"]]) {
+    useStore.getState().send(text);
+    assert.equal(useStore.getState().tabs.find((t) => t.id === useStore.getState().activeTabId).kind, kind);
+  }
+  assert.equal(messages("conv-amy").at(-1).text, "Opened it beside the chart.");
+  useStore.getState().send("I want to see John Roe's information");
+  const active = useStore.getState().tabs.find((t) => t.id === useStore.getState().activeTabId);
+  assert.deepEqual([active.kind, active.patientId, useStore.getState().activeConversationId], ["overview", "john", "conv-john"]);
+  assert.equal(messages("conv-john").at(-1).text, "Opened John Roe's chart.");
+  useStore.setState({ activeConversationId: "conv-amy" });
+  const before = useStore.getState().activeTabId;
+  useStore.getState().send("Show Jim Smith's chart");
+  assert.equal(useStore.getState().activeTabId, before);
+  assert.equal(useStore.getState().activeConversationId, "conv-amy");
+  assert.match(messages("conv-amy").at(-1).text, /couldn't identify/);
+  assert.equal(classified, 0);
+  useStore.setState({ requestModes: { "conv-amy": "clinical_question" } });
+  useStore.getState().send("go to medications");
+  useStore.getState().cancelRoutePreview("conv-amy");
+  useStore.setState({ requestModes: {} });
+  useStore.getState().send("Open labs and draft a note");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(classified, 2, "a chosen workflow and mixed requests still classify");
+  assert.equal(useStore.getState().routePreviews["conv-amy"].status, "ready");
+});
+
 test("General chat is always available and never attaches the open patient", async () => {
   chart.loadWorkspace = async () => ({ patients: [], actions: [] });
   api.getCapabilities = async () => ({ assistant: true });
@@ -356,8 +392,9 @@ test("vitals list always shows expected rows, as Not recorded when missing", (t)
 });
 const { demoPrompts, demoPrompt } = require('./demo-prompts.ts');
 
-test('demo chips follow patient and mode, with three General chips and none for Auto', () => {
-  assert.equal(demoPrompts(null).length, 3);
+test('demo chips follow patient and mode, with two General chips and none for Auto', () => {
+  assert.equal(demoPrompts(null).length, 2);
+  assert.ok(!demoPrompts(null).some((p) => p.label === 'Clinical documentation'));
   for (const digit of ['1', '2', '3']) {
     const patientId = `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`;
     assert.deepEqual(demoPrompts(patientId), []);
@@ -384,7 +421,7 @@ test('a scripted patient sentence submits without a routing preview', () => {
   } finally { useStore.setState({ sendConfirmed: original }); }
 });
 
-test('composer renders one selected patient chip, none for Auto, and all three General chips', () => {
+test('composer renders one selected patient chip, none for Auto, and both General chips, never a checking status', () => {
   const Module = require('node:module');
   const path = require('node:path');
   const React = require('react');
@@ -400,8 +437,8 @@ test('composer renders one selected patient chip, none for Auto, and all three G
   };
   try {
     const { Composer } = require('../components/agent/composer.tsx');
-    const render = (patientId, mode) => {
-      const state = { ...originalStore.getState(), conversations: [{ id: 'demo', patientId, messages: [] }], routePreviews: {}, requestModes: { demo: mode } };
+    const render = (patientId, mode, preview) => {
+      const state = { ...originalStore.getState(), conversations: [{ id: 'demo', patientId, messages: [] }], routePreviews: preview ? { demo: preview } : {}, requestModes: { demo: mode } };
       storeModule.useStore = (selector) => selector(state);
       return renderToStaticMarkup(React.createElement(Composer, { conversationId: 'demo' }));
     };
@@ -414,7 +451,8 @@ test('composer renders one selected patient chip, none for Auto, and all three G
       assert.match(html, new RegExp(demoPrompts(patient, route)[0].label));
     }
     const general = render(null);
-    assert.equal((general.match(/<button[^>]* title=/g) || []).length, 3);
+    assert.equal((general.match(/<button[^>]* title=/g) || []).length, 2);
+    assert.doesNotMatch(render(patient, undefined, { status: 'checking', text: 'Clinical question' }), /Checking which workflow/);
     assert.doesNotMatch(general, /aria-label="Request workflow"/);
   } finally {
     storeModule.useStore = originalStore;

@@ -75,12 +75,5 @@
     "route": "clinical_question",
     "label": "Reading evidence",
     "text": "How should absolute and relative risk reduction be interpreted in clinical research?"
-  },
-  {
-    "id": "general-documentation",
-    "patient_id": null,
-    "route": "clinical_question",
-    "label": "Clinical documentation",
-    "text": "What information belongs in a concise SOAP note?"
   }
 ]

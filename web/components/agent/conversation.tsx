@@ -54,7 +54,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
           </ol>
         )}
       </div>
-      <div className={cn(column, "shrink-0 pb-5")}>
+      <div className={cn(column, "shrink-0 border-t border-white/15 pt-3 pb-5")}>
         {capabilities?.assistant === false && <p className="agent-dim mb-3 text-[11px] leading-relaxed">The assistant is not configured on the server. Direct chart entry is available.</p>}
         <Composer key={conversation.id} conversationId={conversation.id} />
       </div>

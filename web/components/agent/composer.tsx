@@ -64,8 +64,8 @@ export function Composer({ conversationId }: { conversationId: string }) {
     {prompts.length > 0 && <div className="mb-3 flex flex-wrap gap-2" aria-label="Demo prompts">
       {prompts.map((prompt) => <button key={prompt.id} type="button" title={prompt.text} disabled={working || routing || listening || starting || Boolean(audio)} onClick={() => { activate(conversationId); send(prompt.text); }} className="rounded-full border border-white/25 px-3 py-2 text-[12px] font-medium text-white/90 hover:bg-white/10 disabled:opacity-50">{prompt.label}</button>)}
     </div>}
-    {routePreview && <div className="agent-card mb-3 rounded-lg border border-hairline bg-ivory p-4 text-ink">
-      {routePreview.status === "checking" ? <p role="status" className="text-[13px]">Checking which workflow fits this request…</p> : routePreview.status === "error" ? <>
+    {routePreview && routePreview.status !== "checking" && <div className="agent-card mb-3 rounded-lg border border-hairline bg-ivory p-4 text-ink">
+      {routePreview.status === "error" ? <>
         <p role="alert" className="text-[13px] leading-relaxed">{routePreview.error}</p>
         <button type="button" className="mt-3 text-[12px] font-semibold text-jade-700" onClick={() => { activate(conversationId); send(routePreview.text, routePreview.audio); }}>Try again</button>
       </> : routePreview.route && <>

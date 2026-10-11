@@ -137,12 +137,19 @@ def test_navigation_is_durable_scoped_and_acknowledged_only_after_snapshot(clien
     ('Open Amy Lee chart', 'Amy Lee', 'overview'),
     ('Can you open up Amy Lee\u2019s chart?', 'Amy Lee', 'overview'),
     ('Could you please show me the medications for Amy Lee?', 'Amy Lee', 'medications'),
+    ('Switch to the labs tab', None, 'lab'),
+    ('go to medications', None, 'medications'),
+    ('Show blood pressure', None, 'vitals'),
+    ('Navigate to the lab view', None, 'lab'),
+    ('I want to see John Roe’s information', 'John Roe', 'overview'),
+    ('Show me Jane Doe\'s chart', 'Jane Doe', 'overview'),
+    ('Show John Roe\'s labs', 'John Roe', 'lab'),
 ])
 def test_read_only_navigation_parser(text, query, view):
     assert parse_navigation(text) == {'patient_query': query, 'needs_patient': True, 'route': None, 'views': [view]}
 
 
-@pytest.mark.parametrize('text', ['Open Amy Lee vitals and change weight to 70', 'Research hypertension and open vitals', 'Change weight to 70', 'Open https://example.com', 'Open medications and labs'])
+@pytest.mark.parametrize('text', ['Open Amy Lee vitals and change weight to 70', 'Research hypertension and open vitals', 'Change weight to 70', 'Open https://example.com', 'Open medications and labs', 'Open labs and draft a note', 'Switch to medications and research statins'])
 def test_navigation_parser_never_shortcuts_mixed_or_unsupported_requests(text):
     assert parse_navigation(text) is None
 

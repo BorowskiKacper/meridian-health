@@ -16,9 +16,11 @@ class Intent(BaseModel):
 
 
 def parse_navigation(text):
-    """Recognize only complete, unambiguous read-only opening commands."""
+    """Recognize only complete, unambiguous read-only opening commands. Mirrored in web/lib/navigation.ts."""
     aliases = {
         'chart': 'overview', 'overview': 'overview', 'patient chart': 'overview',
+        'information': 'overview', 'info': 'overview', 'profile': 'overview', 'record': 'overview',
+        'lab': 'lab', 'visit': 'visit', 'reminders': 'reminders',
         'vitals': 'vitals', 'vital signs': 'vitals', 'trends': 'vitals',
         'blood pressure': 'vitals', 'blood pressure trends': 'vitals', 'weight trends': 'vitals',
         'problems': 'problems', 'problem list': 'problems',
@@ -27,7 +29,7 @@ def parse_navigation(text):
         'visit draft': 'visit', 'follow-up': 'reminders', 'follow up': 'reminders',
         'history': 'history', 'timeline': 'timeline', 'body': 'body', '3d view': 'body', 'queue': 'queue',
     }
-    match = re.fullmatch(r'(?:(?:please|(?:can|could|would) you(?: please)?)\s+)?(?:open(?: up)?|show(?: me)?|display|bring up|pull up|take me to)\s+(.+?)(?:\s+on\s+(?:my|the)\s+(?:laptop|desktop))?[.!?]?', text.strip(), re.I)
+    match = re.fullmatch(r'(?:(?:please|(?:can|could|would) you(?: please)?)\s+)?(?:open(?: up)?|show(?: me)?|display|bring up|pull up|take me to|(?:switch|go|navigate|change) to|(?:i\s+(?:want|would like)\s+to\s+|i[’\x27]d like to\s+|let me\s+)?see)\s+(.+?)(?:\s+on\s+(?:my|the)\s+(?:laptop|desktop))?[.!?]?', text.strip(), re.I)
     if not match:
         return None
     request = match[1]

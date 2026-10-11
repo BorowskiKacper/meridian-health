@@ -1,6 +1,7 @@
 "use client";
 
 import { demoPrompt } from "./demo-prompts";
+import { findPatient, parseNavigation } from "./navigation";
 import { create } from "zustand";
 import { ApiError } from "./api";
 import { approveSuggestions, createPlanItem, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
@@ -24,19 +25,6 @@ import type {
 
 let seq = 0;
 const uid = (prefix: string) => `${prefix}-${++seq}`;
-
-const OPEN_TAB: Record<string, TabKind> = {
-  "open the overview": "overview",
-  "open the vitals": "vitals",
-  "open the medications": "medications",
-  "open the allergies": "allergies",
-  "open the timeline": "timeline",
-  "open the approvals": "queue",
-  "open the lab report": "lab",
-  "open the lab": "lab",
-  "open the reminders": "reminders",
-  "open the body": "body",
-};
 
 const ROUTE_LABEL = {
   chart_update: "chart",
@@ -360,7 +348,9 @@ export const useStore = create<State>()((set, get) => {
       }
       const patientId = conversation.patientId;
       const mode = get().requestModes[id];
-      if (!mode && !audio && OPEN_TAB[text.trim().toLowerCase()]) {
+      // Chart navigation skips classification; a chosen workflow only outranks switching sections, not patients.
+      const navigation = audio ? null : parseNavigation(text);
+      if (navigation && (navigation.patient || !mode)) {
         get().sendConfirmed(text, undefined, undefined, id);
         return;
       }
@@ -413,21 +403,23 @@ export const useStore = create<State>()((set, get) => {
         return;
       }
       const doctor: Message = { id: uid("msg"), role: "doctor", text };
-      const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true, route: routeOverride ? ROUTE_LABEL[routeOverride] : undefined };
-      updateConversation(conversationId, (c) => ({ ...c, messages: [...c.messages, doctor, reply] }));
       const requestMode = routeOverride ?? get().requestModes[conversationId];
-      const localTab = audio || requestMode || !conversation.patientId ? undefined : OPEN_TAB[text.trim().toLowerCase()];
-      if (localTab && conversation.patientId) {
-        get().openTab(localTab, conversation.patientId);
-        updateMessage(conversationId, reply.id, {
-          text: "Opened it beside the chart.",
-          route: "navigate",
-          routedBy: "auto",
-          requestText: text,
-          pending: false,
-        });
+      const navigation = audio || !conversation.patientId ? null : parseNavigation(text);
+      if (navigation && (navigation.patient || !requestMode)) {
+        const patient = navigation.patient ? findPatient(get().patients, navigation.patient) : get().patients[conversation.patientId!];
+        const reply = (replyText: string): Message => ({ id: uid("msg"), role: "agent", text: replyText, route: "navigate", routedBy: "auto", requestText: text });
+        if (!patient) {
+          updateConversation(conversationId, (c) => ({ ...c, messages: [...c.messages, doctor, reply(`I couldn't identify a patient named ${navigation.patient}. Nothing was changed.`)] }));
+          return;
+        }
+        get().openTab(navigation.view, patient.id);
+        const destination = patient.id === conversation.patientId ? conversationId : conversationFor(patient.id);
+        updateConversation(destination, (c) => ({ ...c, messages: [...c.messages, doctor, reply(destination === conversationId ? "Opened it beside the chart." : `Opened ${patient.name}'s chart.`)] }));
+        set({ activeConversationId: destination });
         return;
       }
+      const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true, route: routeOverride ? ROUTE_LABEL[routeOverride] : undefined };
+      updateConversation(conversationId, (c) => ({ ...c, messages: [...c.messages, doctor, reply] }));
       void (async () => {
         try {
           const result = conversation.patientId === null ? await postGeneralChat(text, audio) : audio ? await postVoiceRequest(conversation.patientId, audio, requestMode, reviewedTranscript) : await postRequest(conversation.patientId, text, requestMode);
