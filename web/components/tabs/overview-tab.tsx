@@ -28,7 +28,7 @@ export function OverviewTab({ patientId }: { patientId: string }) {
   const vitals = [...bloodPressure(patient.trends), ...patient.trends.filter((t) => VITALS.slice(1).some((v) => v.match.test(t.name)))];
   return (
     <Page wide>
-      <PageHeader title={`${firstName(patient.name)}’s Overview`} actions={<button type="button" className="flex h-9 items-center gap-2 rounded-md border border-hairline-strong px-3 text-[13px] text-jade-700 hover:bg-jade-50" onClick={() => openTab("body", patientId)}>Explore anatomy <ArrowUpRight className="size-3.5" /></button>} />
+      <PageHeader title={`${firstName(patient.name)}’s Overview`} actions={<button type="button" className="flex h-9 items-center gap-2 rounded-md border border-hairline-strong px-3 text-[13px] text-jade-700 hover:bg-jade-50" onClick={() => openTab("body", patientId)}>3D view <ArrowUpRight className="size-3.5" /></button>} />
       <OverviewSection className="mt-6" title="Last visit note" action="All notes" onAction={() => openTab("timeline", patientId, "notes")}>
         {lastNote ? <article className="rounded-lg border border-hairline bg-ivory p-4"><time className="text-[12px] text-ink-faint" dateTime={lastNote.at}>{formatDate(lastNote.at)}</time><p className="mt-2 whitespace-pre-line text-[14px] leading-relaxed text-ink">{lastNote.text}</p></article> : <p className="text-sm text-ink-faint">No previous visit note recorded.</p>}
       </OverviewSection>
