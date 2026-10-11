@@ -58,4 +58,4 @@ services:
         value: "24"
       # Read by next.config.ts at build time for the /backend-api proxy.
       - key: BACKEND_ORIGIN
-        value: https://api.meridians.nyc
+        value: https://meridian-api-nad7.onrender.com
