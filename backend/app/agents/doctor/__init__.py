@@ -43,7 +43,7 @@ def _as_of_today():
     return datetime.now(timezone.utc).date()
 
 
-def route_doctor_request(patient_id, text, channel, *, session, route=None):
+def route_doctor_request(patient_id, text, channel, *, session, route=None, use_demo_cache=True):
     try:
         patient = get_patient(session, patient_id)
     except ValueError:
@@ -52,6 +52,12 @@ def route_doctor_request(patient_id, text, channel, *, session, route=None):
         return {"error": {"code": "not_found", "message": "Patient was not found."}}
     if not isinstance(text, str) or not text.strip():
         return {"error": {"code": "validation_error", "message": "A nonempty request or recognized transcript is required."}}
+
+    if use_demo_cache and channel == "typed":
+        from app.demo.cache import cached_response
+        cached = cached_response(patient_id, text, session=session)
+        if cached is not None:
+            return cached
 
     with bind_patient_name(patient.get("display_name")):
         return _bound_doctor_request(patient_id, text, channel, session=session, route=route)

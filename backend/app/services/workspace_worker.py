@@ -48,9 +48,12 @@ def execute(session, job):
         ws.put(session, job.id, 'patient_query', query[:200])
         ws.put(session, job.id, 'clarification_voice', False)
         session.execute(delete(WorkspaceChunk).where(WorkspaceChunk.owner_id == job.id, WorkspaceChunk.slot == 'clarification_audio'))
-    intent = ws.read(session, job.id, 'intent') or interpret_prompt(job.transcript, has_patient=bool(job.patient_id))
+    from app.demo.cache import find_prompt, cached_response
+    demo = find_prompt(job.patient_id, job.transcript) if job.channel == 'typed' else None
+    demo_intent = {'route': demo['route'], 'views': [], 'needs_patient': bool(job.patient_id), 'patient_query': None} if demo else None
+    intent = demo_intent or ws.read(session, job.id, 'intent') or interpret_prompt(job.transcript, has_patient=bool(job.patient_id))
     explicit_route = ws.read(session, job.id, 'input', {}).get('route')
-    if explicit_route and not (intent['views'] and intent['route'] is None):
+    if explicit_route and not demo and not (intent['views'] and intent['route'] is None):
         intent['route'] = explicit_route
         intent['needs_patient'] = explicit_route != 'clinical_question' or intent['needs_patient']
     intent['needs_patient'] = intent['needs_patient'] or bool(intent['views']) or intent['route'] in ('chart_update', 'check_screenings')
@@ -77,7 +80,9 @@ def execute(session, job):
         job.patient_id = None
     navigation = open_workspace_views(job.patient_id, intent['views'], session=session) if intent['views'] else []
     if intent['route']:
-        if job.patient_id:
+        if demo and not job.patient_id:
+            response = cached_response(None, job.transcript)
+        elif job.patient_id:
             response = route_doctor_request(str(job.patient_id), job.transcript, job.channel, session=session, route=intent['route'])
         else:
             response = {'request_id': str(job.id), 'transcript': job.transcript, 'route': 'clinical_question', 'answer': _research_answer(None, job.transcript, None), 'suggestions': [], 'audio_base64': None, 'spoken_text': None}

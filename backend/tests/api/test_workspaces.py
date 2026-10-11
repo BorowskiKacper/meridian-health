@@ -34,6 +34,31 @@ def submit(client, headers, text='Open Amy Lee’s trends', **data):
     return response.json()
 
 
+@pytest.mark.parametrize('prompt_id', ['general-screening', 'john-clinical_question', 'john-check_screenings', 'john-chart_update'])
+def test_demo_job_skips_intent_and_live_assistant(client, paired, monkeypatch, prompt_id):
+    from app.demo.cache import PROMPTS
+    prompt = next(p for p in PROMPTS if p['id'] == prompt_id)
+    desktop, phone, _, session = paired
+    def forbidden(*args, **kwargs):
+        pytest.fail('Demo request called a live model')
+    monkeypatch.setattr('app.mcp.workspace_tools.interpret_prompt', forbidden)
+    monkeypatch.setattr('app.agents.doctor.model.complete', forbidden)
+    monkeypatch.setattr('app.agents.doctor._research_answer', forbidden)
+    data = {'route': prompt['route']}
+    if prompt['patient_id']:
+        data['patient_id'] = prompt['patient_id']
+    submitted = submit(client, desktop, prompt['text'], **data)
+    job_id = claim(session)
+    assert str(job_id) == submitted['id']
+    execute(session, session.get(WorkspaceJob, job_id))
+    session.commit()
+    result = client.get('/workspaces/requests/' + submitted['id'], headers=desktop).json()
+    assert result['status'] == 'completed'
+    assert result['patient_id'] == prompt['patient_id']
+    assert result['response']['route'] == prompt['route']
+    assert result['response']['answer'] or result['response']['suggestions']
+
+
 def run(session, monkeypatch, *, query='Amy Lee', views=None, route=None, needs=True):
     import app.mcp.workspace_tools as tools
     monkeypatch.setattr(tools, 'interpret_prompt', lambda *args, **kwargs: {'patient_query': query, 'needs_patient': needs, 'views': ['vitals'] if views is None else views, 'route': route})

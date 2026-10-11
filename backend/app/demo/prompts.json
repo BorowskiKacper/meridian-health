@@ -1,0 +1,86 @@
+[
+  {
+    "id": "john-clinical_question",
+    "patient_id": "22222222-2222-4222-8222-222222222222",
+    "route": "clinical_question",
+    "label": "Research chart",
+    "text": "What are the main clinical considerations in John Roe's recorded chart?"
+  },
+  {
+    "id": "john-check_screenings",
+    "patient_id": "22222222-2222-4222-8222-222222222222",
+    "route": "check_screenings",
+    "label": "Review screenings",
+    "text": "Review the screening needs and care gaps in John Roe's recorded chart."
+  },
+  {
+    "id": "john-chart_update",
+    "patient_id": "22222222-2222-4222-8222-222222222222",
+    "route": "chart_update",
+    "label": "Draft visit note",
+    "text": "Draft a note for John Roe stating that the recorded medications and screening plan were reviewed today."
+  },
+  {
+    "id": "amy-clinical_question",
+    "patient_id": "33333333-3333-4333-8333-333333333333",
+    "route": "clinical_question",
+    "label": "Research chart",
+    "text": "What are the main clinical considerations in Amy Lee's recorded chart?"
+  },
+  {
+    "id": "amy-check_screenings",
+    "patient_id": "33333333-3333-4333-8333-333333333333",
+    "route": "check_screenings",
+    "label": "Review screenings",
+    "text": "Review the screening needs and care gaps in Amy Lee's recorded chart."
+  },
+  {
+    "id": "amy-chart_update",
+    "patient_id": "33333333-3333-4333-8333-333333333333",
+    "route": "chart_update",
+    "label": "Draft visit note",
+    "text": "Draft a note for Amy Lee stating that the recorded medications and screening plan were reviewed today."
+  },
+  {
+    "id": "jane-clinical_question",
+    "patient_id": "11111111-1111-4111-8111-111111111111",
+    "route": "clinical_question",
+    "label": "Research chart",
+    "text": "What are the main clinical considerations in Jane Doe's recorded chart?"
+  },
+  {
+    "id": "jane-check_screenings",
+    "patient_id": "11111111-1111-4111-8111-111111111111",
+    "route": "check_screenings",
+    "label": "Review screenings",
+    "text": "Review the screening needs and care gaps in Jane Doe's recorded chart."
+  },
+  {
+    "id": "jane-chart_update",
+    "patient_id": "11111111-1111-4111-8111-111111111111",
+    "route": "chart_update",
+    "label": "Draft visit note",
+    "text": "Draft a note for Jane Doe stating that the recorded medications and screening plan were reviewed today."
+  },
+  {
+    "id": "general-screening",
+    "patient_id": null,
+    "route": "clinical_question",
+    "label": "Screening principles",
+    "text": "What is the difference between screening and diagnostic testing?"
+  },
+  {
+    "id": "general-evidence",
+    "patient_id": null,
+    "route": "clinical_question",
+    "label": "Reading evidence",
+    "text": "How should absolute and relative risk reduction be interpreted in clinical research?"
+  },
+  {
+    "id": "general-documentation",
+    "patient_id": null,
+    "route": "clinical_question",
+    "label": "Clinical documentation",
+    "text": "What information belongs in a concise SOAP note?"
+  }
+]

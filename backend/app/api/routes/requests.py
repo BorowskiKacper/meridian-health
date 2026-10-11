@@ -27,6 +27,11 @@ def _general_chat(text, audio):
         text = SpeechHook().transcribe(audio)
     if not isinstance(text, str) or not text.strip():
         return error_response("validation_error", "A nonempty question or recognized transcript is required.")
+    if audio is None:
+        from app.demo.cache import cached_response
+        cached = cached_response(None, text)
+        if cached is not None:
+            return finish(cached)
     answer = _research_answer(None, text, None)
     spoken = None
     if audio is not None and answer.get("text"):
@@ -52,6 +57,11 @@ def _preview_request(patient_id, text, audio):
     if audio is not None:
         from app.speech.hook import SpeechHook
         text = SpeechHook().transcribe(audio)
+    if audio is None:
+        from app.demo.cache import find_prompt
+        prompt = find_prompt(patient_id, text)
+        if prompt:
+            return {"route": prompt["route"], "transcript": text, "description": "Scripted demo prompt"}
     with api_db.get_session() as session:
         return finish(preview_request_route(patient_id, text, session=session))
 

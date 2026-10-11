@@ -7,7 +7,7 @@ const ts = require("typescript");
 require.extensions[".ts"] = (module, filename) => {
   const source = fs.readFileSync(filename, "utf8");
   module._compile(ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText, filename);
 };
 const api = require("./api.ts");
@@ -202,7 +202,7 @@ test("research rendering supports safe links, chart excerpts and legacy answers"
     return original.call(this, specifier.startsWith("@/") ? path.resolve(specifier.slice(2)) : specifier, ...args);
   };
   require.extensions[".tsx"] = (module, filename) => {
-    module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
+    module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
   };
   try {
     const React = require("react");
@@ -353,4 +353,71 @@ test("vitals list always shows expected rows, as Not recorded when missing", (t)
   assert.match(html, /Respiratory rate.*Not recorded/);
   assert.doesNotMatch(html, /Heart rate<\/span><span[^>]*>Not recorded/);
   assert.match(html, /\+6/);
+});
+const { demoPrompts, demoPrompt } = require('./demo-prompts.ts');
+
+test('demo chips follow patient and mode, with three General chips and none for Auto', () => {
+  assert.equal(demoPrompts(null).length, 3);
+  for (const digit of ['1', '2', '3']) {
+    const patientId = `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`;
+    assert.deepEqual(demoPrompts(patientId), []);
+    for (const route of ['clinical_question', 'check_screenings', 'chart_update']) {
+      const prompts = demoPrompts(patientId, route);
+      assert.equal(prompts.length, 1);
+      assert.equal(demoPrompt(patientId, prompts[0].text), prompts[0]);
+      assert.equal(demoPrompt(null, prompts[0].text), undefined);
+    }
+  }
+  assert.deepEqual(demoPrompts('unknown', 'clinical_question'), []);
+  assert.deepEqual(demoPrompts(undefined), []);
+});
+
+test('a scripted patient sentence submits without a routing preview', () => {
+  const prompt = demoPrompts('22222222-2222-4222-8222-222222222222', 'clinical_question')[0];
+  const original = useStore.getState().sendConfirmed;
+  const calls = [];
+  useStore.setState({ conversations: [{ id: 'demo', patientId: prompt.patient_id, messages: [] }], activeConversationId: 'demo', routePreviews: {}, sendConfirmed: (...args) => calls.push(args) });
+  try {
+    useStore.getState().send(prompt.text);
+    assert.deepEqual(calls, [[prompt.text, undefined, prompt.route, 'demo']]);
+    assert.deepEqual(useStore.getState().routePreviews, {});
+  } finally { useStore.setState({ sendConfirmed: original }); }
+});
+
+test('composer renders one selected patient chip, none for Auto, and all three General chips', () => {
+  const Module = require('node:module');
+  const path = require('node:path');
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const storeModule = require('./store.ts');
+  const originalStore = storeModule.useStore;
+  const originalResolve = Module._resolveFilename;
+  Module._resolveFilename = function (specifier, ...args) {
+    return originalResolve.call(this, specifier.startsWith('@/') ? path.resolve(__dirname, '..', specifier.slice(2)) : specifier, ...args);
+  };
+  require.extensions['.tsx'] = (module, filename) => {
+    module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
+  };
+  try {
+    const { Composer } = require('../components/agent/composer.tsx');
+    const render = (patientId, mode) => {
+      const state = { ...originalStore.getState(), conversations: [{ id: 'demo', patientId, messages: [] }], routePreviews: {}, requestModes: { demo: mode } };
+      storeModule.useStore = (selector) => selector(state);
+      return renderToStaticMarkup(React.createElement(Composer, { conversationId: 'demo' }));
+    };
+    const patient = '22222222-2222-4222-8222-222222222222';
+    assert.doesNotMatch(render(patient), /aria-label="Demo prompts"/);
+    assert.doesNotMatch(render('unknown', 'clinical_question'), /aria-label="Demo prompts"/);
+    for (const route of ['clinical_question', 'check_screenings', 'chart_update']) {
+      const html = render(patient, route);
+      assert.equal((html.match(/<button[^>]* title=/g) || []).length, 1);
+      assert.match(html, new RegExp(demoPrompts(patient, route)[0].label));
+    }
+    const general = render(null);
+    assert.equal((general.match(/<button[^>]* title=/g) || []).length, 3);
+    assert.doesNotMatch(general, /aria-label="Request workflow"/);
+  } finally {
+    storeModule.useStore = originalStore;
+    Module._resolveFilename = originalResolve;
+  }
 });

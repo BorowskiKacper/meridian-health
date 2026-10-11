@@ -1,5 +1,6 @@
 "use client";
 
+import { demoPrompt } from "./demo-prompts";
 import { create } from "zustand";
 import { ApiError } from "./api";
 import { approveSuggestions, createPlanItem, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
@@ -348,6 +349,11 @@ export const useStore = create<State>()((set, get) => {
       }
       const conversation = get().conversations.find((c) => c.id === id);
       if (!conversation || conversation.messages.some((m) => m.pending) || get().routePreviews[id]?.status === "checking" || get().routePreviews[id]?.status === "ready") return;
+      const scripted = !audio && demoPrompt(conversation.patientId, text);
+      if (scripted) {
+        get().sendConfirmed(text, undefined, scripted.route as RequestRoute, id);
+        return;
+      }
       if (conversation.patientId === null) {
         get().sendConfirmed(text, audio, getWorkspaceToken() ? undefined : "clinical_question", id);
         return;

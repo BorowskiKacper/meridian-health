@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Mic, Square } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { demoPrompts } from "@/lib/demo-prompts";
 
 const workflowLabels = { clinical_question: "Research", chart_update: "Document", check_screenings: "Screenings" };
 
 export function Composer({ conversationId }: { conversationId: string }) {
   const general = useStore((s) => s.conversations.find((c) => c.id === conversationId)?.patientId === null);
+  const patientId = useStore((s) => s.conversations.find((c) => c.id === conversationId)?.patientId);
   const requestMode = useStore((s) => s.requestModes[conversationId]);
   const setRequestMode = useStore((s) => s.setRequestMode);
   const routePreview = useStore((s) => s.routePreviews[conversationId]);
@@ -31,6 +33,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const stream = useRef<MediaStream | null>(null);
   const mounted = useRef(true);
   const routing = routePreview?.status === "checking" || routePreview?.status === "ready";
+  const prompts = demoPrompts(patientId, requestMode);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; if (recorder.current?.state === "recording") recorder.current.stop(); stream.current?.getTracks().forEach((track) => track.stop()); }; }, []);
   useEffect(() => { if (!audio) return; const url = URL.createObjectURL(audio); if (preview.current) preview.current.src = url; return () => URL.revokeObjectURL(url); }, [audio]);
   const record = async () => {
@@ -57,6 +60,9 @@ export function Composer({ conversationId }: { conversationId: string }) {
   return <div>
     {!general && <div className="mb-3 flex items-center gap-1" aria-label="Request workflow">
       {([{ label: "Auto", route: undefined }, { label: "Research", route: "clinical_question" }, { label: "Document", route: "chart_update" }, { label: "Screenings", route: "check_screenings" }] as const).map(({ label, route }) => <button key={label} type="button" aria-pressed={requestMode === route} disabled={working || routing || listening || starting || Boolean(audio)} onClick={() => setRequestMode(conversationId, route)} className={`rounded-md px-2.5 py-2 text-[12px] font-medium transition-colors disabled:opacity-50 ${requestMode === route ? "bg-white/15 text-white ring-1 ring-white/25" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{label}</button>)}
+    </div>}
+    {prompts.length > 0 && <div className="mb-3 flex flex-wrap gap-2" aria-label="Demo prompts">
+      {prompts.map((prompt) => <button key={prompt.id} type="button" title={prompt.text} disabled={working || routing || listening || starting || Boolean(audio)} onClick={() => { activate(conversationId); send(prompt.text); }} className="rounded-full border border-white/25 px-3 py-2 text-[12px] font-medium text-white/90 hover:bg-white/10 disabled:opacity-50">{prompt.label}</button>)}
     </div>}
     {routePreview && <div className="agent-card mb-3 rounded-lg border border-hairline bg-ivory p-4 text-ink">
       {routePreview.status === "checking" ? <p role="status" className="text-[13px]">Checking which workflow fits this request…</p> : routePreview.status === "error" ? <>

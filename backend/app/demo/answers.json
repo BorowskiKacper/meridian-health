@@ -1,0 +1,682 @@
+{
+  "john-clinical_question": {
+    "prompt": {
+      "id": "john-clinical_question",
+      "patient_id": "22222222-2222-4222-8222-222222222222",
+      "route": "clinical_question",
+      "label": "Research chart",
+      "text": "What are the main clinical considerations in John Roe's recorded chart?"
+    },
+    "captured_at": "2026-10-11T13:58:27.037283+00:00",
+    "response": {
+      "transcript": "What are the main clinical considerations in John Roe's recorded chart?",
+      "route": "clinical_question",
+      "suggestions": [],
+      "answer": {
+        "text": "Recent manual entries from October 10, 2026, indicate severe, physiologically extreme vital sign elevations (SBP 314 mmHg, DBP 234 mmHg, HR 324 bpm, weight 200 kg) that require immediate verification for potential entry error versus acute emergency presentation.\n\nCOPD has been listed as an active condition since January 15, 2018, and tiotropium 18 mcg inhaled daily was initiated on January 16, 2018. A manual entry on October 10, 2026, documented a systolic BP of 314 mmHg, diastolic BP of 234 mmHg, heart rate of 324 beats/min, and body weight of 200 kg. Family history is notable for asthma in the patient's mother diagnosed at age 55.\n\nThe chart lacks progress notes explaining the context or accuracy of the extreme manual vital sign entries on October 10, 2026. Specific smoking history (pack-year duration) and recent pulmonary function tests or symptom scores for COPD are not recorded.",
+        "citations": [
+          {
+            "source_id": "ac2efec2-ee53-5b19-b052-070671ac2ec6",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"ac2efec2-ee53-5b19-b052-070671ac2ec6\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"Systolic blood pressure\", \"value\": 314.0, \"unit\": \"mmHg\", \"observed_at\": \"2026-10-10T21:38:00Z\", \"source\": \"manual_entry\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:ac2efec2-ee53-5b19-b052-070671ac2ec6",
+            "tier": "chart"
+          },
+          {
+            "source_id": "c831fc51-0953-5de1-836b-606c2310f4a8",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"c831fc51-0953-5de1-836b-606c2310f4a8\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"Diastolic blood pressure\", \"value\": 234.0, \"unit\": \"mmHg\", \"observed_at\": \"2026-10-10T21:38:00Z\", \"source\": \"manual_entry\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:c831fc51-0953-5de1-836b-606c2310f4a8",
+            "tier": "chart"
+          },
+          {
+            "source_id": "08641afd-000e-541c-a141-3e3d83c286eb",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"08641afd-000e-541c-a141-3e3d83c286eb\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"Heart rate\", \"value\": 324.0, \"unit\": \"beats/min\", \"observed_at\": \"2026-10-10T21:38:00Z\", \"source\": \"manual_entry\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:08641afd-000e-541c-a141-3e3d83c286eb",
+            "tier": "chart"
+          },
+          {
+            "source_id": "a700c85b-4537-5ee3-b639-6baccfe354ca",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"a700c85b-4537-5ee3-b639-6baccfe354ca\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"Body weight\", \"value\": 200.0, \"unit\": \"kg\", \"observed_at\": \"2026-10-10T21:38:00Z\", \"source\": \"manual_entry\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:a700c85b-4537-5ee3-b639-6baccfe354ca",
+            "tier": "chart"
+          },
+          {
+            "source_id": "61a6414a-127d-4e37-beb8-4a386cb30f2f",
+            "title": "Recorded conditions",
+            "passage": "{\"id\": \"61a6414a-127d-4e37-beb8-4a386cb30f2f\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"COPD\", \"status\": \"active\", \"onset_date\": \"2018-01-15\", \"body_region_key\": \"lung\"}",
+            "locator": "condition:61a6414a-127d-4e37-beb8-4a386cb30f2f",
+            "tier": "chart"
+          },
+          {
+            "source_id": "cd92ea27-5a97-47c3-ac83-7471e28d1361",
+            "title": "Recorded medications",
+            "passage": "{\"id\": \"cd92ea27-5a97-47c3-ac83-7471e28d1361\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"Tiotropium\", \"dose\": \"18 mcg\", \"route\": \"inhaled\", \"frequency\": \"daily\", \"status\": \"active\", \"start_date\": \"2018-01-16\", \"body_region_key\": \"lung\"}",
+            "locator": "medication:cd92ea27-5a97-47c3-ac83-7471e28d1361",
+            "tier": "chart"
+          },
+          {
+            "source_id": "0dc6ac47-a404-435e-bb7a-48d988376c93",
+            "title": "Recorded family history",
+            "passage": "{\"id\": \"0dc6ac47-a404-435e-bb7a-48d988376c93\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"relationship\": \"mother\", \"condition\": \"asthma\", \"age_at_diagnosis\": 55}",
+            "locator": "family_history:0dc6ac47-a404-435e-bb7a-48d988376c93",
+            "tier": "chart"
+          }
+        ],
+        "sections": [
+          {
+            "title": "Clinical interpretation",
+            "text": "Recent manual entries from October 10, 2026, indicate severe, physiologically extreme vital sign elevations (SBP 314 mmHg, DBP 234 mmHg, HR 324 bpm, weight 200 kg) that require immediate verification for potential entry error versus acute emergency presentation.",
+            "source_ids": [
+              "ac2efec2-ee53-5b19-b052-070671ac2ec6",
+              "c831fc51-0953-5de1-836b-606c2310f4a8",
+              "08641afd-000e-541c-a141-3e3d83c286eb",
+              "a700c85b-4537-5ee3-b639-6baccfe354ca"
+            ]
+          },
+          {
+            "title": "Supporting findings",
+            "text": "COPD has been listed as an active condition since January 15, 2018, and tiotropium 18 mcg inhaled daily was initiated on January 16, 2018. A manual entry on October 10, 2026, documented a systolic BP of 314 mmHg, diastolic BP of 234 mmHg, heart rate of 324 beats/min, and body weight of 200 kg. Family history is notable for asthma in the patient's mother diagnosed at age 55.",
+            "source_ids": [
+              "61a6414a-127d-4e37-beb8-4a386cb30f2f",
+              "cd92ea27-5a97-47c3-ac83-7471e28d1361",
+              "ac2efec2-ee53-5b19-b052-070671ac2ec6",
+              "c831fc51-0953-5de1-836b-606c2310f4a8",
+              "08641afd-000e-541c-a141-3e3d83c286eb",
+              "a700c85b-4537-5ee3-b639-6baccfe354ca",
+              "0dc6ac47-a404-435e-bb7a-48d988376c93"
+            ]
+          },
+          {
+            "title": "Missing information",
+            "text": "The chart lacks progress notes explaining the context or accuracy of the extreme manual vital sign entries on October 10, 2026. Specific smoking history (pack-year duration) and recent pulmonary function tests or symptom scores for COPD are not recorded.",
+            "source_ids": [
+              "61a6414a-127d-4e37-beb8-4a386cb30f2f",
+              "ac2efec2-ee53-5b19-b052-070671ac2ec6",
+              "c831fc51-0953-5de1-836b-606c2310f4a8",
+              "08641afd-000e-541c-a141-3e3d83c286eb",
+              "a700c85b-4537-5ee3-b639-6baccfe354ca"
+            ]
+          }
+        ]
+      },
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "john-check_screenings": {
+    "prompt": {
+      "id": "john-check_screenings",
+      "patient_id": "22222222-2222-4222-8222-222222222222",
+      "route": "check_screenings",
+      "label": "Review screenings",
+      "text": "Review the screening needs and care gaps in John Roe's recorded chart."
+    },
+    "captured_at": "2026-10-11T13:58:43.983237+00:00",
+    "response": {
+      "transcript": "Review the screening needs and care gaps in John Roe's recorded chart.",
+      "route": "check_screenings",
+      "suggestions": [],
+      "answer": {
+        "text": "The patient is a 57-year-old with active COPD who currently has a lung cancer screening reminder scheduled for 2026-11-01. Screening is not up to date as there is no chart evidence of completed colorectal cancer screening, for which the patient meets the age criterion (baseline age 45). No reminder changes are proposed because no baseline guidelines for colorectal cancer screening were supplied in the evidence.",
+        "citations": []
+      },
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "john-chart_update": {
+    "prompt": {
+      "id": "john-chart_update",
+      "patient_id": "22222222-2222-4222-8222-222222222222",
+      "route": "chart_update",
+      "label": "Draft visit note",
+      "text": "Draft a note for John Roe stating that the recorded medications and screening plan were reviewed today."
+    },
+    "captured_at": "2026-10-11T13:58:55.458162+00:00",
+    "response": {
+      "transcript": "Draft a note for John Roe stating that the recorded medications and screening plan were reviewed today.",
+      "route": "chart_update",
+      "suggestions": [
+        {
+          "request_id": null,
+          "kind": "soap_note",
+          "target_table": "notes",
+          "target_id": null,
+          "before": {},
+          "after": {
+            "body": "Recorded medications and screening plan were reviewed today for John Roe."
+          },
+          "reason": "Drafted note per clinician request confirming review of recorded medications and screening plan.",
+          "confidence": 0.95,
+          "citations": [
+            {
+              "tier": "chart",
+              "title": "Recorded medications",
+              "locator": "medication:cd92ea27-5a97-47c3-ac83-7471e28d1361",
+              "passage": "{\"id\": \"cd92ea27-5a97-47c3-ac83-7471e28d1361\", \"patient_id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"Tiotropium\", \"dose\": \"18 mcg\", \"route\": \"inhaled\", \"frequency\": \"daily\", \"status\": \"active\", \"start_date\": \"2018-01-16\", \"body_region_key\": \"lung\"}",
+              "source_id": "cd92ea27-5a97-47c3-ac83-7471e28d1361"
+            }
+          ],
+          "validation_flags": [],
+          "source": "chart_agent"
+        }
+      ],
+      "answer": null,
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "amy-clinical_question": {
+    "prompt": {
+      "id": "amy-clinical_question",
+      "patient_id": "33333333-3333-4333-8333-333333333333",
+      "route": "clinical_question",
+      "label": "Research chart",
+      "text": "What are the main clinical considerations in Amy Lee's recorded chart?"
+    },
+    "captured_at": "2026-10-11T13:59:56.113850+00:00",
+    "response": {
+      "transcript": "What are the main clinical considerations in Amy Lee's recorded chart?",
+      "route": "clinical_question",
+      "suggestions": [],
+      "answer": {
+        "text": "Active diverticulosis is documented since September 1, 2021, and active daily psyllium treatment since September 2, 2021. Recent observations on August 1, 2025, show a hemoglobin of 13.0 g/dL, blood pressure of 120/76 mmHg, and body weight of 68.0 kg. Family history documents a sister diagnosed with colon polyps at age 42.\n\nThere are no recorded opposing findings or evidence of active diverticulitis or acute gastrointestinal complications in the patient's chart.\n\nThe chart lacks specific details regarding the pathology of the sister's colon polyps (such as whether they were advanced adenomas versus non-advanced polyps), which is relevant for colorectal cancer risk stratification.",
+        "citations": [
+          {
+            "source_id": "b884e439-e387-4ecc-b700-911bc9522343",
+            "title": "Recorded conditions",
+            "passage": "{\"id\": \"b884e439-e387-4ecc-b700-911bc9522343\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Diverticulosis\", \"status\": \"active\", \"onset_date\": \"2021-09-01\", \"body_region_key\": \"colon\"}",
+            "locator": "condition:b884e439-e387-4ecc-b700-911bc9522343",
+            "tier": "chart"
+          },
+          {
+            "source_id": "cecd988a-d76f-43b2-ae5d-3666c76ffca9",
+            "title": "Recorded medications",
+            "passage": "{\"id\": \"cecd988a-d76f-43b2-ae5d-3666c76ffca9\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Psyllium\", \"dose\": \"1 packet\", \"route\": \"oral\", \"frequency\": \"daily\", \"status\": \"active\", \"start_date\": \"2021-09-02\", \"body_region_key\": \"colon\"}",
+            "locator": "medication:cecd988a-d76f-43b2-ae5d-3666c76ffca9",
+            "tier": "chart"
+          },
+          {
+            "source_id": "01d85e53-b799-4d7d-bbc9-2a15d678e6ba",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"01d85e53-b799-4d7d-bbc9-2a15d678e6ba\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Hemoglobin\", \"value\": 13.0, \"unit\": \"g/dL\", \"observed_at\": \"2025-08-01T00:00:00Z\", \"source\": \"seed\", \"document_id\": null, \"body_region_key\": \"colon\"}",
+            "locator": "observation:01d85e53-b799-4d7d-bbc9-2a15d678e6ba",
+            "tier": "chart"
+          },
+          {
+            "source_id": "5fb4d485-0aab-5a4e-a65a-29e3a7b8a768",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"5fb4d485-0aab-5a4e-a65a-29e3a7b8a768\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Systolic blood pressure\", \"value\": 120.0, \"unit\": \"mmHg\", \"observed_at\": \"2025-08-01T09:00:00Z\", \"source\": \"demo_vitals\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:5fb4d485-0aab-5a4e-a65a-29e3a7b8a768",
+            "tier": "chart"
+          },
+          {
+            "source_id": "cde05f8f-f1f2-592b-917a-b374fbe30cf1",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"cde05f8f-f1f2-592b-917a-b374fbe30cf1\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Diastolic blood pressure\", \"value\": 76.0, \"unit\": \"mmHg\", \"observed_at\": \"2025-08-01T09:00:00Z\", \"source\": \"demo_vitals\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:cde05f8f-f1f2-592b-917a-b374fbe30cf1",
+            "tier": "chart"
+          },
+          {
+            "source_id": "7a8c2884-8d8e-592c-b49c-ac1e301084a8",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"7a8c2884-8d8e-592c-b49c-ac1e301084a8\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Body weight\", \"value\": 68.0, \"unit\": \"kg\", \"observed_at\": \"2025-08-01T09:00:00Z\", \"source\": \"demo_vitals\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:7a8c2884-8d8e-592c-b49c-ac1e301084a8",
+            "tier": "chart"
+          },
+          {
+            "source_id": "dfbbeb98-d684-49f3-a343-86c85710eedf",
+            "title": "Recorded family history",
+            "passage": "{\"id\": \"dfbbeb98-d684-49f3-a343-86c85710eedf\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"relationship\": \"sister\", \"condition\": \"colon polyps\", \"age_at_diagnosis\": 42}",
+            "locator": "family_history:dfbbeb98-d684-49f3-a343-86c85710eedf",
+            "tier": "chart"
+          }
+        ],
+        "sections": [
+          {
+            "title": "Supporting findings",
+            "text": "Active diverticulosis is documented since September 1, 2021, and active daily psyllium treatment since September 2, 2021. Recent observations on August 1, 2025, show a hemoglobin of 13.0 g/dL, blood pressure of 120/76 mmHg, and body weight of 68.0 kg. Family history documents a sister diagnosed with colon polyps at age 42.",
+            "source_ids": [
+              "b884e439-e387-4ecc-b700-911bc9522343",
+              "cecd988a-d76f-43b2-ae5d-3666c76ffca9",
+              "01d85e53-b799-4d7d-bbc9-2a15d678e6ba",
+              "5fb4d485-0aab-5a4e-a65a-29e3a7b8a768",
+              "cde05f8f-f1f2-592b-917a-b374fbe30cf1",
+              "7a8c2884-8d8e-592c-b49c-ac1e301084a8",
+              "dfbbeb98-d684-49f3-a343-86c85710eedf"
+            ]
+          },
+          {
+            "title": "Opposing findings",
+            "text": "There are no recorded opposing findings or evidence of active diverticulitis or acute gastrointestinal complications in the patient's chart.",
+            "source_ids": []
+          },
+          {
+            "title": "Missing information",
+            "text": "The chart lacks specific details regarding the pathology of the sister's colon polyps (such as whether they were advanced adenomas versus non-advanced polyps), which is relevant for colorectal cancer risk stratification.",
+            "source_ids": [
+              "dfbbeb98-d684-49f3-a343-86c85710eedf"
+            ]
+          }
+        ]
+      },
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "amy-check_screenings": {
+    "prompt": {
+      "id": "amy-check_screenings",
+      "patient_id": "33333333-3333-4333-8333-333333333333",
+      "route": "check_screenings",
+      "label": "Review screenings",
+      "text": "Review the screening needs and care gaps in Amy Lee's recorded chart."
+    },
+    "captured_at": "2026-10-11T14:00:11.233214+00:00",
+    "response": {
+      "transcript": "Review the screening needs and care gaps in Amy Lee's recorded chart.",
+      "route": "check_screenings",
+      "suggestions": [],
+      "answer": {
+        "text": "The patient is 38 years old and has not yet reached the baseline starting ages for routine screening guidelines (colorectal cancer screening at age 45, lung cancer screening at age 50, and follow-up labs at age 40). No screening schedule changes or new screenings are currently due.",
+        "citations": []
+      },
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "amy-chart_update": {
+    "prompt": {
+      "id": "amy-chart_update",
+      "patient_id": "33333333-3333-4333-8333-333333333333",
+      "route": "chart_update",
+      "label": "Draft visit note",
+      "text": "Draft a note for Amy Lee stating that the recorded medications and screening plan were reviewed today."
+    },
+    "captured_at": "2026-10-11T14:00:18.654808+00:00",
+    "response": {
+      "transcript": "Draft a note for Amy Lee stating that the recorded medications and screening plan were reviewed today.",
+      "route": "chart_update",
+      "suggestions": [
+        {
+          "request_id": null,
+          "kind": "soap_note",
+          "target_table": "notes",
+          "target_id": null,
+          "before": {},
+          "after": {
+            "body": "Recorded medications and screening plan were reviewed today for Amy Lee."
+          },
+          "reason": "Draft a progress note documenting that Amy Lee's recorded medications and screening plan were reviewed today.",
+          "confidence": 0.95,
+          "citations": [
+            {
+              "tier": "chart",
+              "title": "Recorded medications",
+              "locator": "medication:cecd988a-d76f-43b2-ae5d-3666c76ffca9",
+              "passage": "{\"id\": \"cecd988a-d76f-43b2-ae5d-3666c76ffca9\", \"patient_id\": \"33333333-3333-4333-8333-333333333333\", \"name\": \"Psyllium\", \"dose\": \"1 packet\", \"route\": \"oral\", \"frequency\": \"daily\", \"status\": \"active\", \"start_date\": \"2021-09-02\", \"body_region_key\": \"colon\"}",
+              "source_id": "cecd988a-d76f-43b2-ae5d-3666c76ffca9"
+            }
+          ],
+          "validation_flags": [],
+          "source": "chart_agent"
+        }
+      ],
+      "answer": null,
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "jane-clinical_question": {
+    "prompt": {
+      "id": "jane-clinical_question",
+      "patient_id": "11111111-1111-4111-8111-111111111111",
+      "route": "clinical_question",
+      "label": "Research chart",
+      "text": "What are the main clinical considerations in Jane Doe's recorded chart?"
+    },
+    "captured_at": "2026-10-11T14:01:37.827475+00:00",
+    "response": {
+      "transcript": "What are the main clinical considerations in Jane Doe's recorded chart?",
+      "route": "clinical_question",
+      "suggestions": [],
+      "answer": {
+        "text": "The patient has active hypertension managed with Lisinopril 10 mg oral daily (c8351f75-111e-46ed-ac96-257de2a29dff, c9eeda79-2933-420c-9484-e95bcff33a00). Recorded observations reflect an LDL level of 140.0 mg/dL on March 1, 2024, alongside a weight increase from 86.4 kg in March 2023 to 91.2 kg in September 2025 (3c2e0ff5-89d6-468c-b02d-ca8c8f22a8b6, b7d08cbb-038d-5bbb-b2b9-d1238372f3ac, 219ff9fa-1f64-5041-b7e2-2f5533aa304b). Additionally, family history shows colorectal cancer in the patient's father diagnosed at age 48, and the patient underwent a screening colonoscopy on June 1, 2024 (83f81fb5-f765-4cf2-baa2-6b8b22fb0371, 182f4ad0-0ff6-4084-b592-8c5d7fa99cd5).\n\nThe chart lacks specific pathology or procedure findings from the screening colonoscopy performed on June 1, 2024 (182f4ad0-0ff6-4084-b592-8c5d7fa99cd5). Recent blood pressure measurements are also missing from the observation records.",
+        "citations": [
+          {
+            "source_id": "c8351f75-111e-46ed-ac96-257de2a29dff",
+            "title": "Recorded conditions",
+            "passage": "{\"id\": \"c8351f75-111e-46ed-ac96-257de2a29dff\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"name\": \"Hypertension\", \"status\": \"active\", \"onset_date\": \"2019-04-01\", \"body_region_key\": \"heart\"}",
+            "locator": "condition:c8351f75-111e-46ed-ac96-257de2a29dff",
+            "tier": "chart"
+          },
+          {
+            "source_id": "c9eeda79-2933-420c-9484-e95bcff33a00",
+            "title": "Recorded medications",
+            "passage": "{\"id\": \"c9eeda79-2933-420c-9484-e95bcff33a00\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"name\": \"Lisinopril\", \"dose\": \"10 mg\", \"route\": \"oral\", \"frequency\": \"daily\", \"status\": \"active\", \"start_date\": \"2019-04-02\", \"body_region_key\": \"heart\"}",
+            "locator": "medication:c9eeda79-2933-420c-9484-e95bcff33a00",
+            "tier": "chart"
+          },
+          {
+            "source_id": "3c2e0ff5-89d6-468c-b02d-ca8c8f22a8b6",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"3c2e0ff5-89d6-468c-b02d-ca8c8f22a8b6\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"name\": \"LDL\", \"value\": 140.0, \"unit\": \"mg/dL\", \"observed_at\": \"2024-03-01T00:00:00Z\", \"source\": \"seed\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:3c2e0ff5-89d6-468c-b02d-ca8c8f22a8b6",
+            "tier": "chart"
+          },
+          {
+            "source_id": "b7d08cbb-038d-5bbb-b2b9-d1238372f3ac",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"b7d08cbb-038d-5bbb-b2b9-d1238372f3ac\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"name\": \"Body weight\", \"value\": 86.4, \"unit\": \"kg\", \"observed_at\": \"2023-03-02T09:00:00Z\", \"source\": \"demo_vitals\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:b7d08cbb-038d-5bbb-b2b9-d1238372f3ac",
+            "tier": "chart"
+          },
+          {
+            "source_id": "219ff9fa-1f64-5041-b7e2-2f5533aa304b",
+            "title": "Recorded recent observations",
+            "passage": "{\"id\": \"219ff9fa-1f64-5041-b7e2-2f5533aa304b\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"name\": \"Body weight\", \"value\": 91.2, \"unit\": \"kg\", \"observed_at\": \"2025-09-09T09:00:00Z\", \"source\": \"demo_vitals\", \"document_id\": null, \"body_region_key\": \"heart\"}",
+            "locator": "observation:219ff9fa-1f64-5041-b7e2-2f5533aa304b",
+            "tier": "chart"
+          },
+          {
+            "source_id": "83f81fb5-f765-4cf2-baa2-6b8b22fb0371",
+            "title": "Recorded family history",
+            "passage": "{\"id\": \"83f81fb5-f765-4cf2-baa2-6b8b22fb0371\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"relationship\": \"father\", \"condition\": \"colorectal cancer\", \"age_at_diagnosis\": 48}",
+            "locator": "family_history:83f81fb5-f765-4cf2-baa2-6b8b22fb0371",
+            "tier": "chart"
+          },
+          {
+            "source_id": "182f4ad0-0ff6-4084-b592-8c5d7fa99cd5",
+            "title": "Recorded past procedures",
+            "passage": "{\"id\": \"182f4ad0-0ff6-4084-b592-8c5d7fa99cd5\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"encounter_type\": \"procedure\", \"occurred_at\": \"2024-06-01T15:00:00Z\", \"summary\": \"Screening colonoscopy\"}",
+            "locator": "encounter:182f4ad0-0ff6-4084-b592-8c5d7fa99cd5",
+            "tier": "chart"
+          }
+        ],
+        "sections": [
+          {
+            "title": "Supporting findings",
+            "text": "The patient has active hypertension managed with Lisinopril 10 mg oral daily (c8351f75-111e-46ed-ac96-257de2a29dff, c9eeda79-2933-420c-9484-e95bcff33a00). Recorded observations reflect an LDL level of 140.0 mg/dL on March 1, 2024, alongside a weight increase from 86.4 kg in March 2023 to 91.2 kg in September 2025 (3c2e0ff5-89d6-468c-b02d-ca8c8f22a8b6, b7d08cbb-038d-5bbb-b2b9-d1238372f3ac, 219ff9fa-1f64-5041-b7e2-2f5533aa304b). Additionally, family history shows colorectal cancer in the patient's father diagnosed at age 48, and the patient underwent a screening colonoscopy on June 1, 2024 (83f81fb5-f765-4cf2-baa2-6b8b22fb0371, 182f4ad0-0ff6-4084-b592-8c5d7fa99cd5).",
+            "source_ids": [
+              "c8351f75-111e-46ed-ac96-257de2a29dff",
+              "c9eeda79-2933-420c-9484-e95bcff33a00",
+              "3c2e0ff5-89d6-468c-b02d-ca8c8f22a8b6",
+              "b7d08cbb-038d-5bbb-b2b9-d1238372f3ac",
+              "219ff9fa-1f64-5041-b7e2-2f5533aa304b",
+              "83f81fb5-f765-4cf2-baa2-6b8b22fb0371",
+              "182f4ad0-0ff6-4084-b592-8c5d7fa99cd5"
+            ]
+          },
+          {
+            "title": "Missing information",
+            "text": "The chart lacks specific pathology or procedure findings from the screening colonoscopy performed on June 1, 2024 (182f4ad0-0ff6-4084-b592-8c5d7fa99cd5). Recent blood pressure measurements are also missing from the observation records.",
+            "source_ids": [
+              "182f4ad0-0ff6-4084-b592-8c5d7fa99cd5"
+            ]
+          }
+        ]
+      },
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "jane-check_screenings": {
+    "prompt": {
+      "id": "jane-check_screenings",
+      "patient_id": "11111111-1111-4111-8111-111111111111",
+      "route": "check_screenings",
+      "label": "Review screenings",
+      "text": "Review the screening needs and care gaps in Jane Doe's recorded chart."
+    },
+    "captured_at": "2026-10-11T14:02:02.665824+00:00",
+    "response": {
+      "transcript": "Review the screening needs and care gaps in Jane Doe's recorded chart.",
+      "route": "check_screenings",
+      "suggestions": [],
+      "answer": {
+        "text": "The patient is currently up to date on colorectal cancer screening following a screening colonoscopy performed on June 1, 2024. Because the patient's father was diagnosed with colorectal cancer at age 48 (a first-degree relative diagnosed under age 60), colonoscopy screening is recommended every 5 years rather than the standard 10-year interval. The existing colorectal cancer screening reminder should be updated to be due on June 1, 2029.",
+        "citations": []
+      },
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "jane-chart_update": {
+    "prompt": {
+      "id": "jane-chart_update",
+      "patient_id": "11111111-1111-4111-8111-111111111111",
+      "route": "chart_update",
+      "label": "Draft visit note",
+      "text": "Draft a note for Jane Doe stating that the recorded medications and screening plan were reviewed today."
+    },
+    "captured_at": "2026-10-11T14:02:13.719546+00:00",
+    "response": {
+      "transcript": "Draft a note for Jane Doe stating that the recorded medications and screening plan were reviewed today.",
+      "route": "chart_update",
+      "suggestions": [
+        {
+          "request_id": null,
+          "kind": "soap_note",
+          "target_table": "notes",
+          "target_id": null,
+          "before": {},
+          "after": {
+            "body": "Recorded medications and screening plan were reviewed today."
+          },
+          "reason": "Note created per clinician request documenting review of recorded medications and screening plan.",
+          "confidence": 1.0,
+          "citations": [
+            {
+              "tier": "chart",
+              "title": "Recorded medications",
+              "locator": "medication:c9eeda79-2933-420c-9484-e95bcff33a00",
+              "passage": "{\"id\": \"c9eeda79-2933-420c-9484-e95bcff33a00\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"name\": \"Lisinopril\", \"dose\": \"10 mg\", \"route\": \"oral\", \"frequency\": \"daily\", \"status\": \"active\", \"start_date\": \"2019-04-02\", \"body_region_key\": \"heart\"}",
+              "source_id": "c9eeda79-2933-420c-9484-e95bcff33a00"
+            },
+            {
+              "tier": "chart",
+              "title": "Recorded past procedures",
+              "locator": "encounter:182f4ad0-0ff6-4084-b592-8c5d7fa99cd5",
+              "passage": "{\"id\": \"182f4ad0-0ff6-4084-b592-8c5d7fa99cd5\", \"patient_id\": \"11111111-1111-4111-8111-111111111111\", \"encounter_type\": \"procedure\", \"occurred_at\": \"2024-06-01T15:00:00Z\", \"summary\": \"Screening colonoscopy\"}",
+              "source_id": "182f4ad0-0ff6-4084-b592-8c5d7fa99cd5"
+            }
+          ],
+          "validation_flags": [],
+          "source": "chart_agent"
+        }
+      ],
+      "answer": null,
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "general-screening": {
+    "prompt": {
+      "id": "general-screening",
+      "patient_id": null,
+      "route": "clinical_question",
+      "label": "Screening principles",
+      "text": "What is the difference between screening and diagnostic testing?"
+    },
+    "captured_at": "2026-10-11T14:03:06.644603+00:00",
+    "response": {
+      "route": "clinical_question",
+      "transcript": "What is the difference between screening and diagnostic testing?",
+      "answer": {
+        "text": "Screening serves as an initial evaluation to identify individuals who test positive or have abnormal findings, after which diagnostic testing or evaluation is conducted to determine a formal diagnosis.\n\nEvidence shows that individuals who screen positive require further evaluation to ensure they are appropriately diagnosed before receiving targeted care. Abnormal screening results or false-positive findings lead to additional evaluation and follow-up diagnostic procedures, such as biopsies or colposcopies, to clarify diagnosis.",
+        "citations": [
+          {
+            "source_id": "uspstf:screening-depression-suicide-risk-adults#2",
+            "title": "USPSTF Depression and Suicide Risk in Adults: Screening: Pathway to Benefit",
+            "passage": "To achieve the benefit of depression screening and reduce disparities in depression-associated morbidity, it is important that persons who screen positive are evaluated further for diagnosis and, if appropriate, are provided or referred for evidence-based care.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "uspstf:screening-depression-suicide-risk-adults#24",
+            "title": "USPSTF Depression and Suicide Risk in Adults: Screening: Implementation",
+            "passage": "Adequate systems and clinical staff are needed to ensure that patients are screened and, if they screen positive, are appropriately diagnosed and treated with evidence-based care or referred to a setting that can provide the necessary care.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "uspstf:cervical-cancer-screening#57",
+            "title": "USPSTF Cervical Cancer: Screening: Harms of Screening",
+            "passage": "Screening with cervical cytology and hrHPV testing can lead to harms, including more frequent follow-up testing and invasive diagnostic procedures (eg, colposcopy and cervical biopsy), as well as unnecessary treatment in women with false-positive results. Evidence from RCTs and observational studies indicate that harms from diagnostic procedures include vaginal bleeding, pain, infection, and failure to diagnose (due to inadequate sampling). Abnormal screening test results are also associated with psychological harms. In particular, women who received positive hrHPV results reported greater distress and lower satisfaction with past and current sexual partners than women who received abnormal cytology results.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "uspstf:prostate-cancer-screening#5",
+            "title": "USPSTF Prostate Cancer: Screening: Clinician Summary",
+            "passage": "Before deciding whether to be screened, men aged 55 to 69 years should have an opportunity to discuss the potential benefits and harms of screening with their clinician and to incorporate their values and preferences in the decision. Screening offers a small potential benefit of reducing the chance of death from prostate cancer in some men. However, many men will experience potential harms of screening, including false-positive results that require additional testing and possible prostate biopsy; overdiagnosis and overtreatment; and treatment complications, such as incontinence and erectile dysfunction. Harms are greater for men 70 years and older. In determining whether this service is appropriate in individual cases, patients and clinicians should consider the balance of benefits and harms on the basis of family history, race/ethnicity, comorbid medical conditions, patient values about the benefits and harms of screening and treatment-specific outcomes, and other health needs.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prostate-cancer-screening",
+            "tier": "baseline"
+          }
+        ],
+        "sections": [
+          {
+            "title": "Clinical interpretation",
+            "text": "Screening serves as an initial evaluation to identify individuals who test positive or have abnormal findings, after which diagnostic testing or evaluation is conducted to determine a formal diagnosis.",
+            "source_ids": [
+              "uspstf:screening-depression-suicide-risk-adults#2",
+              "uspstf:screening-depression-suicide-risk-adults#24",
+              "uspstf:cervical-cancer-screening#57"
+            ]
+          },
+          {
+            "title": "Supporting findings",
+            "text": "Evidence shows that individuals who screen positive require further evaluation to ensure they are appropriately diagnosed before receiving targeted care. Abnormal screening results or false-positive findings lead to additional evaluation and follow-up diagnostic procedures, such as biopsies or colposcopies, to clarify diagnosis.",
+            "source_ids": [
+              "uspstf:screening-depression-suicide-risk-adults#2",
+              "uspstf:screening-depression-suicide-risk-adults#24",
+              "uspstf:cervical-cancer-screening#57",
+              "uspstf:prostate-cancer-screening#5"
+            ]
+          }
+        ]
+      },
+      "suggestions": [],
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "general-evidence": {
+    "prompt": {
+      "id": "general-evidence",
+      "patient_id": null,
+      "route": "clinical_question",
+      "label": "Reading evidence",
+      "text": "How should absolute and relative risk reduction be interpreted in clinical research?"
+    },
+    "captured_at": "2026-10-11T14:04:10.345553+00:00",
+    "response": {
+      "route": "clinical_question",
+      "transcript": "How should absolute and relative risk reduction be interpreted in clinical research?",
+      "answer": {
+        "text": "RRR values often appear substantially larger than ARR values. Therefore, interpreting both RRR and ARR is crucial for clinical decision-making, as the actual clinical benefit experienced by an individual patient depends directly on their baseline absolute risk.\n\nMeta-analyses of statin therapy show relative risk reductions of 9% for all-cause mortality and 29% for myocardial infarction, which correspond to modest absolute risk reductions of 0.8% and 1.3%. In prostate cancer screening trials, a 42% relative risk reduction in mortality in Sweden corresponded to an absolute risk reduction of 0.72%, and finasteride demonstrated a 26% relative risk reduction corresponding to an absolute risk reduction of 1.4%. In osteoporosis screening trials, a pooled relative risk of 0.83 for hip fractures corresponded to an absolute risk difference of 5 fewer hip fractures per 1,000 participants over 3.7 to 5 years. Guidelines and clinical evidence emphasize discussing absolute risk reductions to inform shared decision-making because patients with higher baseline risk achieve a greater chance of absolute benefit.",
+        "citations": [
+          {
+            "source_id": "pubmed:35285850#3",
+            "title": "Evaluating the Association Between Low-Density Lipoprotein Cholesterol Reduction and Relative and Absolute Effects of Statin Treatment: A Systematic Review and Meta-analysis. (JAMA internal medicine, 2022)",
+            "passage": "Meta-analyses showed reductions in the absolute risk of 0.8% (95% CI, 0.4%-1.2%) for all-cause mortality, 1.3% (95% CI, 0.9%-1.7%) for myocardial infarction, and 0.4% (95% CI, 0.2%-0.6%) for stroke in those randomized to treatment with statins, with associated relative risk reductions of 9% (95% CI, 5%-14%), 29% (95% CI, 22%-34%), and 14% (95% CI, 5%-22%) respectively. A meta-regression exploring the potential mediating association of the magnitude of statin-induced LDL-C reduction with outcomes was inconclusive. Conclusions And Relevance: The results of this meta-analysis suggest that the absolute risk reductions of treatment with statins in terms of all-cause mortality, myocardial infarction, and stroke are modest compared with the relative risk reductions, and the presence of significant heterogeneity reduces the certainty of the evidence.",
+            "locator": "https://pubmed.ncbi.nlm.nih.gov/35285850/",
+            "tier": "literature"
+          },
+          {
+            "source_id": "pubmed:35285850#4",
+            "title": "Evaluating the Association Between Low-Density Lipoprotein Cholesterol Reduction and Relative and Absolute Effects of Statin Treatment: A Systematic Review and Meta-analysis. (JAMA internal medicine, 2022)",
+            "passage": "A conclusive association between absolute reductions in LDL-C levels and individual clinical outcomes was not established, and these findings underscore the importance of discussing absolute risk reductions when making informed clinical decisions with individual patients.",
+            "locator": "https://pubmed.ncbi.nlm.nih.gov/35285850/",
+            "tier": "literature"
+          },
+          {
+            "source_id": "uspstf:statin-use-in-adults-preventive-medication#12",
+            "title": "USPSTF Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication: Assessment of Risk",
+            "passage": "The likelihood that a patient will benefit from statin use depends on their absolute risk of having a future CVD event, a risk estimation that, as noted above, is imprecise based on the currently available risk estimation tools. The higher a person’s 10-year risk of a CVD event, the greater the chance of benefit from statin use. Thus, the expected benefit of statin therapy for persons with a 10-year CVD risk of 10% or greater exceeds the expected benefit for persons with a 10-year CVD risk of 7.5% to less than 10%. Clinicians should discuss with patients the potential risk of having a CVD event and the expected benefits and harms of statin use.",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "uspstf:prostate-cancer-screening#23",
+            "title": "USPSTF Prostate Cancer: Screening: Screening",
+            "passage": "In the ERSPC trial, the results suggest that, overall, the number needed to screen is 781 men aged 55 to 69 years at enrollment (95% CI, 490-1929) to prevent 1 man from dying of prostate cancer after 13 years. The results varied across the individual ERSPC sites, and prostate cancer mortality was significantly reduced only at the sites in the Netherlands and Sweden. However, point estimates were in favor of screening at all sites except Switzerland. At the largest site (Finland), there was no significant benefit observed for prostate cancer mortality (rate ratio, 0.91 [95% CI, 0.75-1.10]), and in Sweden there was an absolute risk reduction of 0.72% (95% CI, 0.50%-0.94%), a 42% relative reduction.8-10",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prostate-cancer-screening",
+            "tier": "baseline"
+          },
+          {
+            "source_id": "pubmed:18425978#3",
+            "title": "Five-alpha-reductase Inhibitors for prostate cancer prevention. (The Cochrane database of systematic reviews, 2008)",
+            "passage": "Finasteride was associated with a 26% relative risk reduction in prostate cancers detected for-cause among all randomized subjects (relative risk 0.74 [95% CI 0.67 to 0.83]; absolute risk reduction = 1.4% (3.5% versus 4.9%). Six trials assessed prostate cancers detected overall with a pooled 26% relative reduction favoring 5ARI (relative risk 0.74 [95% CI 0.55 to1.00]; 2.9% absolute reduction (6.3% versus 9.2%). Reductions were observed regardless of age, race or family history of prostate cancer but not among men with baseline PSA > 4.0 ng/mL. A greater number of high Gleason score tumors (7-10 or 8-10) occurred in men on finasteride in the PCPT. Impaired sexual or erectile function or endocrine effects were more common with finasteride than placebo. Authors' Conclusions: 5ARI reduce prostate cancer risk but may increase the risk of high-grade disease in men who are undergoing regular screening for prostate cancer using prostate specific antigen and digital rectal examination.",
+            "locator": "https://pubmed.ncbi.nlm.nih.gov/18425978/",
+            "tier": "literature"
+          },
+          {
+            "source_id": "uspstf:osteoporosis-screening#43",
+            "title": "USPSTF Osteoporosis to Prevent Fractures: Screening: Effectiveness of Early Detection and Treatment",
+            "passage": "The mean or median 10-year FRAX-estimated risk of MOF was 19% in SCOOP, 20% in ROSE, and 24.6% in SOS; the respective 10-year estimated hip fracture risks were 8.5%, 6.7%, and 11.6%.55-57 Test results and treatment recommendations were shared with participants’ primary care physicians, who made final decisions about treatment; the comparison group in all 3 studies was routine care. A pooled analysis of these studies found a statistically significant reduction in hip fractures and MOF. The pooled relative risk (RR) for the effect of screening on hip fractures was 0.83 (95% CI, 0.73-0.93; 3 RCTs; 42,009 participants), and the pooled RR for MOF was 0.94 (95% CI, 0.88-0.99; 3 RCTs; 42,009 participants). This corresponded to an absolute risk difference (ARD) of 5 fewer hip fractures (95% CI, 7 to 2 fewer) and 6 fewer MOFs (95% CI, 12 to 1 fewer) per 1000 participants over 3.7 to 5 years.1,46",
+            "locator": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening",
+            "tier": "baseline"
+          }
+        ],
+        "sections": [
+          {
+            "title": "Clinical interpretation",
+            "text": "RRR values often appear substantially larger than ARR values. Therefore, interpreting both RRR and ARR is crucial for clinical decision-making, as the actual clinical benefit experienced by an individual patient depends directly on their baseline absolute risk.",
+            "source_ids": [
+              "pubmed:35285850#3",
+              "pubmed:35285850#4",
+              "uspstf:statin-use-in-adults-preventive-medication#12"
+            ]
+          },
+          {
+            "title": "Supporting findings",
+            "text": "Meta-analyses of statin therapy show relative risk reductions of 9% for all-cause mortality and 29% for myocardial infarction, which correspond to modest absolute risk reductions of 0.8% and 1.3%. In prostate cancer screening trials, a 42% relative risk reduction in mortality in Sweden corresponded to an absolute risk reduction of 0.72%, and finasteride demonstrated a 26% relative risk reduction corresponding to an absolute risk reduction of 1.4%. In osteoporosis screening trials, a pooled relative risk of 0.83 for hip fractures corresponded to an absolute risk difference of 5 fewer hip fractures per 1,000 participants over 3.7 to 5 years. Guidelines and clinical evidence emphasize discussing absolute risk reductions to inform shared decision-making because patients with higher baseline risk achieve a greater chance of absolute benefit.",
+            "source_ids": [
+              "pubmed:35285850#3",
+              "pubmed:35285850#4",
+              "uspstf:prostate-cancer-screening#23",
+              "pubmed:18425978#3",
+              "uspstf:osteoporosis-screening#43",
+              "uspstf:statin-use-in-adults-preventive-medication#12"
+            ]
+          }
+        ]
+      },
+      "suggestions": [],
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  },
+  "general-documentation": {
+    "prompt": {
+      "id": "general-documentation",
+      "patient_id": null,
+      "route": "clinical_question",
+      "label": "Clinical documentation",
+      "text": "What information belongs in a concise SOAP note?"
+    },
+    "captured_at": "2026-10-11T14:04:36.850948+00:00",
+    "response": {
+      "route": "clinical_question",
+      "transcript": "What information belongs in a concise SOAP note?",
+      "answer": {
+        "text": "The supplied evidence lacks details and clinical guidance defining the elements required for a concise SOAP note.",
+        "citations": [],
+        "sections": [
+          {
+            "title": "Missing information",
+            "text": "The supplied evidence lacks details and clinical guidance defining the elements required for a concise SOAP note.",
+            "source_ids": []
+          }
+        ]
+      },
+      "suggestions": [],
+      "spoken_text": null,
+      "audio_base64": null
+    }
+  }
+}
