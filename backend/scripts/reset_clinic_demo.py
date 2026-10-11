@@ -6,7 +6,12 @@ Run:
 The script reads DATABASE_URL from backend/.env when that file exists, otherwise
 from the environment. Chart rows live in public. Workspace rows live in clinic.
 Every other schema is left alone. It does not drop tables and does not run
-python -m app.bootstrap. After it finishes, hard-reload the chart.
+python -m app.bootstrap. It removes the canned "reviewed today" visit notes so
+notes history matches the seeded charts. Every workspace job is one turn in
+the agent chat window, for General or for a patient. Those jobs are removed,
+so a paired phone or desktop does not replay any of that thread. The checked-in
+demo prompt cache is not read or written. The seeded notes and the synthetic
+panel are left in place. After it finishes, hard-reload the chart.
 """
 
 import os
@@ -31,18 +36,59 @@ SENTENCES = {
         "Why is Jane’s A1c rising, and what second agent fits her kidney function?",
         "What screening gaps are still open for Jane?",
         "Document that an SGLT2 inhibitor was discussed because her A1c is 8.4 and her eGFR is 56.",
+        "What are the main clinical considerations in Jane Doe's recorded chart?",
+        "Review the screening needs and care gaps in Jane Doe's recorded chart.",
+        "Draft a note for Jane Doe stating that the recorded medications and screening plan were reviewed today.",
     ),
     JOHN: (
         "Does John qualify for lung cancer screening with low-dose CT given his COPD and smoking history?",
         "What screening gaps are still open for John?",
         "Document that John again declined smoking-cessation medication and that low-dose CT was discussed.",
+        "What are the main clinical considerations in John Roe's recorded chart?",
+        "Review the screening needs and care gaps in John Roe's recorded chart.",
+        "Draft a note for John Roe stating that the recorded medications and screening plan were reviewed today.",
     ),
     AMY: (
         "Is Amy’s iron deficiency resolved, and does her sister’s colon polyps change her screening?",
         "What screening gaps are still open for Amy?",
         "Document that Amy’s iron was stopped after her hemoglobin reached 13 g/dL and her ferritin reached 46 ng/mL.",
+        "What are the main clinical considerations in Amy Lee's recorded chart?",
+        "Review the screening needs and care gaps in Amy Lee's recorded chart.",
+        "Draft a note for Amy Lee stating that the recorded medications and screening plan were reviewed today.",
     ),
 }
+# Exact general-chat presets. Kept here so a future edit cannot collide with a patient sentence.
+GENERAL = (
+    "What is the difference between screening and diagnostic testing?",
+    "How should absolute and relative risk reduction be interpreted in clinical research?",
+    "What information belongs in a concise SOAP note?",
+)
+# Bodies loaded by seed.py and demo.py. Practice resets must not remove these.
+SEEDED_NOTES = (
+    (JANE, "LDL is above the patient's goal."),
+    (
+        JANE,
+        "A1c has risen over three visits on metformin alone. Discussed adding a second agent; kidney function favours an SGLT2 inhibitor.",
+    ),
+    (JOHN, "Breathing is stable on the current inhaler."),
+    (AMY, "Diet and activity were discussed."),
+)
+# Visit notes the current Document buttons draft on top of those seeded notes.
+CANNED_REVIEW_NOTES = (
+    (JANE, "Recorded medications and screening plan were reviewed today."),
+    (JOHN, "Recorded medications and screening plan were reviewed today for John Roe."),
+    (AMY, "Recorded medications and screening plan were reviewed today for Amy Lee."),
+)
+PANEL = (
+    "44444444-4444-4444-8444-444444444441",
+    "44444444-4444-4444-8444-444444444442",
+    "44444444-4444-4444-8444-444444444443",
+    "44444444-4444-4444-8444-444444444444",
+    "44444444-4444-4444-8444-444444444445",
+    "44444444-4444-4444-8444-444444444446",
+    "44444444-4444-4444-8444-444444444447",
+    "44444444-4444-4444-8444-444444444448",
+)
 CHART_TABLES = ("conditions", "medications", "observations", "family_history")
 ALLOW = {
     "conditions": ("name", "status", "onset_date", "body_region_key"),
@@ -114,22 +160,26 @@ def database_url():
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
         raise Stop("DATABASE_URL is not set. Put it in backend/.env or the environment.")
+    # SQLAlchemy URLs use postgresql+psycopg://. psycopg.connect wants postgresql://.
+    if url.startswith("postgresql+psycopg://"):
+        url = "postgresql://" + url[len("postgresql+psycopg://") :]
     return url
 
 
 def main():
-    all_sentences = [text for texts in SENTENCES.values() for text in texts]
-    if len(all_sentences) != 9 or len(set(all_sentences)) != 9:
-        raise Stop("Expected nine distinct sentences.")
+    all_sentences = [text for texts in SENTENCES.values() for text in texts] + list(GENERAL)
+    if len(all_sentences) != len(set(all_sentences)):
+        raise Stop("Duplicate sentences.")
     conn = psycopg.connect(database_url(), row_factory=dict_row)
     try:
         with conn:
             with conn.cursor() as cur:
                 before = snapshot(cur)
                 suggestion_ids = undo_sentences(cur)
+                removed_review_notes = remove_canned_review_notes(cur)
                 restore_reminders(cur)
                 clear_workspaces(cur)
-                confirm(cur, suggestion_ids, before)
+                confirm(cur, suggestion_ids, before, removed_review_notes)
         print("COMMITTED")
     except Exception:
         print("ROLLED BACK")
@@ -176,6 +226,9 @@ def snapshot(cur):
     sms = cur.fetchone()["n"]
     cur.execute("SELECT id::text AS id, email_opt_in FROM public.patients ORDER BY id")
     opt_in = cur.fetchall()
+    seeded_notes = note_body_counts(cur, SEEDED_NOTES)
+    panel_notes = count_patients(cur, "public.notes", PANEL)
+    panel_reminders = count_patients(cur, "public.reminder_schedule", PANEL)
     cur.execute(
         """
         SELECT id::text AS id, (phone_hash IS NOT NULL) AS paired
@@ -190,6 +243,9 @@ def snapshot(cur):
         "sms": sms,
         "workspaces": workspaces,
         "opt_in": opt_in,
+        "seeded_notes": seeded_notes,
+        "panel_notes": panel_notes,
+        "panel_reminders": panel_reminders,
     }
 
 
@@ -260,6 +316,39 @@ def undo_sentences(cur):
     if cur.rowcount != len(request_ids):
         raise Stop("Request delete count did not match.")
     return suggestion_ids
+
+
+def note_body_counts(cur, pairs):
+    counts = {}
+    for patient_id, body in pairs:
+        cur.execute(
+            "SELECT count(*) AS n FROM public.notes WHERE patient_id = %s AND body = %s",
+            (patient_id, body),
+        )
+        counts[(patient_id, body)] = cur.fetchone()["n"]
+    return counts
+
+
+def count_patients(cur, table, patient_ids):
+    if table not in {"public.notes", "public.reminder_schedule"}:
+        raise Stop(f"Unexpected table {table}.")
+    cur.execute(
+        f"SELECT count(*) AS n FROM {table} WHERE patient_id = ANY(%s::uuid[])",
+        (list(patient_ids),),
+    )
+    return cur.fetchone()["n"]
+
+
+def remove_canned_review_notes(cur):
+    removed = 0
+    for patient_id, body in CANNED_REVIEW_NOTES:
+        cur.execute(
+            "DELETE FROM public.notes WHERE patient_id = %s AND body = %s",
+            (patient_id, body),
+        )
+        removed += cur.rowcount
+        print(f"canned review notes deleted for {PATIENTS[patient_id]}: {cur.rowcount}")
+    return removed
 
 
 def restore_update(cur, suggestion):
@@ -485,6 +574,27 @@ def release_reminder(cur, reminder_id):
         print(f"cleared sms reminder_id on {cur.rowcount} row(s) for {reminder_id}")
 
 
+def chat_history(cur):
+    cur.execute(
+        """
+        SELECT patient_id::text AS patient_id, count(*) AS n
+        FROM clinic.workspace_jobs
+        GROUP BY patient_id
+        ORDER BY patient_id NULLS FIRST
+        """
+    )
+    return cur.fetchall()
+
+
+def print_chat_history(label, rows):
+    if not rows:
+        print(f"agent chat history {label}: 0")
+        return
+    for row in rows:
+        name = "General" if row["patient_id"] is None else PATIENTS.get(row["patient_id"], row["patient_id"])
+        print(f"agent chat history {label} {name}: {row['n']}")
+
+
 def clear_workspaces(cur):
     cur.execute(
         """
@@ -506,6 +616,7 @@ def clear_workspaces(cur):
     )
     if cur.fetchone()["n"]:
         raise Stop("A workspace chunk has an unknown owner. Stopped.")
+    chat_jobs = chat_history(cur)
     cur.execute("SELECT id::text AS id FROM clinic.workspace_jobs")
     job_ids = [row["id"] for row in cur.fetchall()]
     cur.execute("DELETE FROM clinic.workspace_events WHERE job_id IS NOT NULL")
@@ -529,11 +640,12 @@ def clear_workspaces(cur):
     if cur.rowcount != len(job_ids):
         raise Stop("Workspace job delete count did not match.")
     print(f"workspace jobs deleted: {cur.rowcount}")
+    print_chat_history("deleted", chat_jobs)
     cur.execute("UPDATE clinic.workspaces SET sequence = 0, desktop_cursor = 0")
     print(f"workspaces reset: {cur.rowcount}")
 
 
-def confirm(cur, suggestion_ids, before):
+def confirm(cur, suggestion_ids, before, removed_review_notes):
     cur.execute(
         """
         SELECT p.display_name, r.name, r.due_on::text AS due_on, r.status,
@@ -568,8 +680,8 @@ def confirm(cur, suggestion_ids, before):
         (list(PATIENTS), [text for texts in SENTENCES.values() for text in texts]),
     )
     if cur.fetchone()["n"] != 0:
-        raise Stop("Requests for the nine sentences remain.")
-    print("requests for the nine sentences: 0")
+        raise Stop("Requests for the scripted sentences remain.")
+    print("requests for the scripted sentences: 0")
     if suggestion_ids:
         cur.execute(
             "SELECT count(*) AS n FROM public.notes WHERE source_suggestion_id = ANY(%s::uuid[])",
@@ -578,10 +690,30 @@ def confirm(cur, suggestion_ids, before):
         if cur.fetchone()["n"] != 0:
             raise Stop("Notes still point at the removed suggestions.")
     print("notes tied to those suggestions: 0")
+    for patient_id, body in CANNED_REVIEW_NOTES:
+        cur.execute(
+            "SELECT count(*) AS n FROM public.notes WHERE patient_id = %s AND body = %s",
+            (patient_id, body),
+        )
+        if cur.fetchone()["n"] != 0:
+            raise Stop(f"Canned review note remains for {PATIENTS[patient_id]}.")
+    print("canned review notes in notes: 0")
+    if note_body_counts(cur, SEEDED_NOTES) != before["seeded_notes"]:
+        raise Stop("A seeded note was added or removed.")
+    print("seeded notes unchanged")
+    if count_patients(cur, "public.notes", PANEL) != before["panel_notes"]:
+        raise Stop("Synthetic panel notes changed.")
+    if count_patients(cur, "public.reminder_schedule", PANEL) != before["panel_reminders"]:
+        raise Stop("Synthetic panel reminders changed.")
+    print("synthetic panel notes and reminders unchanged")
     cur.execute("SELECT count(*) AS n FROM clinic.workspace_jobs")
     if cur.fetchone()["n"] != 0:
         raise Stop("workspace_jobs is not empty.")
     print("workspace_jobs: 0")
+    remaining_chat = chat_history(cur)
+    if remaining_chat:
+        raise Stop("Agent chat history remains.")
+    print("agent chat history: 0")
     cur.execute(
         """
         SELECT count(*) AS n FROM clinic.workspaces
@@ -637,7 +769,10 @@ def confirm(cur, suggestion_ids, before):
         )
     for table in held:
         cur.execute(f"SELECT count(*) AS n FROM public.{table}")
-        if cur.fetchone()["n"] != before["protected"][table]:
+        expected = before["protected"][table]
+        if table == "notes":
+            expected -= removed_review_notes
+        if cur.fetchone()["n"] != expected:
             raise Stop(f"public.{table} count changed.")
     cur.execute("SELECT id::text AS id, email_opt_in FROM public.patients ORDER BY id")
     if cur.fetchall() != before["opt_in"]:
