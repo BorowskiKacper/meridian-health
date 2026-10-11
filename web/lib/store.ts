@@ -4,7 +4,8 @@ import { demoPrompt } from "./demo-prompts";
 import { findPatient, parseNavigation } from "./navigation";
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, createPlanItem, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
+import { approveSuggestions, createPlanItem, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute, type SuggestionRow } from "./api";
+import { isVital } from "./clinical";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import { getWorkspaceToken, submitWorkspace, clarifyWorkspace, clarifyWorkspaceVoice, type WorkspaceJob } from './workspace-api';
@@ -20,6 +21,7 @@ import type {
   ResearchResult,
   Specialty,
   TabKind,
+  Trend,
   WorkTab,
 } from "./types";
 
@@ -63,6 +65,9 @@ interface State {
   capabilities: Capabilities | null;
   approvingIds: string[];
   approvalErrors: Record<string, string>;
+  /** "Include resolved/stopped" checkbox per `${patientId}:${kind}` list tab. */
+  chartHistory: Record<string, boolean>;
+  setChartHistory: (patientId: string, kind: "problems" | "medications", on: boolean) => void;
 
   load: () => Promise<void>;
   refreshPatient: (patientId: string) => Promise<void>;
@@ -92,6 +97,20 @@ interface State {
   extractLab: (patientId: string, file: File) => Promise<DocumentResult | undefined>;
   runReminders: (patientId: string) => void;
   optOut: (patientId: string) => void;
+}
+
+/** Chart tab that shows a row written by an approved Document (chart_agent) suggestion. */
+function chartTabFor(row: SuggestionRow): { kind: TabKind; refId?: string; history?: boolean } | null {
+  const { after } = row;
+  switch (row.target_table) {
+    case "conditions": return { kind: "problems", history: after.status === "resolved" };
+    case "medications": return { kind: "medications", history: after.status !== "active" };
+    case "observations": return { kind: isVital({ name: String(after.name ?? row.before?.name ?? "") } as Trend) ? "vitals" : "lab" };
+    case "notes": return { kind: "timeline", refId: "notes" };
+    case "family_history": return { kind: "history" };
+    case "reminder_schedule": return { kind: "reminders" };
+    default: return null;
+  }
 }
 
 function explain(error: unknown, fallback: string): string {
@@ -191,6 +210,8 @@ export const useStore = create<State>()((set, get) => {
     capabilities: null,
     approvingIds: [],
     approvalErrors: {},
+    chartHistory: {},
+    setChartHistory: (patientId, kind, on) => set((s) => ({ chartHistory: { ...s.chartHistory, [`${patientId}:${kind}`]: on } })),
     requestModes: {},
     routePreviews: {},
     cancelRoutePreview: (id) => set((s) => ({ routePreviews: Object.fromEntries(Object.entries(s.routePreviews).filter(([key]) => key !== id)) })),
@@ -513,6 +534,19 @@ export const useStore = create<State>()((set, get) => {
           audit(action.patientId, "Approved", selected.length === 1 ? action.title : `${selected.length} reviewed chart changes.`);
           await refreshPatient(action.patientId);
           set({ notice: null });
+          const targets = new Map<string, { kind: TabKind; refId?: string; history?: boolean; patientId: string }>();
+          for (const row of result.approved) {
+            const tab = row.source === "chart_agent" ? chartTabFor(row) : null;
+            if (!tab) continue;
+            const key = `${row.patient_id}:${tab.kind}:${tab.refId ?? ""}`;
+            const previous = targets.get(key);
+            targets.set(key, { ...tab, patientId: row.patient_id, history: previous?.history || tab.history });
+          }
+          const ordered = [...targets.values()];
+          for (const tab of [...ordered.slice(1), ...ordered.slice(0, 1)]) {
+            if (tab.history) get().setChartHistory(tab.patientId, tab.kind as "problems" | "medications", true);
+            get().openTab(tab.kind, tab.patientId, tab.refId);
+          }
           return true;
         } catch (error) {
           const message = persisted ? "Changes were approved, but the chart could not refresh. Reload before continuing." : explain(error, "Approval could not be confirmed. Reload the chart before retrying.");

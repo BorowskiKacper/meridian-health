@@ -13,7 +13,8 @@ import type { Allergy, Medication } from "@/lib/types";
 export function ChartListsTab({ patientId, kind }: { patientId: string; kind: "problems" | "medications" | "allergies" }) {
   const patient = useStore((state) => state.patients[patientId]);
   const openTab = useStore((state) => state.openTab);
-  const [showHistory, setShowHistory] = useState(false);
+  const showHistory = useStore((state) => kind !== "allergies" && !!state.chartHistory[`${patientId}:${kind}`]);
+  const setChartHistory = useStore((state) => state.setChartHistory);
   const [editingId, setEditingId] = useState<string | null>(null);
   if (!patient) return null;
   const title = kind === "problems" ? "Problem list" : kind === "medications" ? "Medications" : "Allergies & intolerances";
@@ -33,7 +34,7 @@ export function ChartListsTab({ patientId, kind }: { patientId: string; kind: "p
       {kind === "allergies" ? "Substances, reported reactions and recorded severity." : kind === "medications" ? "Recorded medication history and patient-reported use." : "Documented problems, status and onset dates."}
     </PageHeader>
     <ListEntry patientId={patientId} kind={kind} />
-    {kind !== "allergies" && <label className="mt-7 flex w-fit items-center gap-2 text-[13px] text-ink-soft"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} className="size-4 shrink-0 accent-jade-600" />{kind === "medications" ? "Include stopped and other records" : "Include resolved problems"}</label>}
+    {kind !== "allergies" && <label className="mt-7 flex w-fit items-center gap-2 text-[13px] text-ink-soft"><input type="checkbox" checked={showHistory} onChange={(event) => setChartHistory(patientId, kind, event.target.checked)} className="size-4 shrink-0 accent-jade-600" />{kind === "medications" ? "Include stopped and other records" : "Include resolved problems"}</label>}
 
     {kind === "allergies" ? <section aria-label={`Allergy records for ${patient.name}`} className="mt-7">
       <p className="mb-4 text-[13px] font-medium text-jade-900">Current status: {allergySummary(patient.allergies)}</p>

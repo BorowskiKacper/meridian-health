@@ -459,3 +459,44 @@ test('composer renders one selected patient chip, none for Auto, and both Genera
     Module._resolveFilename = originalResolve;
   }
 });
+
+test("approved Document rows open the chart tab that shows each written change", async () => {
+  const row = (id, patient_id, target_table, after, source = "chart_agent") => ({ id, patient_id, target_table, after, before: {}, source });
+  const approve = async (patientId, rows, tabs = []) => {
+    const actions = rows.map((r) => ({ id: r.id, patientId, status: "pending", title: r.target_table }));
+    useStore.setState({ actions, approvingIds: [], tabs, activeTabId: null, layout: "agent", chartHistory: {}, patients: { [patientId]: { id: patientId } } });
+    api.approveSuggestions = async () => ({ approved: rows });
+    chart.reloadPatient = async () => ({ patient: { id: patientId }, actions: actions.map((a) => ({ ...a, status: "approved" })) });
+    assert.equal(await useStore.getState().approveSelected(actions.map((a) => a.id)), true);
+    const s = useStore.getState();
+    return { kinds: s.tabs.map((t) => `${t.kind}${t.refId ? `:${t.refId}` : ""}`), active: s.tabs.find((t) => t.id === s.activeTabId), s };
+  };
+
+  // Jane / John: a discussion note lands on the notes timeline, not the Visit draft.
+  for (const patient of ["jane", "john"]) {
+    const { kinds, active, s } = await approve(patient, [row("n", patient, "notes", { body: "Discussed." })]);
+    assert.deepEqual(kinds, ["timeline:notes"]);
+    assert.equal(active.patientId, patient);
+    assert.equal(s.layout, "split");
+  }
+
+  // Amy: stopped iron is focused with history on; hemoglobin/ferritin open Diagnostics; reminder rows are ignored.
+  const amy = await approve("amy", [
+    row("m", "amy", "medications", { status: "stopped" }),
+    row("h", "amy", "observations", { name: "Hemoglobin", value: 13, unit: "g/dL" }),
+    row("f", "amy", "observations", { name: "Ferritin", value: 46, unit: "ng/mL" }),
+    row("r", "amy", "reminder_schedule", { status: "scheduled" }, "reminder_agent"),
+  ]);
+  assert.deepEqual(amy.kinds, ["lab", "medications"]);
+  assert.equal(amy.active.kind, "medications");
+  assert.equal(amy.s.chartHistory["amy:medications"], true);
+
+  // An already-open problems tab is reused and its history checkbox turned on; vitals map by name.
+  const open = await approve("p", [row("c", "p", "conditions", { status: "resolved" }), row("w", "p", "observations", { name: "Body weight" })], [{ id: "existing", kind: "problems", patientId: "p" }]);
+  assert.deepEqual(open.kinds, ["problems", "vitals"]);
+  assert.equal(open.active.id, "existing");
+  assert.equal(open.s.chartHistory["p:problems"], true);
+
+  // Unmapped or non-Document rows open nothing.
+  assert.deepEqual((await approve("q", [row("x", "q", "encounters", {}), row("y", "q", "notes", {}, "research_add_to_plan")])).kinds, []);
+});
