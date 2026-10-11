@@ -42,7 +42,7 @@ export function RemindersTab({ patientId }: { patientId: string }) {
   </li>;
 
   return <Page>
-    <PageHeader eyebrow={patient.name} title={`${firstName(patient.name)}’s Follow-up`}>Screening and monitoring tasks on this chart.</PageHeader>
+    <PageHeader title={`${firstName(patient.name)}’s Follow-up`}>Screening and monitoring tasks on this chart.</PageHeader>
     <section className="mt-9" aria-label="Open follow-up tasks">
       <h2 className="mb-3 font-sans text-[13px] font-semibold text-ink-soft">Open tasks <span className="ml-2 font-normal text-ink-faint">{active.length}</span></h2>
       {active.length ? <ul className="divide-y divide-hairline border-y border-hairline">{active.map(taskRow)}</ul> : <p className="border-y border-hairline py-6 text-[13px] text-ink-soft">No open follow-up tasks recorded.</p>}

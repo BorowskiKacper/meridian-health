@@ -11,7 +11,7 @@ export function ResearchTab({ researchId }: { researchId: string }) {
 
   return (
     <Page>
-      <PageHeader eyebrow={`Research · ${patient?.name ?? "General"}`} title={result.question}>
+      <PageHeader title={result.question}>
 
       </PageHeader>
       <ResearchResult result={result} />

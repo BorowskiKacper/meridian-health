@@ -24,7 +24,6 @@ export function QueueTab({ patientId }: { patientId: string }) {
   return (
     <Page>
       <PageHeader
-        eyebrow={patient.name}
         title={`${firstName(patient.name)}’s Approvals`}
         actions={
           reviewed.length > 0 && (

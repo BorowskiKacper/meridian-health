@@ -28,7 +28,7 @@ export function VitalsTab({ patientId }: { patientId: string }) {
   const mean = pairs.length ? `${(pairs.reduce((n, p) => n + p.systolic, 0) / pairs.length).toFixed(1)}/${(pairs.reduce((n, p) => n + p.diastolic, 0) / pairs.length).toFixed(1)}` : null;
   const empty = period === "all" ? "No measurements recorded for this patient." : "No measurements in this period. Choose All recorded to see earlier data.";
   return <Page wide>
-    <PageHeader eyebrow="Measurements" title={`${firstName(patient.name)}’s Vitals`}>
+    <PageHeader title={`${firstName(patient.name)}’s Vitals`}>
       Recorded values and collection dates. Select any point for its source, or expand the table to review exact results.
     </PageHeader>
     <div className="mt-5 flex justify-end"><VitalsDialog patientId={patientId} /></div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
-import { formatDate, formatMonth, kindLabel } from "@/lib/data";
+import { formatDate, formatMonth } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import { Page, PageHeader, Section, SeverityDot } from "@/components/system/primitives";
 import { MeasurementList } from "@/components/charts/measurement-list";
@@ -34,7 +34,6 @@ export function RegionTab({ patientId, findingId }: { patientId: string; finding
   return (
     <Page>
       <PageHeader
-        eyebrow={`${patient.name} · ${kindLabel[finding.kind]}`}
         title={finding.title}
         actions={
           <button

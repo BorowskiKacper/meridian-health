@@ -29,7 +29,7 @@ export function ChartListsTab({ patientId, kind }: { patientId: string; kind: "p
   }}>{editingId === record.id ? "Close editor" : "category" in record && record.category === "nkda" ? "Resolve record" : "Edit record"}</button>;
 
   return <Page>
-    <PageHeader eyebrow={patient.name} title={`${firstName(patient.name)}’s ${title}`}>
+    <PageHeader title={`${firstName(patient.name)}’s ${title}`}>
       {kind === "allergies" ? "Substances, reported reactions and recorded severity." : kind === "medications" ? "Recorded medication history and patient-reported use." : "Documented problems, status and onset dates."}
     </PageHeader>
     <ListEntry patientId={patientId} kind={kind} />

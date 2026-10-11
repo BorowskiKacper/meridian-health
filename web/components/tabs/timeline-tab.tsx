@@ -38,7 +38,7 @@ export function TimelineTab({ patientId, notesOnly = false }: { patientId: strin
 
   return (
     <Page>
-      <PageHeader eyebrow={patient.name} title={`${firstName(patient.name)}’s ${notesOnly ? "Notes" : "Timeline"}`}>
+      <PageHeader title={`${firstName(patient.name)}’s ${notesOnly ? "Notes" : "Timeline"}`}>
         {notesOnly ? "Clinical notes, newest first." : "Encounters, medication starts and notes, newest first."}
       </PageHeader>
 
