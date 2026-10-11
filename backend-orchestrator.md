@@ -29,7 +29,7 @@ If two of them disagree, the one listed first for that topic wins. Neither you n
 
 ## Postgres and anything else only the user can provide
 
-Tests from Phase 2 on run against a real Postgres (Tiger), not a fake and not SQLite. Vendors other than Postgres (Gemini, Snowflake, Twilio, ElevenLabs) are faked in every test and need no keys.
+Tests from Phase 2 on run against a real Postgres (Tiger), not a fake and not SQLite. Vendors other than Postgres (Gemini, Snowflake, Resend, ElevenLabs) are faked in every test and need no keys.
 
 Before you spawn any subagent in Phase 2 or later, check that:
 
@@ -135,15 +135,14 @@ Phase 3 holds the tools and plain services that need only the database and evide
 |---|---|
 | `fastapi` | API |
 | `uvicorn[standard]` | running the app |
-| `python-multipart` | `POST /documents`, `POST /requests` with audio, Twilio webhook form |
+| `python-multipart` | `POST /documents`, `POST /requests` with audio |
 | `pydantic` | schemas |
 | `python-dotenv` | `config.py` loading `backend/.env` |
 | `sqlalchemy` (2.x) | models and repositories |
 | `psycopg[binary]` (3.x) | Postgres driver |
 | `pgvector` | `notes.embedding` |
-| `httpx` | Snowflake Cortex Search REST, FastAPI test client |
+| `httpx` | Snowflake Cortex Search REST, Resend email, FastAPI test client |
 | `google-genai` | Gemini model, vision, embeddings, Google Search grounding |
-| `twilio` | WhatsApp reminders |
 | `pytest` | tests (dev group) |
 
 Do not add an ElevenLabs package, a Snowflake connector, or a Stedi client. Snowflake is called over REST with `httpx`.
@@ -156,9 +155,10 @@ Do not add an ElevenLabs package, a Snowflake connector, or a Stedi client. Snow
 - `SNOWFLAKE_PAT`
 - `SNOWFLAKE_DATABASE`
 - `SNOWFLAKE_SCHEMA`
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM_NUMBER` (the WhatsApp sender, `whatsapp:+1...`)
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
+- `EMAIL_PUBLIC_BASE_URL` (absolute origin for the unsubscribe link)
+- `EMAIL_UNSUBSCRIBE_SECRET` (HMAC key for `{patient_id}.{hmac_sha256}`)
 - `ELEVENLABS_API_KEY`
 
 `ELEVENLABS_API_KEY` is only a name in this phase. `config.py` also defines the constants from the contract's Locked choices: `GEMINI_MODEL = "gemini-3.6-flash"`, the embedding model and dimension, the three Cortex Search service names, and `MEDICAL_DOMAINS`. They are constants, not environment variables.
@@ -258,14 +258,14 @@ backend/app/speech/hook.py
 | Subagent | Branch | Owns | Contract sections |
 |---|---|---|---|
 | MCP | `phase-3/mcp` | `backend/app/mcp/` | MCP tools |
-| Reminders | `phase-3/reminders` | `backend/app/services/reminders.py`, `backend/app/services/sms.py` | Reminders and WhatsApp, Manual reminder edit, WhatsApp reminders invariant. Functions `send_due_reminders`, `update_reminder`, `handle_sms_webhook` |
+| Reminders | `phase-3/reminders` | `backend/app/services/reminders.py`, `backend/app/services/email.py` | Reminders and email, Manual reminder edit, Email reminders invariant. Functions `send_due_reminders`, `update_reminder`, `unsubscribe` |
 | Chart reads | `phase-3/chart-reads` | `backend/app/services/chart.py`, `backend/app/services/appointments.py` | Doctor chart and body, the appointment routes, Appointments invariant. Functions `get_body_state`, `get_region`, `list_appointments`, `create_appointment`, `update_appointment` |
 | Eligibility | `phase-3/eligibility` | `backend/app/services/eligibility.py` | Insurance and secretary (eligibility only), Eligibility invariant. Function `check_eligibility` |
 
 **Tests first:**
 
 - `backend/tests/mcp/` — `get_patient_context` returns the contract shape, including `pending_suggestions` with `unconfirmed: true`. `past_procedures` are encounters of type `procedure`. `search_patient_notes` returns excerpts and labs, found by full-text search, including seeded notes that have no embedding. `get_coverage` returns the coverage object or a not-found error. `propose_change` inserts one `pending` row, refuses a bad table or key, refuses a `reminder_change` with no `baseline` citation (including one that cites only `literature` or `guideline`), refuses any suggestion citing a `web` source, and does not update a chart table.
-- `backend/tests/reminders/` — `send_due_reminders` sends only rows with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. The message body has no diagnosis, medication, or lab. The row stores `twilio_sid` and the reminder becomes `sent`. Every message goes from the `whatsapp:` sender to `whatsapp:<phone_e164>`. `handle_sms_webhook` with `STOP` from `whatsapp:+1...` sets that patient's `sms_opt_in` false and does not change the chart. A status callback updates `sms_messages.status`. `update_reminder` changes only `due_on` or `status` and does not call the reminder agent. Twilio is a fake.
+- `backend/tests/reminders/` — `send_due_reminders` sends only rows with `due_on <= as_of`, `status = scheduled`, and `email_opt_in = true`. The message body is one clinic sentence plus an unsubscribe link and has no diagnosis, medication, or lab. The row stores Resend's `provider_id` with status `sent`, and the reminder becomes `sent`. A failed send leaves that reminder `scheduled`. `unsubscribe` with a valid `{patient_id}.{hmac_sha256}` token sets that patient's `email_opt_in` false and does not change the chart. A bad token changes nothing. A second click stays opted out. `update_reminder` changes only `due_on` or `status` and does not call the reminder agent. Resend is a fake.
 - `backend/tests/services/test_chart.py` — `get_body_state` returns the contract shape with `age` computed from `date_of_birth`, regions in the selected specialty marked `focus` and the rest `dim`, `pulse` true only for a region with an active condition in that specialty, a timeline built from conditions, medications, and encounters, and trends grouped by observation name. `get_region` returns that region's conditions, medications, and observations. An unknown patient or region is a not-found error.
 - `backend/tests/services/test_appointments.py` — create, list by patient and by calendar date, and update any of `starts_at`, `ends_at`, `reason`, `status`. A bad `status` is rejected. No agent is imported.
 - `backend/tests/services/test_eligibility.py` — `check_eligibility` reads `coverages` through the repository, not through MCP, and never calls Stedi. It stores one `eligibility_checks` row. `prior_auth` is null when `order_text` does not raise a prior-auth question. A prior-auth note cites `search_payer_docs`. Gemini and Snowflake are fakes.
@@ -318,7 +318,7 @@ Model calls in tests are faked. `route_doctor_request` takes text that the test 
 
 `POST /requests` with `text` never calls the speech hook. `POST /requests` with `audio` calls `SpeechHook.transcribe` and then `route_doctor_request` with that text. For a voice `chart_update`, `spoken_text` is set. `SpeechHook.synthesize` may be called and must be allowed to return null, which the response exposes as `audio_base64: null`. Tests use a fake hook. The real ElevenLabs adapter is a single module, `backend/app/speech/hook.py`, whose default implementation does not make a network call.
 
-Add one end-to-end module, `backend/tests/api/test_end_to_end.py`, that fakes only Gemini, Snowflake, Twilio, and the speech hook. It runs a typed `chart_update` request, approves the returned suggestion, and checks that the real `run_reminder_agent` ran and `reminder_review` has the contract shape. It approves a resulting `reminder_change` and checks the follow-up review returns no suggestions.
+Add one end-to-end module, `backend/tests/api/test_end_to_end.py`, that fakes only Gemini, Snowflake, Resend, and the speech hook. It runs a typed `chart_update` request, approves the returned suggestion, and checks that the real `run_reminder_agent` ran and `reminder_review` has the contract shape. It approves a resulting `reminder_change` and checks the follow-up review returns no suggestions.
 
 Routes to cover:
 
@@ -332,7 +332,7 @@ Routes to cover:
 | `eligibility.py` | `POST /patients/{patient_id}/eligibility` | `check_eligibility` |
 | `appointments.py` | `GET /appointments`, `POST /appointments`, `PUT /appointments/{appointment_id}` | `list_appointments`, `create_appointment`, `update_appointment` |
 | `secretary.py` | `POST /secretary/requests` | `answer_secretary` |
-| `webhooks.py` | `POST /webhooks/twilio` | `handle_sms_webhook` |
+| `webhooks.py` | `GET /email/unsubscribe` | `unsubscribe` |
 
 Route functions call only the functions in the Calls column. They do not contain SQL, repository calls, or agent prompts.
 

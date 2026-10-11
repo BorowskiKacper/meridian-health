@@ -42,14 +42,14 @@ INSTANT_KEYS = frozenset(
         "ends_at",
     }
 )
-BOOL_KEYS = frozenset({"sms_opt_in", "active"})
+BOOL_KEYS = frozenset({"email_opt_in", "active"})
 JSON_DICT_KEYS = frozenset({"before", "after"})
 JSON_LIST_KEYS = frozenset({"benefits", "citations", "validation_flags"})
 STRING_KEYS = frozenset(
     {
         "display_name",
         "sex",
-        "phone_e164",
+        "email",
         "name",
         "status",
         "dose",
@@ -74,8 +74,8 @@ STRING_KEYS = frozenset(
         "reason",
         "action",
         "detail",
-        "to_phone",
-        "twilio_sid",
+        "to_email",
+        "provider_id",
         "payer_name",
         "member_id",
         "plan_name",
@@ -89,7 +89,7 @@ STRING_KEYS = frozenset(
 )
 
 PATIENT_KEYS = frozenset(
-    {"id", "display_name", "date_of_birth", "sex", "sms_opt_in", "phone_e164"}
+    {"id", "display_name", "date_of_birth", "sex", "email_opt_in", "email"}
 )
 CONDITION_KEYS = frozenset(
     {"id", "patient_id", "name", "status", "onset_date", "body_region_key"}
@@ -159,8 +159,8 @@ SUGGESTION_KEYS = frozenset(
 AUDIT_LOG_KEYS = frozenset(
     {"id", "patient_id", "suggestion_id", "action", "detail", "created_at"}
 )
-SMS_MESSAGE_KEYS = frozenset(
-    {"id", "patient_id", "reminder_id", "to_phone", "body", "twilio_sid", "status"}
+EMAIL_MESSAGE_KEYS = frozenset(
+    {"id", "patient_id", "reminder_id", "to_email", "body", "provider_id", "status"}
 )
 COVERAGE_KEYS = frozenset(
     {

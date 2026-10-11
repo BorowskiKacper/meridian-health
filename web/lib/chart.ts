@@ -137,8 +137,9 @@ export function patientFromChart(chart: PatientChart): Patient {
       : undefined,
     pendingCount: chart.pending_suggestions,
     span,
-    smsOptIn: directory.sms_opt_in,
-    phone: directory.phone_e164,
+    emailOptIn: directory.email_opt_in,
+    email: directory.email,
+    unsubscribeToken: directory.unsubscribe_token,
     specialties,
   };
 }

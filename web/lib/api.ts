@@ -61,8 +61,9 @@ export interface ChartPatient {
   date_of_birth: string | null;
   age: number;
   sex: string;
-  sms_opt_in: boolean;
-  phone_e164: string;
+  email_opt_in: boolean;
+  email: string;
+  unsubscribe_token: string;
   family_history: { relationship: string; condition: string; age_at_diagnosis: number }[];
   allergies: AllergyRow[];
 }
@@ -239,7 +240,7 @@ export interface DocumentResult {
 }
 
 export interface ReminderRun {
-  sent: { reminder_id: string; sms_id: string }[];
+  sent: { reminder_id: string; email_id: string }[];
   skipped: { reminder_id: string; reason: string }[];
 }
 
@@ -360,15 +361,7 @@ export function runReminderJob(asOf: string) {
   });
 }
 
-export function sendStop(phoneE164: string) {
-  const body = new URLSearchParams();
-  body.set("MessageSid", `SM${crypto.randomUUID().replaceAll("-", "")}`);
-  body.set("MessageStatus", "received");
-  body.set("From", `whatsapp:${phoneE164}`);
-  body.set("Body", "STOP");
-  return api<null>("/webhooks/twilio", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+export function unsubscribe(token: string) {
+  const params = new URLSearchParams({ token });
+  return api<string>(`/email/unsubscribe?${params}`);
 }

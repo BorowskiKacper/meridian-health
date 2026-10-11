@@ -5,9 +5,6 @@ import httpx
 import pytest
 from google import genai
 from google.genai import types
-from twilio.rest import Client
-from twilio.rest.api.v2010.account.message import MessageList
-
 from app import config
 from app.evidence.cortex import cortex_search
 from app.evidence.grounding import grounded_search
@@ -130,22 +127,6 @@ def test_snowflake_pat_queries_cortex_search(service_name):
     for row in rows:
         assert set(row) == {"source_id", "title", "passage", "locator"}
         assert all(isinstance(row[key], str) and row[key] for key in row)
-
-
-def test_twilio_credentials_read_the_account_without_sending(monkeypatch):
-    def create(*args, **kwargs):
-        raise AssertionError("messages.create was called")
-
-    monkeypatch.setattr(MessageList, "create", create)
-    sid = _require("TWILIO_ACCOUNT_SID")
-    client = Client(sid, _require("TWILIO_AUTH_TOKEN"))
-
-    account = client.api.accounts(sid).fetch()
-    messages = client.messages.list(limit=1)
-
-    assert account.sid == sid
-    assert account.status == "active"
-    assert isinstance(messages, list)
 
 
 def test_elevenlabs_key_synthesizes_and_transcribes():

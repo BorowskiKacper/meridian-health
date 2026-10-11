@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, getCapabilities, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult } from "./api";
+import { approveSuggestions, getCapabilities, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, unsubscribe, uploadDocument, type Capabilities, type DocumentResult } from "./api";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import type {
@@ -56,7 +56,7 @@ interface State {
   actions: ProposedAction[];
   research: Record<string, ResearchResult>;
   audit: AuditRow[];
-  sms: Record<string, string>;
+  email: Record<string, string>;
   views: Record<string, PatientView>;
   mode: Mode;
   layout: Layout;
@@ -155,7 +155,7 @@ export const useStore = create<State>()((set, get) => {
     actions: [],
     research: {},
     audit: [],
-    sms: {},
+    email: {},
     views: {},
     mode: "auto",
     layout: "split",
@@ -455,8 +455,8 @@ export const useStore = create<State>()((set, get) => {
           const sent = result.sent.length;
           const skipped = result.skipped.length;
           set((s) => ({
-            sms: {
-              ...s.sms,
+            email: {
+              ...s.email,
               [patientId]: sent
                 ? `Sent ${sent} reminder${sent === 1 ? "" : "s"}. ${skipped} skipped. Messages do not include health details.`
                 : skipped
@@ -465,11 +465,11 @@ export const useStore = create<State>()((set, get) => {
             },
             notice: null,
           }));
-          audit(patientId, "SMS", `${sent} reminder(s) sent.`);
+          audit(patientId, "Email", `${sent} reminder(s) sent.`);
           await refreshPatient(patientId);
         } catch (error) {
           set((s) => ({
-            sms: { ...s.sms, [patientId]: explain(error, "Reminders were not sent. The messaging service did not accept the send.") },
+            email: { ...s.email, [patientId]: explain(error, "Reminders were not sent. The email service did not accept the send.") },
           }));
         }
       })();
@@ -477,16 +477,16 @@ export const useStore = create<State>()((set, get) => {
 
     optOut: (patientId) => {
       const patient = get().patients[patientId];
-      if (!patient?.phone || !patient.smsOptIn) return;
+      if (!patient?.email || !patient.emailOptIn || !patient.unsubscribeToken) return;
       void (async () => {
         try {
-          await sendStop(patient.phone!);
+          await unsubscribe(patient.unsubscribeToken!);
           await refreshPatient(patientId);
           set((s) => ({
-            sms: { ...s.sms, [patientId]: "STOP received. SMS is off for this patient." },
+            email: { ...s.email, [patientId]: "Email reminders are off for this patient." },
             notice: null,
           }));
-          audit(patientId, "Opt-out", "Patient replied STOP.");
+          audit(patientId, "Opt-out", "Patient unsubscribed from email reminders.");
         } catch (error) {
           set({ notice: explain(error, "The opt-out did not reach the clinic API.") });
         }

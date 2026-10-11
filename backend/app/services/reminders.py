@@ -4,7 +4,7 @@ from uuid import uuid4
 from app.db.repositories import (
     get_patient,
     get_reminder,
-    insert_sms_message,
+    insert_email_message,
     list_patients,
     list_reminders_by_patient,
     update_reminder as save_reminder,
@@ -35,8 +35,7 @@ def _error(code, message):
 
 
 def send_due_reminders(as_of, *, session):
-    import app.config as config
-    import app.services.sms as sms
+    import app.services.email as email
 
     sent = []
     skipped = []
@@ -47,28 +46,27 @@ def send_due_reminders(as_of, *, session):
             if _as_date(reminder["due_on"]) > as_of:
                 continue
             reminder_id = str(reminder["id"])
-            if patient["sms_opt_in"] is not True:
+            if patient["email_opt_in"] is not True:
                 skipped.append({"reminder_id": reminder_id, "reason": "opted_out"})
                 continue
-            to = "whatsapp:" + patient["phone_e164"]
-            body = _CLINIC_REMINDER
-            from_number = config.TWILIO_FROM_NUMBER
-            sid = sms.send_whatsapp(from_number, to, body)
-            sms_id = str(uuid4())
-            insert_sms_message(
+            to_email = patient["email"]
+            body = _CLINIC_REMINDER + "\n" + email.unsubscribe_link(patient["id"])
+            provider_id = email.send_email(to_email, body)
+            email_id = str(uuid4())
+            insert_email_message(
                 session,
                 {
-                    "id": sms_id,
+                    "id": email_id,
                     "patient_id": str(patient["id"]),
                     "reminder_id": reminder_id,
-                    "to_phone": to,
+                    "to_email": to_email,
                     "body": body,
-                    "twilio_sid": sid,
-                    "status": "queued",
+                    "provider_id": provider_id,
+                    "status": "sent",
                 },
             )
             save_reminder(session, reminder_id, {"status": "sent"})
-            sent.append({"reminder_id": reminder_id, "sms_id": sms_id})
+            sent.append({"reminder_id": reminder_id, "email_id": email_id})
     return {"sent": sent, "skipped": skipped}
 
 

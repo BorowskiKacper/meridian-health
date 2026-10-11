@@ -100,8 +100,8 @@ class Patient(Base):
     display_name: Mapped[str] = _required_string()
     date_of_birth: Mapped[object] = mapped_column(Date, nullable=False)
     sex: Mapped[str] = _required_string()
-    sms_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    phone_e164: Mapped[str] = _required_string()
+    email_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    email: Mapped[str] = _required_string()
 
 
 class Condition(Base):
@@ -284,15 +284,15 @@ class AuditLog(Base):
     created_at: Mapped[object] = _instant()
 
 
-class SmsMessage(Base):
-    __tablename__ = "sms_messages"
+class EmailMessage(Base):
+    __tablename__ = "email_messages"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     patient_id: Mapped[uuid.UUID] = _uuid_fk("patients")
     reminder_id: Mapped[uuid.UUID | None] = _uuid_fk("reminder_schedule", nullable=True)
-    to_phone: Mapped[str] = _required_string()
+    to_email: Mapped[str] = _required_string()
     body: Mapped[str] = _required_text()
-    twilio_sid: Mapped[str] = mapped_column(PlainString, nullable=False, unique=True)
+    provider_id: Mapped[str] = mapped_column(PlainString, nullable=False, unique=True)
     status: Mapped[str] = _required_string()
 
 
