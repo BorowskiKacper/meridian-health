@@ -1,5 +1,8 @@
 from pathlib import Path
 from uuid import uuid4
+from datetime import timedelta, timezone
+
+import pytest
 
 from app.db.repositories import (
     get_suggestion,
@@ -171,6 +174,32 @@ def test_approval_rejects_stale_before_values(seeded_db, monkeypatch):
     assert condition_by_id(db.session, target["id"])["status"] == "resolved"
 
 
+@pytest.mark.parametrize("timestamp_format", ["utc_z", "offset", "changed"])
+def test_observation_approval_compares_recorded_instants(seeded_db, monkeypatch, timestamp_format):
+    from app.db.repositories import list_observations_by_patient
+    session = seeded_db.session
+    install_seams(monkeypatch)
+    target = list_observations_by_patient(session, JANE_ID)[0]
+    recorded = target["observed_at"]
+    if timestamp_format == "offset":
+        snapshot = recorded.astimezone(timezone(timedelta(hours=-4))).isoformat()
+    elif timestamp_format == "changed":
+        snapshot = (recorded + timedelta(seconds=1)).isoformat()
+    else:
+        snapshot = recorded.isoformat().replace("+00:00", "Z")
+    pending = save_suggestion(session, kind="observation", target_table="observations", target_id=target["id"], before={"observed_at": snapshot, "value": target["value"]}, after={"value": target["value"] + 1})
+    result = approve_suggestions([pending["id"]], None, session=session)
+    current = next(r for r in list_observations_by_patient(session, JANE_ID) if r["id"] == target["id"])
+    if timestamp_format == "changed":
+        assert_error(result, "invalid_state")
+        assert current["value"] == target["value"]
+        assert get_suggestion(session, pending["id"])["status"] == "pending"
+    else:
+        assert "error" not in result
+        assert current["value"] == target["value"] + 1
+        assert get_suggestion(session, pending["id"])["status"] == "approved"
+
+
 def test_invalid_measurement_date_blocks_the_entire_batch(seeded_db, monkeypatch):
     session = seeded_db.session
     recording = install_seams(monkeypatch)
@@ -238,12 +267,8 @@ def assert_error(body, code):
     assert error["message"].strip()
 
 
-def assert_post_approval_call(recording, session):
-    assert len(recording.reminder_calls) == 1
-    patient_id, trigger, agent_session = recording.reminder_calls[0]
-    assert str(patient_id) == JANE_ID
-    assert trigger == "post_approval"
-    assert agent_session is session
+def assert_no_automatic_screening_review(recording):
+    assert recording.reminder_calls == []
 
 
 def assert_reminder_review(result, recording, session):
@@ -252,12 +277,9 @@ def assert_reminder_review(result, recording, session):
     review = result["reminder_review"]
     assert isinstance(review, dict)
     assert set(review) == {"suggestions", "answer"}
-    assert review["answer"] == REMINDER_ANSWER
-    follow_up = recording.follow_ups[0]
-    assert follow_up["id"] in listed_ids(review["suggestions"])
-    stored = get_suggestion(session, follow_up["id"])
-    assert stored is not None
-    assert stored["status"] == "pending"
+    assert review == {"suggestions": [], "answer": None}
+    assert recording.reminder_calls == []
+    assert recording.follow_ups == []
 
 
 def assert_embedded_note(session, body, suggestion_id, embed_calls):
@@ -278,7 +300,7 @@ def assert_suggestion_schema(result):
     Suggestion.model_validate(payload)
 
 
-def test_approve_field_update_writes_chart_audits_and_reviews_reminders(
+def test_approve_field_update_writes_chart_and_audit_without_reviewing_reminders(
     seeded_db, monkeypatch
 ):
     session = seeded_db.session
@@ -298,10 +320,10 @@ def test_approve_field_update_writes_chart_audits_and_reviews_reminders(
     assert len(audits) == 1
     assert audits[0]["action"] == "approved"
     assert audits[0]["suggestion_id"] == suggestion["id"]
-    assert_post_approval_call(recording, session)
+    assert_no_automatic_screening_review(recording)
 
 
-def test_approve_two_suggestions_runs_reminder_agent_once(seeded_db, monkeypatch):
+def test_approve_two_suggestions_does_not_run_reminder_agent(seeded_db, monkeypatch):
     session = seeded_db.session
     recording = install_seams(monkeypatch)
     condition = active_hypertension(session)
@@ -325,7 +347,7 @@ def test_approve_two_suggestions_runs_reminder_agent_once(seeded_db, monkeypatch
     assert get_suggestion(session, first["id"])["status"] == "approved"
     assert get_suggestion(session, second["id"])["status"] == "approved"
     assert condition_by_id(session, condition["id"])["status"] == "controlled"
-    assert_post_approval_call(recording, session)
+    assert_no_automatic_screening_review(recording)
 
 
 def test_approve_edited_after_overrides_stored_after(seeded_db, monkeypatch):
@@ -357,7 +379,7 @@ def test_approve_edited_after_overrides_stored_after(seeded_db, monkeypatch):
     assert len(audits) == 1
     assert audits[0]["action"] == "approved"
     assert audits[0]["suggestion_id"] == suggestion["id"]
-    assert_post_approval_call(recording, session)
+    assert_no_automatic_screening_review(recording)
 
 
 def test_approve_edit_outside_allowlist_is_validation_error(seeded_db, monkeypatch):
@@ -407,7 +429,7 @@ def test_approve_soap_note_stores_embedded_note(seeded_db, monkeypatch):
     assert suggestion["id"] in listed_ids(result["approved"])
     assert get_suggestion(session, suggestion["id"])["status"] == "approved"
     assert_embedded_note(session, SOAP_BODY, suggestion["id"], recording.embed_calls)
-    assert_post_approval_call(recording, session)
+    assert_no_automatic_screening_review(recording)
 
 
 def test_approve_plan_item_stores_embedded_note(seeded_db, monkeypatch):
@@ -431,7 +453,7 @@ def test_approve_plan_item_stores_embedded_note(seeded_db, monkeypatch):
     assert suggestion["id"] in listed_ids(result["approved"])
     assert get_suggestion(session, suggestion["id"])["status"] == "approved"
     assert_embedded_note(session, PLAN_TEXT, suggestion["id"], recording.embed_calls)
-    assert_post_approval_call(recording, session)
+    assert_no_automatic_screening_review(recording)
 
 
 def test_reject_pending_suggestion_records_reason_and_leaves_chart(

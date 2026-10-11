@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { ApiError } from "./api";
-import { approveSuggestions, getCapabilities, postRequest, postVoiceRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult } from "./api";
+import { approveSuggestions, getCapabilities, postGeneralChat, postRequest, postVoiceRequest, previewRequest, rejectSuggestions, runReminderJob, sendStop, uploadDocument, type Capabilities, type DocumentResult, type RequestRoute } from "./api";
 import { loadWorkspace, reloadPatient, suggestionAction, todayIso } from "./chart";
 import { NOW_MINUTE } from "./data";
 import type {
@@ -48,6 +48,10 @@ export interface PatientView {
 }
 
 interface State {
+  routePreviews: Record<string, { status: "checking" | "ready" | "error"; text: string; audio?: Blob; route?: RequestRoute; description?: string; error?: string }>;
+  cancelRoutePreview: (conversationId: string) => void;
+  confirmRoutePreview: (conversationId: string, route?: RequestRoute) => void;
+  sendConfirmed: (text: string, audio?: Blob, route?: RequestRoute, conversationId?: string, reviewedTranscript?: string) => void;
   patients: Record<string, Patient>;
   tabs: WorkTab[];
   activeTabId: string | null;
@@ -65,6 +69,8 @@ interface State {
   notice: string | null;
   uploadedLabs: Record<string, string>;
   capabilities: Capabilities | null;
+  approvingIds: string[];
+  approvalErrors: Record<string, string>;
 
   load: () => Promise<void>;
   refreshPatient: (patientId: string) => Promise<void>;
@@ -77,9 +83,12 @@ interface State {
 
   newConversation: (patientId: string) => void;
   activateConversation: (id: string) => void;
+  closeConversation: (id: string) => void;
   setMode: (mode: Mode) => void;
   setLayout: (layout: Layout) => void;
 
+  requestModes: Record<string, import("./api").RequestRoute | undefined>;
+  setRequestMode: (conversationId: string, route?: import("./api").RequestRoute) => void;
   send: (text: string, audio?: Blob) => void;
   reroute: (messageId: string, route: Agent) => void;
   approve: (id: string) => void;
@@ -162,6 +171,20 @@ export const useStore = create<State>()((set, get) => {
     notice: null,
     uploadedLabs: {},
     capabilities: null,
+    approvingIds: [],
+    approvalErrors: {},
+    requestModes: {},
+    routePreviews: {},
+    cancelRoutePreview: (id) => set((s) => ({ routePreviews: Object.fromEntries(Object.entries(s.routePreviews).filter(([key]) => key !== id)) })),
+    confirmRoutePreview: (id, chosenRoute) => {
+      const preview = get().routePreviews[id];
+      if (preview?.status !== "ready" || !preview.route) return;
+      const route = chosenRoute ?? preview.route;
+      if (get().requestModes[id]) get().setRequestMode(id, route);
+      get().cancelRoutePreview(id);
+      get().sendConfirmed(preview.text, preview.audio, route, id, preview.audio ? preview.text : undefined);
+    },
+    setRequestMode: (id, route) => set((s) => ({ requestModes: { ...s.requestModes, [id]: route } })),
     refreshPatient,
     openPatient: async (patientId) => {
       await refreshPatient(patientId);
@@ -177,14 +200,12 @@ export const useStore = create<State>()((set, get) => {
         const [chart, capabilities] = await Promise.all([loadWorkspace(), getCapabilities().catch(() => null)]);
         const patients = Object.fromEntries(chart.patients.map((patient) => [patient.id, patient]));
         const first = chart.patients[0];
-        const conversations: Conversation[] = first
-          ? chart.patients.map((patient) => ({
+        const conversations: Conversation[] = [{ id: "general", patientId: null, title: "General", messages: [] }, ...chart.patients.map((patient) => ({
               id: `conv-${patient.id}`,
               patientId: patient.id,
               title: patient.name,
               messages: [],
-            }))
-          : [];
+            }))];
         const tabs: WorkTab[] = first
           ? (["overview"] as const).map((kind) => ({
               id: `tab-${kind}-${first.id}`,
@@ -261,13 +282,67 @@ export const useStore = create<State>()((set, get) => {
     },
 
     activateConversation: (id) => set({ activeConversationId: id }),
+    closeConversation: (id) => set((s) => {
+      const index = s.conversations.findIndex((conversation) => conversation.id === id);
+      if (index < 0 || s.conversations[index].patientId === null) return {};
+      const conversations = s.conversations.filter((conversation) => conversation.id !== id);
+      return {
+        conversations,
+        activeConversationId: s.activeConversationId === id
+          ? (conversations[Math.max(0, index - 1)]?.id ?? null)
+          : s.activeConversationId,
+        requestModes: Object.fromEntries(Object.entries(s.requestModes).filter(([key]) => key !== id)),
+        routePreviews: Object.fromEntries(Object.entries(s.routePreviews).filter(([key]) => key !== id)),
+      };
+    }),
 
     setMode: (mode) => set({ mode }),
     setLayout: (layout) => set({ layout }),
 
     send: (text, audio) => {
+      let id = get().activeConversationId;
+      if (!id) {
+        const state = get();
+        const patientId = state.tabs.find((t) => t.id === state.activeTabId)?.patientId ?? Object.keys(state.patients)[0];
+        if (!patientId) return;
+        get().newConversation(patientId);
+        id = get().activeConversationId!;
+      }
+      const conversation = get().conversations.find((c) => c.id === id);
+      if (!conversation || conversation.messages.some((m) => m.pending) || get().routePreviews[id]?.status === "checking" || get().routePreviews[id]?.status === "ready") return;
+      if (conversation.patientId === null) {
+        get().sendConfirmed(text, audio, "clinical_question", id);
+        return;
+      }
+      const patientId = conversation.patientId;
+      const mode = get().requestModes[id];
+      if (!mode && !audio && OPEN_TAB[text.trim().toLowerCase()]) {
+        get().sendConfirmed(text, undefined, undefined, id);
+        return;
+      }
+      const preview = { status: "checking" as const, text, audio };
+      const conversationId = id;
+      set((s) => ({ routePreviews: { ...s.routePreviews, [conversationId]: preview } }));
+      void (async () => {
+        try {
+          const result = await previewRequest(patientId, text, audio);
+          if (get().routePreviews[conversationId] !== preview) return;
+          if (mode && mode === result.route) {
+            get().cancelRoutePreview(conversationId);
+            get().sendConfirmed(result.transcript, audio, mode, conversationId, audio ? result.transcript : undefined);
+          } else {
+            set((s) => ({ routePreviews: { ...s.routePreviews, [conversationId]: { status: "ready", text: result.transcript, audio, route: result.route, description: result.description } } }));
+          }
+        } catch (error) {
+          if (get().routePreviews[conversationId] !== preview) return;
+          set((s) => ({ routePreviews: { ...s.routePreviews, [conversationId]: { status: "error", text, audio, error: explain(error, "Could not determine the workflow. Try again; nothing was submitted.") } } }));
+        }
+      })();
+    },
+
+    sendConfirmed: (text, audio, routeOverride, conversationOverride, reviewedTranscript) => {
       const state = get();
-      let conversationId = state.activeConversationId;
+      let conversationId = conversationOverride ?? state.activeConversationId;
       if (!conversationId) {
         const tab = state.tabs.find((t) => t.id === state.activeTabId);
         const patientId = tab?.patientId ?? Object.keys(state.patients)[0];
@@ -277,11 +352,13 @@ export const useStore = create<State>()((set, get) => {
       }
       const conversation = get().conversations.find((c) => c.id === conversationId);
       if (!conversation) return;
+      if (conversation.messages.some((message) => message.pending)) return;
       const doctor: Message = { id: uid("msg"), role: "doctor", text };
-      const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true };
+      const reply: Message = { id: uid("msg"), role: "agent", text: "", pending: true, route: routeOverride ? ROUTE_LABEL[routeOverride] : undefined };
       updateConversation(conversationId, (c) => ({ ...c, messages: [...c.messages, doctor, reply] }));
-      const localTab = audio ? undefined : OPEN_TAB[text.trim().toLowerCase()];
-      if (localTab) {
+      const requestMode = routeOverride ?? get().requestModes[conversationId];
+      const localTab = audio || requestMode || !conversation.patientId ? undefined : OPEN_TAB[text.trim().toLowerCase()];
+      if (localTab && conversation.patientId) {
         get().openTab(localTab, conversation.patientId);
         updateMessage(conversationId, reply.id, {
           text: "Opened it beside the chart.",
@@ -294,10 +371,10 @@ export const useStore = create<State>()((set, get) => {
       }
       void (async () => {
         try {
-          const result = audio ? await postVoiceRequest(conversation.patientId, audio) : await postRequest(conversation.patientId, text);
+          const result = conversation.patientId === null ? await postGeneralChat(text, audio) : audio ? await postVoiceRequest(conversation.patientId, audio, requestMode, reviewedTranscript) : await postRequest(conversation.patientId, text, requestMode);
           if (audio) updateMessage(conversationId, doctor.id, { text: result.transcript || "Voice request (no transcript returned)" });
           const route = ROUTE_LABEL[result.route];
-          const researchId = result.answer ? uid("research") : undefined;
+          const researchId = result.answer && result.route === "clinical_question" ? uid("research") : undefined;
           if (result.answer && researchId) {
             const answer = result.answer;
             set((s) => ({
@@ -306,18 +383,22 @@ export const useStore = create<State>()((set, get) => {
                 [researchId]: {
                   id: researchId,
                   patientId: conversation.patientId,
-                  question: text,
+                  question: result.transcript || text,
                   answer: answer.text,
-                  basis: "Answer from the clinic API.",
+                  basis: "",
+                  sections: answer.sections,
                   citations: answer.citations.map((citation) => ({
                     source: citation.title || citation.source_id || "Source",
                     passage: citation.passage || "",
+                    id: citation.source_id,
+                    tier: citation.tier,
+                    locator: citation.locator,
                   })),
                 },
               },
             }));
           }
-          const linked = result.suggestions.map((row) =>
+          const linked = (conversation.patientId ? result.suggestions : []).map((row) =>
             suggestionAction(row, { conversationId, messageId: reply.id }),
           );
           set((s) => ({
@@ -337,10 +418,13 @@ export const useStore = create<State>()((set, get) => {
             audioBase64: result.audio_base64 ?? undefined,
             pending: false,
           });
-          try { await refreshPatient(conversation.patientId); } catch { set({ notice: "The request completed, but the chart could not refresh. Reload before continuing." }); }
+          if (conversation.patientId) {
+            try { await refreshPatient(conversation.patientId); } catch { set({ notice: "The request completed, but the chart could not refresh. Reload before continuing." }); }
+          }
         } catch (error) {
           updateMessage(conversationId, reply.id, {
             text: explain(error, "The assistant request could not finish. Try again; no chart changes were approved."),
+            error: true,
             requestText: text,
             pending: false,
           });
@@ -361,35 +445,38 @@ export const useStore = create<State>()((set, get) => {
     approve: (id) => { void get().approveSelected([id]); },
 
     approveSelected: async (ids) => {
-      const selected = [...new Set(ids)].map((id) => get().actions.find((a) => a.id === id && a.status === "pending"));
+      const uniqueIds = [...new Set(ids)];
+      const selected = uniqueIds.map((id) => get().actions.find((a) => a.id === id && a.status === "pending"));
       const action = selected[0];
       if (!action || selected.some((a) => !a || a.patientId !== action.patientId)) return false;
+      if (get().actions.some((a) => a.patientId === action.patientId && get().approvingIds.includes(a.id))) return false;
+      set((s) => ({ approvingIds: [...s.approvingIds, ...uniqueIds], approvalErrors: Object.fromEntries(Object.entries(s.approvalErrors).filter(([id]) => !uniqueIds.includes(id))), notice: null }));
       let persisted = false;
         try {
-          const result = await approveSuggestions([...new Set(ids)]);
+          const result = await approveSuggestions(uniqueIds);
           persisted = true;
+          const approvedIds = new Set(result.approved.map((row) => row.id));
+          set((s) => ({ actions: s.actions.map((a) => approvedIds.has(a.id) ? { ...a, status: "approved" } : a) }));
           audit(action.patientId, "Approved", selected.length === 1 ? action.title : `${selected.length} reviewed chart changes.`);
           await refreshPatient(action.patientId);
-          const review = result.reminder_review;
-          if (review?.answer && action.conversationId) {
-            updateConversation(action.conversationId, (c) => ({
-              ...c,
-              messages: [...c.messages, { id: uid("msg"), role: "agent", text: review.answer ?? "", route: "screening", routedBy: "auto" }],
-            }));
-          }
           set({ notice: null });
           return true;
         } catch (error) {
-          set({
-            notice: persisted ? "Changes were approved, but the chart could not refresh. Reload before continuing." : explain(error, "Approval could not be confirmed. Reload the chart before retrying."),
-          });
-          return false;
+          const message = persisted ? "Changes were approved, but the chart could not refresh. Reload before continuing." : explain(error, "Approval could not be confirmed. Reload the chart before retrying.");
+          set((s) => ({
+            notice: message,
+            approvalErrors: { ...s.approvalErrors, ...Object.fromEntries(uniqueIds.map((id) => [id, message])) },
+          }));
+          return persisted;
+        } finally {
+          set((s) => ({ approvingIds: s.approvingIds.filter((id) => !uniqueIds.includes(id)) }));
         }
     },
 
     reject: (id) => {
       const action = get().actions.find((a) => a.id === id && a.status === "pending");
       if (!action) return;
+      if (get().actions.some((a) => a.patientId === action.patientId && get().approvingIds.includes(a.id))) return;
       void (async () => {
         try {
           await rejectSuggestions([id], "Not accurate");
@@ -407,21 +494,7 @@ export const useStore = create<State>()((set, get) => {
         .actions.filter((a) => a.messageId === messageId && a.status === "pending")
         .map((a) => a.id);
       if (!ids.length) return;
-      void (async () => {
-        try {
-          await approveSuggestions(ids);
-          const patientId = get().actions.find((a) => a.id === ids[0])?.patientId;
-          if (patientId) {
-            audit(patientId, "Approved", `${ids.length} suggestion(s).`);
-            await refreshPatient(patientId);
-          }
-          set({ notice: null });
-        } catch (error) {
-          set({
-            notice: explain(error, "Approval did not finish. The reminder review needs the chart model, so the chart was left unchanged."),
-          });
-        }
-      })();
+      void get().approveSelected(ids);
     },
 
     extractLab: async (patientId, file) => {

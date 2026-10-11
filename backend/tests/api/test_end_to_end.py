@@ -36,7 +36,7 @@ def _install(monkeypatch):
 
     def complete(task, payload):
         if task == "classify":
-            return {"route": "chart_update"}
+            return {"route": "check_screenings" if "screening" in payload["text"].lower() else "chart_update"}
         if task == "chart":
             condition = _named(payload["context"]["conditions"], "Hypertension")
             return {
@@ -140,7 +140,7 @@ def _screening(session):
     return _named(list_reminders_by_patient(session, JANE_ID), "Colorectal cancer screening")
 
 
-def test_typed_update_approval_then_reminder_approval(seeded_db, monkeypatch, client):
+def test_approval_is_quiet_and_screening_requires_an_explicit_request(seeded_db, monkeypatch, client):
     bind_session(monkeypatch, seeded_db.session)
     _install(monkeypatch)
     session = seeded_db.session
@@ -170,9 +170,14 @@ def test_typed_update_approval_then_reminder_approval(seeded_db, monkeypatch, cl
     assert approved.status_code == 200
     approved_body = approved.json()
     assert suggestion_id in listed_ids(approved_body["approved"])
-    review = approved_body["reminder_review"]
-    assert len(review["suggestions"]) == 1
-    reminder_suggestion = review["suggestions"][0]
+    assert approved_body["reminder_review"] == {"suggestions": [], "answer": None}
+    assert _hypertension(session)["status"] == "controlled"
+    assert _screening(session)["due_on"] != date(2026, 12, 1)
+    requested = call(client, "POST", "/requests", data={"patient_id": JANE_ID, "text": "Review screening needs."})
+    assert requested.status_code == 200
+    assert requested.json()["route"] == "check_screenings"
+    assert len(requested.json()["suggestions"]) == 1
+    reminder_suggestion = requested.json()["suggestions"][0]
     assert reminder_suggestion["kind"] == "reminder_change"
     assert reminder_suggestion["status"] == "pending"
     assert _hypertension(session)["status"] == "controlled"
@@ -187,5 +192,8 @@ def test_typed_update_approval_then_reminder_approval(seeded_db, monkeypatch, cl
     assert closed.status_code == 200
     closed_review = closed.json()["reminder_review"]
     assert closed_review["suggestions"] == []
-    assert "up to date" in closed_review["answer"].lower()
+    assert closed_review["answer"] is None
     assert _screening(session)["due_on"] == date(2026, 12, 1)
+    requested_again = call(client, "POST", "/requests", data={"patient_id": JANE_ID, "text": "Review screenings again."})
+    assert requested_again.status_code == 200
+    assert "up to date" in requested_again.json()["answer"]["text"].lower()

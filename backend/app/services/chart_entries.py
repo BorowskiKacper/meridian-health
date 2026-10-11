@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from uuid import UUID, uuid5
 from sqlalchemy import select
-from app.db.models import Allergy, AuditLog, BodyRegion, Condition, Medication, Observation, Patient, Reminder
+from app.db.models import Allergy, AuditLog, BodyRegion, Condition, Medication, Observation, Patient, Reminder, Note
 from app.schemas.chart_entries import Submission, Vitals, MedicationEntry, AllergyEntry, ProblemEntry, VisitDraft, Review, Inactivate, NoKnownDrugAllergies, FollowUp
 
 
@@ -135,6 +135,30 @@ def save_visit_draft(patient_id: UUID, payload: VisitDraft, *, session):
     return _save(patient_id, payload, 'visit_draft', lambda *_: None, session=session)
 
 
+def finalize_visit(patient_id, payload, *, session):
+    def write(session, content):
+        latest = session.scalar(select(AuditLog).where(AuditLog.patient_id == patient_id, AuditLog.action == 'visit_draft').order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(1))
+        if latest is None or latest.id != payload.draft_id:
+            return _error('invalid_state', 'The saved draft changed. Reload and review the latest draft.')
+        prior = session.scalars(select(AuditLog).where(AuditLog.patient_id == patient_id, AuditLog.action == 'finalize_visit')).all()
+        if any(json.loads(row.detail)['input']['draft_id'] == str(payload.draft_id) for row in prior):
+            return _error('invalid_state', 'This draft has already been finalized.')
+        draft = json.loads(latest.detail)['input']
+        if not draft['assessment'].strip() or not draft['plan'].strip():
+            return _error('validation_error', 'Complete the assessment and plan before finalizing.')
+        from datetime import date
+        if date.fromisoformat(draft['visit_date']) > datetime.now(timezone.utc).date():
+            return _error('validation_error', 'A future visit cannot be finalized.')
+        now = datetime.now(timezone.utc)
+        body = f"Visit date: {draft['visit_date']}\nFinalized by: {payload.finalized_by} (self-reported identity)\nFinalized at: {now.isoformat()}\n\nReason for visit / history\n{draft['reason']}\n\nAssessment\n{draft['assessment']}\n\nPlan\n{draft['plan']}"
+        if len(body.encode()) > 7000:
+            return _error('validation_error', 'The note exceeds the storage limit. Shorten the saved draft.')
+        note_id = uuid5(payload.draft_id, 'finalized_visit_note')
+        session.add(Note(id=note_id, patient_id=patient_id, body=body, created_at=now, embedding=None, source_suggestion_id=None))
+        return {'note_id': str(note_id), 'visit_date': draft['visit_date']}
+    return _save(patient_id, payload, 'finalize_visit', write, session=session)
+
+
 def update_follow_up(patient_id: UUID, record_id: UUID, payload: FollowUp, *, session):
 
     def write(session, content):
@@ -173,4 +197,8 @@ def get_entry_state(patient_id: UUID, *, session):
         if row:
             detail = json.loads(row.detail)
             result[key] = {**detail['input'], 'saved_at': row.created_at, 'stale': key != 'draft' and detail['snapshot_version'] != _version(_snapshot(session, patient_id, key))}
+            if key == 'draft':
+                finalized = session.scalars(select(AuditLog).where(AuditLog.patient_id == patient_id, AuditLog.action == 'finalize_visit')).all()
+                receipt = next((r for r in finalized if json.loads(r.detail)['input']['draft_id'] == str(row.id)), None)
+                result[key].update(draft_id=str(row.id), finalized_at=receipt.created_at if receipt else None, finalized_by=json.loads(receipt.detail)['input']['finalized_by'] if receipt else None)
     return result

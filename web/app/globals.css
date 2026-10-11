@@ -9,19 +9,20 @@
  * Neutral chart surfaces preserve legibility; amber and red retain clinical meaning.
  */
 :root {
-  --jade-50: #eef3f0;
-  --jade-100: #dce8e1;
+  --jade-50: #d7e6dc;
+  --jade-100: #cde1d3;
   --jade-300: #a4c7b7;
   --jade-500: #467c67;
   --jade-600: #28634f;
   --jade-700: #174e3d;
   --jade-900: #00362d;
-  --assistant-surface: #23594f;
+  --assistant-surface: #30564b;
   --assistant-text: var(--white);
   --assistant-muted: var(--white);
 
-  --ivory: #f8faf8;
-  --ivory-deep: #edf1ee;
+  --ivory: #edf5ef;
+  --ivory-deep: #e0ece3;
+  --clinical-surface: #f4f9f5;
   --white: #ffffff;
 
   --ink: #14211d;
@@ -36,9 +37,9 @@
 
   --background: var(--jade-50);
   --foreground: var(--ink);
-  --card: var(--white);
+  --card: var(--clinical-surface);
   --card-foreground: var(--ink);
-  --popover: var(--white);
+  --popover: var(--clinical-surface);
   --popover-foreground: var(--ink);
   --primary: var(--jade-600);
   --primary-foreground: var(--white);
@@ -82,6 +83,7 @@
   --color-jade-700: var(--jade-700);
   --color-jade-900: var(--jade-900);
   --color-assistant-surface: var(--assistant-surface);
+  --color-clinical-surface: var(--clinical-surface);
   --color-ivory: var(--ivory);
   --color-ivory-deep: var(--ivory-deep);
   --color-ink: var(--ink);
@@ -173,7 +175,7 @@
 }
 .assistant-panel { width: clamp(360px, 27vw, 420px); }
 @media (max-width: 900px) {
-  .assistant-panel { position: absolute; z-index: 30; inset: 64px 12px 12px auto; width: min(400px, calc(100% - 24px)); box-shadow: 0 12px 40px rgb(0 54 45 / 0.2); }
+  .assistant-panel { position: absolute; z-index: 30; inset: 64px 12px 12px auto; width: min(400px, calc(100% - 24px)); box-shadow: 0 12px 40px rgb(0 54 45 / 0.12); }
 }
 @container (max-width: 600px) {
   .stage-toolbar { flex-wrap: wrap; justify-content: center; }
@@ -182,9 +184,16 @@
   .cutaway-controls > span { width: auto; }
 }
 
-/* Deep teal separates the assistant from the chart; ivory inputs and review
+/* Muted teal separates the assistant from the chart; ivory inputs and review
    cards retain dark text and the chart's familiar jade controls. */
-.agent-window { color: var(--assistant-text); }
+.agent-window {
+  --jade-50: #dce8e0;
+  --jade-100: #d4e5da;
+  --ivory: #f5f9f6;
+  --ivory-deep: #e7efe9;
+  color: var(--assistant-text);
+  border-color: rgb(0 54 45 / 0.14);
+}
 .agent-window .eyebrow { color: var(--assistant-muted); }
 .agent-window h2 { color: var(--assistant-text); }
 .agent-window .agent-dim { color: var(--assistant-muted); }
@@ -192,8 +201,8 @@
 .agent-window .agent-accent { color: var(--assistant-text); }
 .agent-window .agent-working { background: var(--jade-300); }
 .agent-window .agent-rule,
-.agent-window .agent-rule > li { border-color: rgb(248 250 248 / 0.18); }
-.agent-window .agent-bubble { background: rgb(248 250 248 / 0.12); color: var(--assistant-text); }
+.agent-window .agent-rule > li { border-color: rgb(248 250 248 / 0.14); }
+.agent-window .agent-bubble { background: rgb(248 250 248 / 0.08); color: var(--assistant-text); }
 .agent-window .agent-hover:hover { background: rgb(248 250 248 / 0.12); color: var(--assistant-text); }
 .agent-window .agent-card { background: var(--ivory); border-color: var(--hairline); }
 .agent-window .agent-card .agent-text { color: var(--ink); }

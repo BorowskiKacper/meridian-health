@@ -13,7 +13,7 @@ export function QueueTab({ patientId }: { patientId: string }) {
   const audit = useStore(useShallow((s) => s.audit.filter((a) => a.patientId === patientId)));
   const approveSelected = useStore((s) => s.approveSelected);
   const [selected, setSelected] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  const busy = useStore((s) => s.actions.some((a) => a.patientId === patientId && s.approvingIds.includes(a.id)));
   if (!patient) return null;
 
   const pending = actions.filter((a) => a.status === "pending");
@@ -27,7 +27,7 @@ export function QueueTab({ patientId }: { patientId: string }) {
         title="Review proposed changes"
         actions={
           reviewed.length > 0 && (
-            <Button disabled={busy} className="rounded-md px-4" onClick={async () => { setBusy(true); try { if (await approveSelected(reviewed)) setSelected([]); } finally { setBusy(false); } }}>
+            <Button disabled={busy} className="rounded-md px-4" onClick={async () => { if (await approveSelected(reviewed)) setSelected([]); }}>
               {busy ? "Approving…" : `Approve ${reviewed.length} reviewed change${reviewed.length === 1 ? "" : "s"}`}
             </Button>
           )

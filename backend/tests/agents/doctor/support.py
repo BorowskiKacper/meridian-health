@@ -24,7 +24,6 @@ IDENTIFIERS = (JANE_ID, MEMBER_ID, PHONE, SCREENING_DUE)
 LEAKED_TEXT = (
     f"colorectal cancer screening start age {JANE_ID} {MEMBER_ID} {PHONE} {SCREENING_DUE}"
 )
-TRUSTED_EVIDENCE = "Trusted evidence was not found."
 DEPARTURE_REASON = (
     "USPSTF baseline: start at 45 for average risk. "
     "Proposed 40 because a first-degree relative was diagnosed with colorectal cancer."

@@ -231,6 +231,24 @@ def _write_fields(target_table, after):
     return fields
 
 
+def _matches_snapshot(table, target, before):
+    # API timestamps use ISO 8601; database rows contain Python datetimes.
+    # Compare the recorded instant, not its serialized spelling.
+    try:
+        expected = _write_fields(table, before)
+        actual = _write_fields(table, {key: target.get(key) for key in before})
+    except (TypeError, ValueError):
+        return False
+    for key, value in expected.items():
+        recorded = actual[key]
+        if isinstance(value, (date, datetime)) or key in {"value", "age_at_diagnosis"}:
+            if recorded != value:
+                return False
+        elif str(recorded) != str(value):
+            return False
+    return True
+
+
 _INSERTS = {"conditions": insert_condition, "medications": insert_medication, "family_history": insert_family_history, "observations": insert_observation, "reminder_schedule": insert_reminder}
 _LISTS = {"conditions": list_conditions_by_patient, "medications": list_medications_by_patient, "family_history": list_family_history_by_patient, "observations": list_observations_by_patient, "reminder_schedule": list_reminders_by_patient}
 
@@ -320,7 +338,7 @@ def approve_suggestions(ids, edits, *, session):
             target = next((r for r in _LISTS[table](session, suggestion["patient_id"]) if str(r["id"]) == str(suggestion["target_id"])), None)
             if target is None:
                 return _error("invalid_state", "The target record does not belong to this patient.")
-            if any(str(target.get(k)) != str(v) for k, v in suggestion.get("before", {}).items()):
+            if not _matches_snapshot(table, target, suggestion.get("before", {})):
                 return _error("invalid_state", "The record changed after this proposal was drafted. Review a new proposal.")
     approved = []
     for suggestion, after in planned:
@@ -329,19 +347,10 @@ def approve_suggestions(ids, edits, *, session):
         _audit(session, suggestion, "approved", "Approved suggestion.")
         approved.append(updated)
     session.flush()
-    import app.agents.doctor as doctor
-
-    review = doctor.run_reminder_agent(
-        rows[0]["patient_id"],
-        "post_approval",
-        session=session,
-    )
     return {
         "approved": approved,
-        "reminder_review": {
-            "suggestions": review["suggestions"],
-            "answer": review["answer"],
-        },
+        # Preserve the response contract without launching an unsolicited review.
+        "reminder_review": {"suggestions": [], "answer": None},
     }
 
 

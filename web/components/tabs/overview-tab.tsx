@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { formatDate } from "@/lib/data";
 import { bloodPressure, isVital, weightTrend } from "@/lib/clinical";
@@ -33,12 +33,12 @@ export function OverviewTab({ patientId }: { patientId: string }) {
       </OverviewSection>
 
       <div className="mt-7 divide-y divide-hairline border-y border-hairline">
-        <OverviewSection className="py-5" title="Active problems" action="Problem list" onAction={() => openTab("problems", patientId)}>
+        <OverviewDisclosure key={`problems-${patientId}`} title="Active problems" count={problems.length} action="Open problem list" onAction={() => openTab("problems", patientId)}>
           {problems.length ? <ul className="divide-y divide-hairline">{problems.map((p) => <li key={p.id} className="py-3 first:pt-0"><button type="button" className="text-left text-[14px] font-semibold text-jade-700 hover:underline" onClick={() => openTab("region", patientId, p.regionKey)}>{p.name}</button><p className="mt-1 text-[12px] text-ink-faint"><span className="capitalize">{p.status}</span> · Onset {p.onset ? formatDate(p.onset) : "not recorded"}</p></li>)}</ul> : <p className="text-sm text-ink-faint">No active problems recorded.</p>}
-        </OverviewSection>
-        <OverviewSection className="py-5" title="Active medications" action="Medication list" onAction={() => openTab("medications", patientId)}>
+        </OverviewDisclosure>
+        <OverviewDisclosure key={`medications-${patientId}`} title="Active medications" count={meds.length} action="Open medication list" onAction={() => openTab("medications", patientId)}>
           {meds.length ? <ul className="divide-y divide-hairline">{meds.map((m) => <li key={m.id} className="py-3 first:pt-0"><p className="text-[14px] font-semibold">{m.name} <span className="font-normal">{m.dose}</span></p><p className="mt-1 text-[12px] text-ink-soft">{m.route || "Route not recorded"} · {m.frequency || "Frequency not recorded"}</p></li>)}</ul> : <p className="text-sm text-ink-faint">No active medication records.</p>}
-        </OverviewSection>
+        </OverviewDisclosure>
       </div>
 
       <OverviewSection title="Latest diagnostic results" action="Diagnostics & sources" onAction={() => openTab("lab", patientId)}>
@@ -51,6 +51,17 @@ export function OverviewTab({ patientId }: { patientId: string }) {
       <button type="button" className="mt-7 text-[13px] text-jade-700 hover:underline" onClick={() => openTab("history", patientId)}>Family history, procedures & coverage →</button>
     </Page>
   );
+}
+
+function OverviewDisclosure({ title, count, action, onAction, children }: { title: string; count: number; action: string; onAction: () => void; children: ReactNode }) {
+  return <details className="group py-5">
+    <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+      <h2 className="min-w-0 flex-1 font-sans text-[15px] font-semibold">{title}</h2>
+      <span className="shrink-0 text-[12px] text-ink-soft"><span className="numeric">{count}</span> recorded</span>
+      <ChevronDown aria-hidden className="size-4 shrink-0 text-jade-700 transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="pt-4"><div className="mb-4 flex justify-end"><button type="button" onClick={onAction} className="text-[12px] text-jade-700 hover:underline">{action} →</button></div>{children}</div>
+  </details>;
 }
 
 function OverviewSection({ title, action, onAction, children, className = "mt-7" }: { title: string; action: string; onAction: () => void; children: ReactNode; className?: string }) {

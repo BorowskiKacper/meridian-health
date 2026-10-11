@@ -53,3 +53,20 @@ def test_error_response_rolls_back_request_write(client, seeded_db, monkeypatch)
     assert runtime.current_session() is None
     with Session(connection, join_transaction_mode="create_savepoint") as session:
         assert session.get(AuditLog, UUID(submission_id)) is None
+
+
+def test_approval_commits_a_note_without_launching_screenings(client, seeded_db, monkeypatch):
+    bind_request_database(monkeypatch, seeded_db)
+    monkeypatch.setattr("app.services.approval.embed_text", lambda body: [0.1] * 768)
+    def unsolicited_review(*args, **kwargs):
+        raise AssertionError("Approval must not launch screening review")
+    monkeypatch.setattr("app.agents.doctor.run_reminder_agent", unsolicited_review)
+    created = client.post("/suggestions", json={"patient_id": AMY_ID, "text": "Reviewed visit plan for approval regression test.", "citations": []})
+    assert created.status_code == 200
+    suggestion_id = created.json()["id"]
+    approved = client.post("/suggestions/approve", json={"suggestion_ids": [suggestion_id]})
+    assert approved.status_code == 200
+    assert approved.json()["reminder_review"] == {"suggestions": [], "answer": None}
+    chart = client.get(f"/patients/{AMY_ID}/chart")
+    assert chart.status_code == 200
+    assert any(note["source_suggestion_id"] == suggestion_id for note in chart.json()["notes"])

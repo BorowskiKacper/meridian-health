@@ -70,7 +70,9 @@ proxy permits five-minute workflows and 20 MB uploads with multipart overhead.
 AI changes remain pending until approved. Eligibility uses recorded coverage,
 not a live insurer transaction. Twilio account credentials are tested without
 sending real messages. Original document viewing still requires authenticated
-access and S3 read permission; bucket read/delete probes currently return 403.
+access. S3 reads were rechecked successfully against both synthetic test objects
+after the permission update. Delete permission was previously denied and has not
+been rechecked since that update.
 
 Live checks used synthetic clinical data in a private database schema, removed
 afterward. S3 deletion was denied, so these synthetic test objects remain for
