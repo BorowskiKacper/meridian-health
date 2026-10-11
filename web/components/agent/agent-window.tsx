@@ -31,8 +31,9 @@ export function AgentWindow({ open, full }: { open: boolean; full: boolean }) {
       aria-label="Assistant"
     >
       <header className="flex h-12 shrink-0 items-end gap-1 border-b border-white/15 px-3">
+        <button type="button" aria-pressed={activeId === "general"} className={cn("h-9 shrink-0 border-b-2 px-2 text-[12px]", activeId === "general" ? "border-jade-300" : "border-transparent")} onClick={() => activate("general")}>General</button>
         <nav className="flex min-w-0 items-end gap-1 overflow-x-auto" aria-label="Conversations">
-          {conversations.map((conversation) => (
+          {conversations.filter((conversation) => conversation.patientId !== null).map((conversation) => (
             <div
               key={conversation.id}
               className={cn(
@@ -48,7 +49,7 @@ export function AgentWindow({ open, full }: { open: boolean; full: boolean }) {
         </nav>
         <NewConversationMenu />
       </header>
-      {full && active && <PatientBanner compact tab={{ id: "assistant-context", kind: "overview", patientId: active.patientId }} />}
+      {full && active?.patientId && <PatientBanner compact tab={{ id: "assistant-context", kind: "overview", patientId: active.patientId }} />}
       <div className="min-h-0 flex-1">
         {active ? (
           <ConversationView conversationId={active.id} wide={full} />

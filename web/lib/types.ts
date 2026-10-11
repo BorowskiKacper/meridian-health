@@ -190,15 +190,19 @@ export type ResearchTopic = "statin" | "screening" | "diabetes" | "general";
 export interface Citation {
   source: string;
   passage: string;
+  id?: string;
+  tier?: string;
+  locator?: string;
 }
 
 export interface ResearchResult {
   id: string;
-  patientId: string;
+  patientId: string | null;
   question: string;
   answer: string;
   basis: string;
   citations: Citation[];
+  sections?: { title: string; text: string; source_ids: string[] }[];
 }
 
 export interface Message {
@@ -211,12 +215,13 @@ export interface Message {
   requestText?: string;
   researchId?: string;
   pending?: boolean;
+  error?: boolean;
   audioBase64?: string;
 }
 
 export interface Conversation {
   id: string;
-  patientId: string;
+  patientId: string | null;
   title: string;
   messages: Message[];
 }

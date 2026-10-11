@@ -1,4 +1,5 @@
 from app.agents.doctor import route_doctor_request
+import pytest
 
 from support import (
     DEPARTURE_REASON,
@@ -34,6 +35,43 @@ from support import (
     reminder_snapshot,
     DoctorModel,
 )
+
+
+@pytest.mark.parametrize("route", ["clinical_question", "chart_update", "check_screenings"])
+def test_explicit_workflow_skips_classifier(seeded_db, monkeypatch, route):
+    model = DoctorModel(route="chart_update", chart={"suggestions": []}, research={"answer": {"text": "Recorded finding.", "citations": [baseline_citation()]}, "recommends_action": False}, reminders={"up_to_date": True, "answer": "No change.", "suggestions": []})
+    install(monkeypatch, model)
+    result = route_doctor_request(JANE_ID, "Clinical question", "typed", session=seeded_db.session, route=route)
+    assert result["route"] == route
+    assert not payloads(model, "classify")
+
+
+def test_research_sections_drop_unsupported_claims_and_keep_source_links(seeded_db, monkeypatch):
+    citation = baseline_citation()
+    def verify(payload):
+        return {"supported": [{"sentence": payload["text"], "citation_indexes": [0]}] if payload["text"] == "Supported finding." else [], "removed": []}
+    model = DoctorModel(research={"answer": {"text": "Unused duplicate text.", "citations": [citation], "sections": [{"title": "Clinical interpretation", "text": "Supported finding."}, {"title": "Opposing findings", "text": "Unsupported possibility."}]}, "recommends_action": False}, verify=verify)
+    install(monkeypatch, model)
+    result = route_doctor_request(JANE_ID, "What explains these findings?", "typed", session=seeded_db.session, route="clinical_question")
+    assert result["suggestions"] == []
+    assert result["answer"]["text"] == "Supported finding."
+    assert result["answer"]["sections"] == [{"title": "Clinical interpretation", "text": "Supported finding.", "source_ids": [citation["source_id"]]}]
+    assert result["answer"]["citations"] == [citation]
+
+
+def test_general_research_never_loads_a_patient_chart(monkeypatch):
+    from app.agents.doctor import _research_answer
+    citation = baseline_citation()
+    model = DoctorModel(research={"answer": {"text": "General clinical evidence.", "citations": [citation]}, "tool_calls": [{"name": "search_patient_notes", "query": "patient history"}], "recommends_action": False})
+    harness = install(monkeypatch, model)
+    result = _research_answer(None, "General clinical question", None)
+    assert result["text"] == "General clinical evidence."
+    payload = payloads(model, "research")[0]
+    assert payload["context"] == {}
+    assert payload["notes"] == {}
+    assert payload["tool_calls"] == []
+    assert harness.context_calls == []
+    assert harness.propose_calls == []
 
 
 def test_typed_chart_update_proposes_without_writing_the_chart(seeded_db, monkeypatch):

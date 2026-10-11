@@ -34,6 +34,26 @@ _COVERAGE_FIELDS = (
 )
 
 
+def preview_request_route(patient_id, text, *, session):
+    """Read-only workflow selection; never draft or execute a chart action."""
+    try:
+        patient = get_patient(session, patient_id)
+    except ValueError:
+        patient = None
+    if patient is None:
+        return _error("not_found", "Patient was not found.")
+    if not isinstance(text, str) or not text.strip():
+        return _error("validation_error", "A nonempty request or recognized transcript is required.")
+    from app.agents.doctor.model import complete
+    route = complete("classify", {"text": text})["route"]
+    descriptions = {
+        "chart_update": "Draft proposed chart changes for your review.",
+        "clinical_question": "Research a clinical question using the patient chart and evidence.",
+        "check_screenings": "Review screening needs and propose follow-up changes. No messages will be sent.",
+    }
+    return {"route": route, "transcript": text, "description": descriptions[route]}
+
+
 def get_patient_context(patient_id, *, session):
     patient = get_patient(session, patient_id)
     if patient is None:

@@ -23,7 +23,7 @@ _IDENTIFIERS = re.compile(
 _TRUSTED_EVIDENCE = "Trusted evidence was not found."
 
 
-def route_doctor_request(patient_id, text, channel, *, session):
+def route_doctor_request(patient_id, text, channel, *, session, route=None):
     import app.agents.doctor.model as model
 
     try:
@@ -35,8 +35,10 @@ def route_doctor_request(patient_id, text, channel, *, session):
     if not isinstance(text, str) or not text.strip():
         return {"error": {"code": "validation_error", "message": "A nonempty request or recognized transcript is required."}}
 
-    classified = model.complete("classify", {"text": text})
-    route = classified["route"]
+    if route is not None and route not in {"chart_update", "clinical_question", "check_screenings"}:
+        return {"error": {"code": "validation_error", "message": "Unknown request route."}}
+    if route is None:
+        route = model.complete("classify", {"text": text})["route"]
     stored = insert_request(
         session,
         {
@@ -132,8 +134,8 @@ def _research_answer(patient_id, text, session):
     import app.agents.doctor.model as model
     import app.mcp.tools as tools
 
-    context = tools.get_patient_context(patient_id, session=session)
-    notes = tools.search_patient_notes(patient_id, text, session=session)
+    context = tools.get_patient_context(patient_id, session=session) if patient_id is not None else {}
+    notes = tools.search_patient_notes(patient_id, text, session=session) if patient_id is not None else {}
     research = model.complete(
         "research",
         {
@@ -144,19 +146,39 @@ def _research_answer(patient_id, text, session):
                 patient_id,
                 text,
                 include_notes=True,
-            ),
+            ) if patient_id is not None else [],
         },
     )
-    _execute_tool_calls(patient_id, research.get("tool_calls"), session)
+    if patient_id is not None:
+        _execute_tool_calls(patient_id, research.get("tool_calls"), session)
     body = research.get("answer") or {}
-    verified = verify_claims(body.get("text") or "", body.get("citations") or [])
+    sections = body.get("sections") or []
+    citations = body.get("citations") or []
+    verified_sections = []
+    if sections:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            checked = list(pool.map(lambda section: verify_claims(section["text"], citations), sections))
+        used = {}
+        for section, result in zip(sections, checked):
+            if not result["text"]:
+                continue
+            for citation in result["citations"]:
+                used[citation["source_id"]] = citation
+            verified_sections.append({"title": section["title"], "text": result["text"], "source_ids": [c["source_id"] for c in result["citations"]]})
+        verified = {"text": "\n\n".join(s["text"] for s in verified_sections), "citations": list(used.values())}
+    else:
+        verified = verify_claims(body.get("text") or "", citations)
     if research.get("recommends_action") is True and not _has_tier(
         verified["citations"],
         "baseline",
         "guideline",
     ):
         return {"text": _TRUSTED_EVIDENCE, "citations": []}
-    return {"text": verified["text"], "citations": verified["citations"]}
+    result = {"text": verified["text"], "citations": verified["citations"]}
+    if verified_sections:
+        result["sections"] = verified_sections
+    return result
 
 
 def _requested_tool_calls(patient_id, description, *, include_notes=False):

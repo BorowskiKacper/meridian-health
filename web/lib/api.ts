@@ -202,6 +202,7 @@ export interface ReminderRow {
 }
 
 export interface CitationRow {
+  locator?: string;
   source_id?: string;
   title?: string;
   passage?: string;
@@ -227,7 +228,7 @@ export interface DoctorRequest {
   transcript: string;
   route: "chart_update" | "clinical_question" | "check_screenings";
   suggestions: SuggestionRow[];
-  answer: { text: string; citations: CitationRow[] } | null;
+  answer: { text: string; citations: CitationRow[]; sections?: { title: string; text: string; source_ids: string[] }[] } | null;
   spoken_text: string | null;
   audio_base64: string | null;
 }
@@ -299,17 +300,43 @@ export async function listSuggestions(patientId: string) {
   return pages.flatMap((page) => page.suggestions);
 }
 
-export function postRequest(patientId: string, text: string) {
+export type RequestRoute = DoctorRequest["route"];
+
+export function postGeneralChat(text: string, audio?: Blob) {
+  const body = new FormData();
+  if (audio) body.set("audio", audio, "dictation.webm");
+  else body.set("text", text);
+  return api<DoctorRequest>("/chat", { method: "POST", body });
+}
+
+export interface RoutePreview {
+  route: RequestRoute;
+  transcript: string;
+  description: string;
+}
+
+export function previewRequest(patientId: string, text: string, audio?: Blob) {
+  const body = new FormData();
+  body.set("patient_id", patientId);
+  if (audio) body.set("audio", audio, "dictation.webm");
+  else body.set("text", text);
+  return api<RoutePreview>("/requests/preview", { method: "POST", body });
+}
+
+export function postRequest(patientId: string, text: string, route?: RequestRoute) {
   const body = new FormData();
   body.set("patient_id", patientId);
   body.set("text", text);
+  if (route) body.set("route", route);
   return api<DoctorRequest>("/requests", { method: "POST", body });
 }
 
-export function postVoiceRequest(patientId: string, audio: Blob) {
+export function postVoiceRequest(patientId: string, audio: Blob, route?: RequestRoute, reviewedTranscript?: string) {
   const body = new FormData();
   body.set("patient_id", patientId);
   body.set("audio", audio, "dictation.webm");
+  if (route) body.set("route", route);
+  if (reviewedTranscript) body.set("reviewed_transcript", reviewedTranscript);
   return api<DoctorRequest>("/requests", { method: "POST", body });
 }
 
