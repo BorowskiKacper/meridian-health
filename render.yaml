@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: meridian-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -e .
+    startCommand: python -m app.bootstrap && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /capabilities
+    domains:
+      - api.meridians.nyc
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SNOWFLAKE_ACCOUNT
+        sync: false
+      - key: SNOWFLAKE_PAT
+        sync: false
+      - key: SNOWFLAKE_DATABASE
+        sync: false
+      - key: SNOWFLAKE_SCHEMA
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+  - type: web
+    name: meridian-web
+    runtime: node
+    plan: free
+    # The web build links ../3d-anatomy-atlas, so it runs from the repository root.
+    buildCommand: npx --yes pnpm@10.33.0 --dir 3d-anatomy-atlas install --frozen-lockfile && cd web && npm ci && npm run build
+    startCommand: cd web && npm run start -- --hostname 0.0.0.0 --port $PORT
+    domains:
+      - meridians.nyc
+      - www.meridians.nyc
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Read by next.config.ts at build time for the /backend-api proxy.
+      - key: BACKEND_ORIGIN
+        value: https://meridian-api-nad7.onrender.com

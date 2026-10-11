@@ -12,6 +12,7 @@ import type { AtlasViewer } from '@authorod/svitylo-3d-anatomy-atlas/core';
 import { severityColor, severityLabel, type CutAxis, type SceneFinding as Finding, type Tool } from './types';
 import {
   liveRenderer,
+  meshOpaque,
   meshVisible,
   nameOfMesh,
   protectedIds,
@@ -49,10 +50,14 @@ interface PinRecord {
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** The atlas "regions" system: the body surface, drawn as skin. */
+export const SKIN_ID = 'regions';
+
 export class SceneOverlay {
   readonly root = new Group();
   tool: Tool = 'orbit';
   impacts = true;
+  skin = true;
   cutaway = false;
   cutAxis: CutAxis = 'y';
   activeId = '';
@@ -157,12 +162,19 @@ export class SceneOverlay {
     this.onChange();
   }
 
+  setSkin(on: boolean): void {
+    this.skin = on;
+    if (this.cutaway) this.applyCut();
+    else this.restoreHidden();
+    this.onChange();
+  }
+
   setCutaway(on: boolean): void {
     this.cutaway = on;
     if (!on) {
       this.planeGroup?.removeFromParent();
       this.planeGroup = null;
-      this.viewer.showHidden();
+      this.restoreHidden();
       this.onChange();
       return;
     }
@@ -355,8 +367,14 @@ export class SceneOverlay {
       if (this.kept.has(id)) continue;
       if (center.getComponent(component) > this.cut + 0.004) hide.push(id);
     }
-    this.viewer.showHidden();
+    this.restoreHidden();
     if (hide.length) this.viewer.hide(hide);
+  }
+
+  /** Unhides everything the cutaway removed, keeping the skin off when it is switched off. */
+  private restoreHidden(): void {
+    this.viewer.showHidden();
+    if (!this.skin) this.viewer.hide([SKIN_ID]);
   }
 
   private camera(): PerspectiveCamera | null {
@@ -366,7 +384,10 @@ export class SceneOverlay {
   private pick(event: PointerEvent): { point: Vector3; name: string } | null {
     const renderer = liveRenderer(this.viewer);
     if (!renderer) return null;
-    const hit = renderer.pick(event.clientX, event.clientY, (mesh) => meshVisible(this.viewer, mesh));
+    // Solid structures win over the translucent skin and surroundings in front of them.
+    const hit =
+      renderer.pick(event.clientX, event.clientY, (mesh) => meshOpaque(this.viewer, mesh)) ??
+      renderer.pick(event.clientX, event.clientY, (mesh) => meshVisible(this.viewer, mesh));
     if (!hit) return null;
     return { point: hit.point.clone(), name: nameOfMesh(this.viewer, hit.mesh) ?? 'Surface' };
   }

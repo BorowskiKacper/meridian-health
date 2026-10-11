@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowUpRight, Footprints, Square } from "lucide-react";
 import { dateAtMinute, findingVisible, formatDate, formatMonth, kindLabel, severityLabel, specialtyLabel, NOW_MINUTE } from "@/lib/data";
 import { useStore } from "@/lib/store";
@@ -12,6 +12,7 @@ import { Page, PageHeader, SeverityDot } from "@/components/system/primitives";
 import { TrendArrow } from "@/components/charts/trend-arrow";
 import { BodyStage } from "@/components/body/body-stage";
 import { useBodyScene } from "@/components/body/use-body-scene";
+import { MeasurementSparks, RegionCharts } from "@/components/body/anatomy-side-charts";
 import type { BodyScene } from "@/components/body/scene/controller";
 
 export function BodyTab({ patientId }: { patientId: string }) {
@@ -28,7 +29,9 @@ export function BodyTab({ patientId }: { patientId: string }) {
     [patient, view],
   );
   const { scene, snapshot, viewRef, labelsRef, retry } = useBodyScene(visible);
-  useShortcuts(scene, visible);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, toggleFullscreen] = useFullscreen(shellRef);
+  useShortcuts(scene, visible, toggleFullscreen);
 
   if (!patient || !view) return null;
   const specialties: Specialty[] = ["all", ...patient.specialties];
@@ -97,17 +100,20 @@ export function BodyTab({ patientId }: { patientId: string }) {
         </div>
       </div>
 
-      <div className="body-overview mt-6">
+      <div ref={shellRef} className={fullscreen ? "anatomy-fullscreen" : "body-overview mt-6"}>
         <BodyStage
           viewRef={viewRef}
           labelsRef={labelsRef}
           scene={scene}
           snapshot={snapshot}
           retry={retry}
-          className="anatomy-stage"
+          className={fullscreen ? "h-full min-h-0 rounded-none" : "anatomy-stage"}
+          fullscreen={fullscreen}
+          onFullscreen={toggleFullscreen}
         />
 
-        <div>
+        <div className={fullscreen ? "min-h-0 overflow-y-auto bg-ivory px-5 py-5" : undefined}>
+          {fullscreen && <p className="mb-4 font-serif text-[20px] text-jade-900">{patient.name} · anatomy</p>}
           <p className="eyebrow">
             {visible.length} {visible.length === 1 ? "region" : "regions"} · {specialtyLabel(view.specialty)}
             {changedSince > 0 && atNow && <span className="ml-2 font-normal tracking-normal normal-case text-ink-faint">{changedSince} with trends</span>}
@@ -160,6 +166,7 @@ export function BodyTab({ patientId }: { patientId: string }) {
                       <div className="ml-5 pb-4">
                         <p className="text-[13px] leading-relaxed text-ink-soft">{finding.note}</p>
                         {latin && <p className="mt-1.5 font-serif text-[13px] text-ink-faint italic">{latin}</p>}
+                        <RegionCharts finding={finding} />
                         <button
                           type="button"
                           onClick={() => openTab("region", patientId, finding.id)}
@@ -175,8 +182,17 @@ export function BodyTab({ patientId }: { patientId: string }) {
               })}
             </ol>
           )}
+          <section className="mt-8">
+            <p className="eyebrow">Measurements on the model</p>
+            <MeasurementSparks
+              trends={patient.trends}
+              findings={visible}
+              activeId={ready ? snapshot.activeId : ""}
+              onPick={(id) => (ready ? scene?.choose(id) : openTab("region", patientId, id))}
+            />
+          </section>
           <p className="mt-8 text-[12px] leading-relaxed text-ink-faint">
-            Drag to orbit. Numbers jump to a region; O, P, M and N switch tools; I toggles impacts and C the cutaway.
+            Drag to orbit. Numbers jump to a region; O, P, M and N switch tools; S toggles the skin, I impacts, C the cutaway and F full screen.
           </p>
         </div>
       </div>
@@ -184,7 +200,29 @@ export function BodyTab({ patientId }: { patientId: string }) {
   );
 }
 
-function useShortcuts(scene: BodyScene | null, visible: Finding[]) {
+/** Native fullscreen where available; otherwise the shell fills the workspace via CSS. */
+function useFullscreen(ref: RefObject<HTMLElement | null>): [boolean, () => void] {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      if (!document.fullscreenElement) setOn(false);
+    };
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  const toggle = useCallback(() => {
+    if (on) {
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      setOn(false);
+      return;
+    }
+    setOn(true);
+    ref.current?.requestFullscreen?.().catch(() => undefined);
+  }, [on, ref]);
+  return [on, toggle];
+}
+
+function useShortcuts(scene: BodyScene | null, visible: Finding[], toggleFullscreen: () => void) {
   useEffect(() => {
     if (!scene) return;
     const onKey = (event: KeyboardEvent) => {
@@ -203,8 +241,10 @@ function useShortcuts(scene: BodyScene | null, visible: Finding[]) {
       else if (key === "n") scene.setTool("mark");
       else if (key === "i") scene.toggleImpacts();
       else if (key === "c") scene.toggleCutaway();
+      else if (key === "s") scene.toggleSkin();
+      else if (key === "f") toggleFullscreen();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scene, visible]);
+  }, [scene, visible, toggleFullscreen]);
 }

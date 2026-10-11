@@ -11,6 +11,7 @@ export interface SceneSnapshot {
   error: string | null;
   tool: Tool;
   impacts: boolean;
+  skin: boolean;
   cutaway: boolean;
   cutAxis: CutAxis;
   cutT: number;
@@ -35,6 +36,7 @@ export const initialSnapshot: SceneSnapshot = {
   error: null,
   tool: "orbit",
   impacts: true,
+  skin: true,
   cutaway: false,
   cutAxis: "y",
   cutT: 0.5,
