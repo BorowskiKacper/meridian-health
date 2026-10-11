@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MODES, type ChatMode } from "../chat";
@@ -28,7 +28,7 @@ export function Composer({
   onCancelDictation,
 }: Props) {
   const canSend = Boolean(text.trim()) && !busy && !listening;
-  const ring = useRef(new Animated.Value(0)).current;
+  const [ring] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (!listening) {

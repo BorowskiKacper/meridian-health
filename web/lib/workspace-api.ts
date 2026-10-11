@@ -51,3 +51,8 @@ export function submitWorkspace(text: string, audio?: Blob, patientId?: string |
 export function clarifyWorkspace(jobId: string, text: string, patientId?: string) {
   return workspaceApi<WorkspaceJob>(`/requests/${jobId}/clarify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, patient_id: patientId }) });
 }
+export function clarifyWorkspaceVoice(jobId: string, audio: Blob) {
+  const form = new FormData();
+  form.set('audio', audio, 'dictation.webm');
+  return workspaceApi<WorkspaceJob>(`/requests/${jobId}/clarify-voice`, { method: 'POST', body: form });
+}

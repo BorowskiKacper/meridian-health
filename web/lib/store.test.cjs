@@ -69,6 +69,29 @@ test("a workspace clarification moves into view without choosing an ambiguous pa
   assert.equal(useStore.getState().conversations[0].messages.at(-1).text, 'Which patient?');
 });
 
+test("paired desktop preserves workflow confirmation before durable submission", async (t) => {
+  const workspace = require('./workspace-api.ts');
+  const original = workspace.submitWorkspace;
+  workspace.setWorkspaceToken('test-device');
+  t.after(() => { workspace.setWorkspaceToken(null); workspace.submitWorkspace = original; });
+  const { conversation } = setup();
+  useStore.setState({ activeConversationId: conversation.id, requestModes: { conversation: 'clinical_question' }, workspaceJobs: {} });
+  api.previewRequest = async () => ({ route: 'chart_update', transcript: 'Change weight to 70 kg', description: 'Draft chart changes.' });
+  const submissions = [];
+  workspace.submitWorkspace = async (text, audio, patientId, route, id) => {
+    submissions.push({ text, patientId, route });
+    return { id, text, status: 'queued', patient_id: patientId, patient_name: null, desktop_applied: false };
+  };
+  useStore.getState().send('Change weight to 70 kg');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(useStore.getState().routePreviews.conversation.status, 'ready');
+  assert.equal(submissions.length, 0);
+  useStore.getState().confirmRoutePreview(conversation.id);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(submissions, [{ text: 'Change weight to 70 kg', patientId: 'patient', route: 'chart_update' }]);
+  assert.equal(Object.values(useStore.getState().workspaceJobs)[0].status, 'queued');
+});
+
 test("approval acknowledges immediately, ignores duplicate clicks and stays quiet", async () => {
   const { action, conversation } = setup();
   const request = deferred();

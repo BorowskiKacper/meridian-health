@@ -113,7 +113,7 @@ def test_ambiguous_patient_never_uses_previous_patient(client, paired, monkeypat
     desktop, phone, _, session = paired
     w = session.scalar(select(Workspace))
     w.patient_id = UUID(AMY_ID)
-    session.add(Patient(id=uuid4(), display_name='Amy Smith', date_of_birth=__import__('datetime').date(1990, 1, 1), sex='F', sms_opt_in=False, phone_e164=''))
+    session.add(Patient(id=uuid4(), display_name='Amy Smith', date_of_birth=__import__('datetime').date(1990, 1, 1), sex='F', email_opt_in=False, email=''))
     session.commit()
     job = submit(client, phone, 'Open Amy’s trends')
     session.commit()
@@ -183,6 +183,16 @@ def test_prior_workspace_patient_is_not_an_implicit_prompt_target(client, paired
     result = client.get('/workspaces/requests/' + job['id'], headers=phone).json()
     assert result['status'] == 'needs_patient'
     assert result['patient_id'] is None
+
+
+def test_navigation_does_not_become_research_from_desktop_mode(client, paired, monkeypatch):
+    _, phone, _, session = paired
+    job = submit(client, phone, 'Open Amy Lee vitals', route='clinical_question')
+    session.commit()
+    run(session, monkeypatch)
+    result = client.get('/workspaces/requests/' + job['id'], headers=phone).json()
+    assert result['response']['route'] == 'navigate'
+    assert result['response']['suggestions'] == []
 
 
 def test_phone_approval_updates_desktop_result_and_enforces_workspace_scope(client, paired, monkeypatch):

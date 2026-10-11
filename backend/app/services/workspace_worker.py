@@ -50,7 +50,7 @@ def execute(session, job):
         session.execute(delete(WorkspaceChunk).where(WorkspaceChunk.owner_id == job.id, WorkspaceChunk.slot == 'clarification_audio'))
     intent = ws.read(session, job.id, 'intent') or interpret_prompt(job.transcript, has_patient=bool(job.patient_id))
     explicit_route = ws.read(session, job.id, 'input', {}).get('route')
-    if explicit_route:
+    if explicit_route and not (intent['views'] and intent['route'] is None):
         intent['route'] = explicit_route
         intent['needs_patient'] = explicit_route != 'clinical_question' or intent['needs_patient']
     intent['needs_patient'] = intent['needs_patient'] or bool(intent['views']) or intent['route'] in ('chart_update', 'check_screenings')

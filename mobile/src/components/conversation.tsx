@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { STARTERS, chatRouteLabel, type AgentTurn, type Turn } from "../chat";
@@ -87,7 +87,7 @@ function AgentMessage({ message, onPlay }: { message: AgentTurn; onPlay: (audioB
 }
 
 function Working() {
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
