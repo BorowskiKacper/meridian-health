@@ -496,7 +496,7 @@ function geometryBelow(structures: StructureEntry[]): Set<string> {
   return out;
 }
 
-function coverageMarkdown(c: CoverageReport): string {
+export function coverageMarkdown(c: CoverageReport): string {
   const lines: string[] = [];
   lines.push(`# Coverage report — ${c.model} ${c.version} (${c.channel})`, '');
   lines.push(

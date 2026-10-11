@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@authorod/svitylo-3d-anatomy-atlas/core": "./vendor/atlas/src/core/index.ts",
       three: "./vendor/three/build/three.module.js",
+      "three/addons/*": "./vendor/three/examples/jsm/*",
     },
     rules: {
       "*.ts": {
