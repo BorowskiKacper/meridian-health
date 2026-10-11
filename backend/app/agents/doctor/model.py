@@ -105,10 +105,11 @@ def _evidence(payload, *, medical_web=False):
     import app.evidence as evidence
     query = _query({"text": payload.get("text", "Review screening and monitoring needs"), "context": payload.get("context")})
     from concurrent.futures import ThreadPoolExecutor
+    from app.privacy.names import submit_in_context
     passages = []
     with ThreadPoolExecutor(max_workers=3) as pool:
-        results = [pool.submit(evidence.search_guidelines, query, corpus) for corpus in ("uspstf", "pubmed")]
-        web_result = pool.submit(evidence.search_research_web, query) if medical_web else None
+        results = [submit_in_context(pool, evidence.search_guidelines, query, corpus) for corpus in ("uspstf", "pubmed")]
+        web_result = submit_in_context(pool, evidence.search_research_web, query) if medical_web else None
         for future in results:
             try:
                 passages.extend(future.result()["passages"])

@@ -5,6 +5,7 @@ from urllib.parse import quote
 import httpx
 
 from app import config
+from app.privacy.names import scrub_prompt
 
 _COLUMNS = ["source_id", "title", "passage", "locator"]
 
@@ -23,7 +24,10 @@ def cortex_search(service_name, text):
     """Query one Cortex Search service and return citation rows.
 
     Each row has source_id, title, passage, and locator.
+    The query is scanned for the bound patient name before it is posted.
     """
+    if isinstance(text, str):
+        text, _alias = scrub_prompt(text)
     database = quote(config.SNOWFLAKE_DATABASE.strip(), safe="")
     schema = quote(config.SNOWFLAKE_SCHEMA.strip(), safe="")
     service = quote(service_name, safe="")
