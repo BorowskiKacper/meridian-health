@@ -35,6 +35,7 @@ def prepare_database():
         if list_patients(session):
             return False
         _seed(session)
+        _load("panel").seed_panel(session)
         session.commit()
         return True
     except Exception:
@@ -49,9 +50,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--demo-vitals", action="store_true", help="Add labeled synthetic vital signs to the three demo patients only.")
+    parser.add_argument("--panel", action="store_true", help="Add the extra fictional clinic charts when the database already has patients.")
     args = parser.parse_args()
     created = prepare_database()
     print("seeded" if created else "already seeded")
+    if args.panel and not created:
+        with Session(get_engine()) as session:
+            added = _load("panel").seed_panel(session)
+            session.commit()
+            print(f"added {added} synthetic panel charts")
     if args.demo_vitals:
         with Session(get_engine()) as session:
             added = _load("vitals").seed_vitals(session)
