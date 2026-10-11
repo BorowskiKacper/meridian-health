@@ -28,15 +28,23 @@ def _seed(session):
 
 
 def prepare_database():
+    """Create tables, seed an empty database, and insert any missing panel charts.
+
+    Returns whether the demo seed ran, and how many panel charts were added.
+    The panel step always runs so a deploy can fill a database that already
+    has the original three patients.
+    """
     engine = get_engine()
     Base.metadata.create_all(engine)
     session = Session(engine)
     try:
-        if list_patients(session):
-            return False
-        _seed(session)
+        created = False
+        if not list_patients(session):
+            _seed(session)
+            created = True
+        added = _load("panel").seed_panel(session)
         session.commit()
-        return True
+        return created, added
     except Exception:
         session.rollback()
         raise
@@ -49,9 +57,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--demo-vitals", action="store_true", help="Add labeled synthetic vital signs to the three demo patients only.")
+    parser.add_argument("--panel", action="store_true", help="Add the extra fictional clinic charts when the database already has patients.")
     args = parser.parse_args()
-    created = prepare_database()
+    created, added = prepare_database()
     print("seeded" if created else "already seeded")
+    if added or args.panel:
+        print(f"added {added} synthetic panel charts")
     if args.demo_vitals:
         with Session(get_engine()) as session:
             added = _load("vitals").seed_vitals(session)
