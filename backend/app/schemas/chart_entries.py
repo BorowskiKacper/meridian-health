@@ -62,6 +62,12 @@ class VisitDraft(Submission):
     plan: str = Field(default='', max_length=12000)
 
 
+class FinalizeVisit(Submission):
+    draft_id: UUID
+    finalized_by: str = Field(min_length=1, max_length=120)
+    confirmed_review: Literal[True]
+
+
 class Review(Submission):
     kind: Literal['medications', 'allergies']
     record_ids: list[UUID]

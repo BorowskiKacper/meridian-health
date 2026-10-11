@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 
 from app import config
+from app.privacy.names import restore_prompt, scrub_prompt
 
 
 def _answer_text(response):
@@ -26,7 +27,10 @@ def grounded_search(text):
 
     Returns text, grounding_chunks ({uri, title}), and grounding_supports
     ({segment_text, chunk_indices}). Chunk URIs are Google redirect links.
+    The query is scanned for the bound patient name. The reply text is mapped
+    back to the chart name; cited page text is left as published.
     """
+    text, alias = scrub_prompt(text)
     client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"timeout": 90000, "retry_options": {"attempts": 1}})
     response = client.models.generate_content(
         model=config.GEMINI_MODEL,
@@ -52,7 +56,7 @@ def grounded_search(text):
                 {"segment_text": segment_text or "", "chunk_indices": indices}
             )
     return {
-        "text": _answer_text(response),
+        "text": restore_prompt(_answer_text(response), alias),
         "grounding_chunks": chunks,
         "grounding_supports": supports,
     }

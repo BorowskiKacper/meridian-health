@@ -4,17 +4,17 @@ from uuid import uuid4
 UTC = timezone.utc
 CREATED_AT = datetime(2026, 1, 15, 14, 30, tzinfo=UTC)
 
-_phone_suffix = 200
+_email_suffix = 200
 
 
 def new_id():
     return str(uuid4())
 
 
-def _phone():
-    global _phone_suffix
-    _phone_suffix += 1
-    return f"+1555555{_phone_suffix:04d}"
+def _email():
+    global _email_suffix
+    _email_suffix += 1
+    return f"patient{_email_suffix}@example.com"
 
 
 def citation():
@@ -40,8 +40,8 @@ def patient_row(**overrides):
         "display_name": "Ada Lovelace",
         "date_of_birth": date(1815, 12, 10),
         "sex": "female",
-        "sms_opt_in": True,
-        "phone_e164": _phone(),
+        "email_opt_in": True,
+        "email": _email(),
     }
     row.update(overrides)
     return row
@@ -225,14 +225,14 @@ def audit_log_row(patient_id, suggestion_id, **overrides):
     return row
 
 
-def sms_message_row(patient_id, reminder_id, **overrides):
+def email_message_row(patient_id, reminder_id, **overrides):
     row = {
         "id": new_id(),
         "patient_id": patient_id,
         "reminder_id": reminder_id,
-        "to_phone": "+15555550101",
-        "body": "Your screening is due.",
-        "twilio_sid": f"SM{new_id().replace('-', '')[:32]}",
+        "to_email": "ada@example.com",
+        "body": "You have a clinic reminder. Please contact the office to schedule a visit.",
+        "provider_id": new_id(),
         "status": "queued",
     }
     row.update(overrides)

@@ -68,7 +68,6 @@ flowchart TB
 
   %% ================= 0. One-time setup =================
   subgraph Setup ["0. One-time data setup"]
-    Syn["Synthea synthetic patients"] --> Seed["Python seed script"]
     Map["body_region_map + specialty_focus lookups"]
     Rules["reminder_rules baseline<br/>age-based screenings"]
     PDFs["USPSTF guidelines, PubMed abstracts,<br/>payer policy PDFs"] --> Stage["Snowflake stage"]
@@ -400,8 +399,6 @@ flowchart TB
   HAPI --> Snow
   EMR --> Doc
 
-  Seed --> TReg
-  Seed --> THyper
   Map --> TReg
   Rules --> TReg
   Chunk --> SChunks

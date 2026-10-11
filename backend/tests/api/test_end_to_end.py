@@ -112,8 +112,8 @@ def _install(monkeypatch):
     def transcribe(self, audio):
         raise AssertionError("transcribe was called")
 
-    def send_whatsapp(from_number, to, body):
-        raise AssertionError("send_whatsapp was called")
+    def send_email(to_email, body):
+        raise AssertionError("send_email was called")
 
     monkeypatch.setattr("app.agents.doctor.model.complete", complete)
     monkeypatch.setattr(
@@ -124,7 +124,7 @@ def _install(monkeypatch):
         "app.evidence.search_medical_web",
         lambda text: {"passages": []},
     )
-    monkeypatch.setattr("app.services.sms.send_whatsapp", send_whatsapp)
+    monkeypatch.setattr("app.services.email.send_email", send_email)
     monkeypatch.setattr(
         "app.speech.hook.SpeechHook.transcribe",
         transcribe,

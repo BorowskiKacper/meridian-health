@@ -26,7 +26,7 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 - Gemini model is `gemini-3.6-flash` for classification, agents, vision, summaries, and Google Search grounding. It is one constant, `GEMINI_MODEL`, in `backend/app/config.py`.
 - Note embeddings use `gemini-embedding-001` with `output_dimensionality=768`, stored as `vector(768)`. The column is nullable. Seeded notes have no embedding because seed calls no vendor. `search_patient_notes` uses Postgres full-text search, not vector search.
 - Uploaded lab photos are stored as objects in the private S3 bucket named by `S3_BUCKET` (`S3_REGION`). `documents.storage_key` is the object key.
-- Reminders are sent over WhatsApp through Twilio. There is no SMS fallback. `TWILIO_FROM_NUMBER` is the WhatsApp sender in `whatsapp:+1...` form and the recipient is `whatsapp:<phone_e164>`. Table, column, and function names keep `sms` (`sms_messages`, `sms_opt_in`, `handle_sms_webhook`) to avoid a rename.
+- Reminders are sent by email through Resend. `send_email` POSTs `https://api.resend.com/emails` with `RESEND_API_KEY`, `EMAIL_FROM`, the patient address, subject `Clinic reminder`, and a text body. The body is one clinic sentence plus an absolute unsubscribe link built from `EMAIL_PUBLIC_BASE_URL`. The link is `GET /email/unsubscribe?token=`. The token is `{patient_id}.{hmac_sha256}` where `hmac_sha256` is the hex HMAC-SHA256 of the patient id signed with `EMAIL_UNSUBSCRIBE_SECRET`. There is no WhatsApp or SMS fallback and no delivery webhook.
 - Snowflake is called over REST with a programmatic access token (`Authorization: Bearer <SNOWFLAKE_PAT>`). Cortex Search service names are `USPSTF_SEARCH`, `PUBMED_SEARCH`, and `PAYER_DOCS_SEARCH`.
 
 ## Workers
@@ -40,7 +40,7 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 | Doctor agents | `backend/app/agents/doctor/` | MCP, Evidence | write chart tables |
 | Secretary | `backend/app/agents/secretary/` | MCP `get_coverage`, Evidence | `propose_change` |
 | Eligibility | `backend/app/services/eligibility.py` | Data, Evidence | MCP, Stedi |
-| Reminders | `backend/app/services/reminders.py`, `backend/app/services/sms.py` | Data, Twilio | call the reminder agent |
+| Reminders | `backend/app/services/reminders.py`, `backend/app/services/email.py` | Data, Resend | call the reminder agent |
 | Chart reads | `backend/app/services/chart.py`, `backend/app/services/appointments.py` | Data | write chart tables, agents |
 | Approval | `backend/app/services/approval.py` | Data, Contracts, `run_reminder_agent`, Gemini embeddings | MCP |
 | Labs | `backend/app/services/labs.py` | Data, Contracts, Gemini vision | MCP, write `observations` |
@@ -53,7 +53,7 @@ flowchart LR
   Web["web / mobile"] --> API
   API --> Doctor["doctor agents"]
   API --> Ins["insurance + secretary agent"]
-  API --> Rem["reminders + WhatsApp"]
+  API --> Rem["reminders + email"]
   API --> Data
   Doctor --> MCP
   Ins --> MCP
@@ -133,7 +133,7 @@ Tiger tables. Workers read and write them only through repositories in `backend/
 
 | Table | Columns that are part of the contract |
 |---|---|
-| `patients` | `id`, `display_name`, `date_of_birth`, `sex`, `sms_opt_in`, `phone_e164` |
+| `patients` | `id`, `display_name`, `date_of_birth`, `sex`, `email_opt_in`, `email` |
 | `conditions` | `id`, `patient_id`, `name`, `status`, `onset_date`, `body_region_key` |
 | `medications` | `id`, `patient_id`, `name`, `dose`, `route`, `frequency`, `status`, `start_date`, `body_region_key` |
 | `family_history` | `id`, `patient_id`, `relationship`, `condition`, `age_at_diagnosis` |
@@ -147,7 +147,7 @@ Tiger tables. Workers read and write them only through repositories in `backend/
 | `reminder_schedule` | `id`, `patient_id`, `rule_id`, `name`, `due_on`, `status` |
 | `ai_suggestions` | the suggestion fields except `unconfirmed` |
 | `audit_log` | `id`, `patient_id`, `suggestion_id`, `action`, `detail`, `created_at` |
-| `sms_messages` | `id`, `patient_id`, `reminder_id`, `to_phone`, `body`, `twilio_sid`, `status` |
+| `email_messages` | `id`, `patient_id`, `reminder_id`, `to_email`, `body`, `provider_id`, `status` |
 | `coverages` | `id`, `patient_id`, `payer_name`, `member_id`, `plan_name`, `active`, `deductible_remaining`, `copay`, `benefits` |
 | `eligibility_checks` | `id`, `patient_id`, `coverage_id`, `order_text`, `summary`, `prior_auth_note`, `citations`, `created_at` |
 | `appointments` | `id`, `patient_id`, `starts_at`, `ends_at`, `reason`, `status` |
@@ -161,7 +161,7 @@ Seed loads several patients, each with conditions, meds, family history, observa
 
 ## API
 
-Base path `/`. Responses are JSON. `POST /documents` and `POST /requests` with audio are `multipart/form-data`. Twilio is `application/x-www-form-urlencoded`.
+Base path `/`. Responses are JSON. `POST /documents` and `POST /requests` with audio are `multipart/form-data`. `GET /email/unsubscribe` is a public text response and does not require `X-Role`.
 
 ### Doctor chart and body
 
@@ -287,7 +287,7 @@ Response is `{ "rejected": [] }`. Chart rows stay as they were.
 
 `flag` is `ok`, `low_confidence`, or `out_of_range`. Each analyte becomes one pending `observation` suggestion. The image is uploaded to the private S3 bucket and recorded in `documents`. Observations are not inserted until approval.
 
-### Reminders and WhatsApp
+### Reminders and email
 
 `PUT /patients/{patient_id}/reminders/{reminder_id}` role `doctor`.
 
@@ -307,12 +307,14 @@ Response is the updated reminder row: `id`, `patient_id`, `name`, `due_on`, `sta
 
 ```json
 {
-  "sent": [{ "reminder_id": "uuid", "sms_id": "uuid" }],
+  "sent": [{ "reminder_id": "uuid", "email_id": "uuid" }],
   "skipped": [{ "reminder_id": "uuid", "reason": "opted_out" }]
 }
 ```
 
-`POST /webhooks/twilio` accepts Twilio's form fields `MessageSid`, `MessageStatus`, `From`, and `Body`, sent from WhatsApp. A status update sets `sms_messages.status` for that `MessageSid`. A body of `STOP` (any case, surrounding spaces ignored) sets `sms_opt_in` to false on the patient whose `phone_e164` matches `From` with any `whatsapp:` prefix removed. The response is Twilio's empty `200`.
+`email_id` is the `email_messages` row. After Resend accepts the message, that row is stored with `status` `sent` and `provider_id` set to Resend's message id, and the reminder becomes `sent`. A failed send leaves that reminder `scheduled`.
+
+`GET /email/unsubscribe?token=` is public. No `X-Role` header is required. A valid token sets that patient's `email_opt_in` to false and returns a short confirmation. A bad token changes nothing. A second click stays opted out. Opt-out does not change conditions, medications, notes, or reminder rows. The patient directory includes `email`, `email_opt_in`, and `unsubscribe_token` so the clinic client can call the same route.
 
 ### Insurance and secretary
 
@@ -451,7 +453,7 @@ USPSTF is the baseline. Other sources can extend or depart from it, but only tru
 
 **Manual reminder edit.** Updates `due_on` or `status` only. Does not call the reminder agent.
 
-**WhatsApp reminders.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `sms_opt_in = true`. Message body has no diagnosis, medication, or lab. Stores `twilio_sid` and marks the reminder `sent`. `STOP` flips `sms_opt_in` and does not change the chart.
+**Email reminders.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `email_opt_in = true`. The message body is one clinic sentence and has no diagnosis, medication, or lab; the only addition is the unsubscribe link. Stores `provider_id` with `status` `sent` and marks the reminder `sent`. A valid unsubscribe link sets `email_opt_in` false and does not change the chart.
 
 **Lab photo.** Uploads the file to the private S3 bucket, records it in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
 
@@ -474,7 +476,7 @@ backend/app/agents/doctor/    doctor-agents worker
 backend/app/agents/secretary/ secretary worker
 backend/app/services/eligibility.py   eligibility worker
 backend/app/services/reminders.py     reminders worker
-backend/app/services/sms.py           reminders worker
+backend/app/services/email.py         reminders worker
 backend/app/services/chart.py         chart reads worker
 backend/app/services/appointments.py  chart reads worker
 backend/app/services/approval.py      approval worker
@@ -505,7 +507,7 @@ Internal functions the API worker calls, and the other workers implement:
 | `answer_secretary(patient_id, text)` | Secretary | the secretary response |
 | `send_due_reminders(as_of)` | Reminders | `{ "sent", "skipped" }` |
 | `update_reminder(patient_id, reminder_id, due_on, status)` | Reminders | the updated reminder row |
-| `handle_sms_webhook(form)` | Reminders | nothing |
+| `unsubscribe(token)` | Reminders | a short confirmation, or nothing when the token is bad |
 | `get_body_state(patient_id, specialty)` | Chart reads | the body-state response |
 | `get_region(patient_id, region_key)` | Chart reads | the region response |
 | `list_appointments(patient_id, on)` | Chart reads | `{ "appointments" }` |

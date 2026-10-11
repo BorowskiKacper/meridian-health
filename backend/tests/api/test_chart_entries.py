@@ -128,3 +128,50 @@ def test_explicit_nkda_requires_confirmation_and_no_active_drug_allergy(client, 
     assert_error(client.post(f"/patients/{JOHN_ID}/no-known-drug-allergies", json={**data, "confirmed_with_patient": False}), 400, "validation_error")
     assert client.post(f"/patients/{JOHN_ID}/no-known-drug-allergies", json=data).status_code == 200
     assert client.post(f"/patients/{JOHN_ID}/no-known-drug-allergies", json=data).status_code == 200
+
+def test_finalize_visit_is_historical_idempotent_and_patient_scoped(client, seeded_db, monkeypatch):
+    from app.db.models import Note
+    session = seeded_db.session
+    bind_session(monkeypatch, session)
+    draft = submission(visit_date="2025-10-10", reason="Follow-up", assessment="Stable", plan="Return in four weeks")
+    draft_path = f"/patients/{AMY_ID}/visit-draft"
+    assert client.post(draft_path, json=draft).status_code == 200
+    session.commit()
+    state = client.get(f"/patients/{AMY_ID}/entry-state").json()['draft']
+    assert state['draft_id'] == draft['submission_id']
+    assert state['finalized_at'] is None
+    payload = submission(draft_id=state['draft_id'], finalized_by="Demo clinician", confirmed_review=True)
+    path = draft_path + '/finalize'
+    assert_error(client.post(f"/patients/{JANE_ID}/visit-draft/finalize", json=payload), 409, "invalid_state")
+    before = client.get(f"/patients/{AMY_ID}/chart").json()['notes']
+    assert client.post(path, json=payload).status_code == 200
+    session.commit()
+    assert client.post(path, json=payload).status_code == 200
+    assert_error(client.post(path, json={**payload, 'submission_id': str(uuid4())}), 409, 'invalid_state')
+    session.expire_all()
+    notes = client.get(f"/patients/{AMY_ID}/chart").json()['notes']
+    assert len(notes) == len(before) + 1
+    note = next(n for n in notes if n['id'] not in {n['id'] for n in before})
+    assert note['visit_date'] == '2025-10-10'
+    assert 'Stable' in note['body'] and 'self-reported identity' in note['body']
+    assert session.get(Note, UUID(note['id'])).embedding is None
+    finalized = client.get(f"/patients/{AMY_ID}/entry-state").json()['draft']
+    assert finalized['finalized_at'] and finalized['finalized_by'] == 'Demo clinician'
+    newer = {**draft, 'submission_id': str(uuid4()), 'reason': 'Next visit'}
+    assert client.post(draft_path, json=newer).status_code == 200
+    assert client.get(f"/patients/{AMY_ID}/entry-state").json()['draft']['finalized_at'] is None
+    assert_error(client.post(path, json={**payload, 'submission_id': str(uuid4())}), 409, 'invalid_state')
+
+
+def test_finalize_rejects_stale_incomplete_and_future_drafts(client, seeded_db, monkeypatch):
+    bind_session(monkeypatch, seeded_db.session)
+    path = f"/patients/{AMY_ID}/visit-draft"
+    old = submission(visit_date='2025-01-01', reason='Review', assessment='Stable', plan='Follow up')
+    assert client.post(path, json=old).status_code == 200
+    newer = {**old, 'submission_id': str(uuid4()), 'assessment': ''}
+    assert client.post(path, json=newer).status_code == 200
+    assert_error(client.post(path + '/finalize', json=submission(draft_id=old['submission_id'], finalized_by='Tester', confirmed_review=True)), 409, 'invalid_state')
+    assert_error(client.post(path + '/finalize', json=submission(draft_id=newer['submission_id'], finalized_by='Tester', confirmed_review=True)), 400, 'validation_error')
+    future = {**old, 'submission_id': str(uuid4()), 'visit_date': '2099-01-01'}
+    assert client.post(path, json=future).status_code == 200
+    assert_error(client.post(path + '/finalize', json=submission(draft_id=future['submission_id'], finalized_by='Tester', confirmed_review=True)), 400, 'validation_error')

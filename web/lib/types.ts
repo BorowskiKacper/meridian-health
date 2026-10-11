@@ -132,8 +132,9 @@ export interface Patient {
   pendingCount: number;
   /** Oldest and newest instant on the chart, ms since epoch. The slider maps 0..100 onto this. */
   span: { start: number; end: number };
-  smsOptIn: boolean;
-  phone?: string;
+  emailOptIn: boolean;
+  email?: string;
+  unsubscribeToken?: string;
   specialties: Specialty[];
 }
 
@@ -235,7 +236,7 @@ export interface Conversation {
 export interface AuditRow {
   id: string;
   patientId: string;
-  action: "Approved" | "Rejected" | "Discarded" | "SMS" | "Opt-out";
+  action: "Approved" | "Rejected" | "Discarded" | "Email" | "Opt-out";
   detail: string;
 }
 

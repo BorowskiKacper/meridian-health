@@ -18,7 +18,6 @@ dependencies = [
     "pgvector",
     "httpx",
     "google-genai",
-    "twilio",
     "boto3[crt]>=1.42",
 ]
 

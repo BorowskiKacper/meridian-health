@@ -543,8 +543,8 @@ def test_get_coverage_missing_row_is_not_found(seeded_db):
             "display_name": "No Coverage",
             "date_of_birth": date(1990, 1, 1),
             "sex": "female",
-            "sms_opt_in": False,
-            "phone_e164": "+15555550999",
+            "email_opt_in": False,
+            "email": "nocoverage@example.com",
         },
     )
     assert get_patient(session, patient_id)["id"] == patient_id

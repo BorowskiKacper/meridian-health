@@ -6,10 +6,11 @@ from app.evidence import (
     search_guidelines,
     search_medical_web,
     search_payer_docs,
+    search_research_web,
     web_search,
 )
 
-TEXT_ONLY = [search_medical_web, search_payer_docs, web_search]
+TEXT_ONLY = [search_medical_web, search_payer_docs, search_research_web, web_search]
 
 
 def test_search_guidelines_takes_text_and_corpus_and_not_patient_id():

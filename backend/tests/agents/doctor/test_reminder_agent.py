@@ -79,6 +79,7 @@ def test_reminder_change_without_baseline_is_not_proposed(seeded_db, monkeypatch
     def verify(payload):
         assert payload["text"] == DEPARTURE_REASON
         assert payload["citations"] == citations
+        assert "allow_any_tier" not in payload
         return {
             "supported": [
                 {

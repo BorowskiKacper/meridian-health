@@ -182,6 +182,12 @@ def _allergies(session, patient_id):
     return rows
 
 
+def _unsubscribe_token(patient_id):
+    import app.services.email as email
+
+    return email.unsubscribe_token(patient_id)
+
+
 def _directory_entry(session, patient):
     return {
         "id": str(patient["id"]),
@@ -189,8 +195,9 @@ def _directory_entry(session, patient):
         "date_of_birth": _date_string(patient["date_of_birth"]),
         "age": _age(patient["date_of_birth"]),
         "sex": patient["sex"],
-        "sms_opt_in": bool(patient["sms_opt_in"]),
-        "phone_e164": patient["phone_e164"],
+        "email_opt_in": bool(patient["email_opt_in"]),
+        "email": patient["email"],
+        "unsubscribe_token": _unsubscribe_token(patient["id"]),
         "family_history": _family(session, patient["id"]),
         "allergies": _allergies(session, patient["id"]),
     }
@@ -250,6 +257,13 @@ def get_chart(patient_id, *, session):
     rules = {str(row["id"]): row for row in list_reminder_rules(session)}
     coverage = get_coverage_by_patient(session, patient_id)
     pending = list_suggestions(session, patient_id, "pending")
+    import json
+    from sqlalchemy import select
+    from app.db.models import AuditLog
+    finalized_notes = {}
+    for receipt in session.scalars(select(AuditLog).where(AuditLog.patient_id == patient_id, AuditLog.action == 'finalize_visit')):
+        detail = json.loads(receipt.detail)
+        finalized_notes[detail['note_id']] = {'visit_date': detail['visit_date']}
     return {
         "patient": _directory_entry(session, patient),
         "regions": [
@@ -304,6 +318,7 @@ def get_chart(patient_id, *, session):
                     "body": row["body"],
                     "created_at": _zulu(row["created_at"]),
                     "source_suggestion_id": row["source_suggestion_id"],
+                    **finalized_notes.get(str(row['id']), {}),
                 }
                 for row in list_notes_by_patient(session, patient_id)
             ),

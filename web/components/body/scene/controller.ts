@@ -1,5 +1,5 @@
 import { createAtlasViewer, type AtlasViewer } from "@authorod/svitylo-3d-anatomy-atlas/core";
-import { SceneOverlay } from "./overlay";
+import { SceneOverlay, SKIN_ID } from "./overlay";
 import { initialSnapshot, type CutAxis, type LookupHit, type SceneFinding, type SceneSnapshot, type Tool } from "./types";
 
 const STAGE = {
@@ -79,7 +79,7 @@ export class BodyScene {
     });
 
     try {
-      const ids = [...new Set([...contextIds, ...findings.map((f) => f.structureId)])];
+      const ids = [...new Set([SKIN_ID, ...contextIds, ...findings.map((f) => f.structureId)])];
       const result = await viewer.addStructures(ids, { select: false, focus: false });
       if (this.disposed) return;
       await this.apply(true);
@@ -113,6 +113,10 @@ export class BodyScene {
 
   toggleImpacts(): void {
     if (this.overlay) this.overlay.setImpacts(!this.overlay.impacts);
+  }
+
+  toggleSkin(): void {
+    if (this.overlay) this.overlay.setSkin(!this.overlay.skin);
   }
 
   toggleCutaway(): void {
@@ -186,7 +190,7 @@ export class BodyScene {
   }
 
   resetView(): void {
-    this.viewer?.setView("anterior");
+    this.frameBody(true);
   }
 
   dispose(): void {
@@ -207,8 +211,18 @@ export class BodyScene {
     else viewer.clearSelection();
     viewer.setTransparency(0.78);
     overlay.rebuild();
-    if (focus) viewer.setView("anterior");
+    if (focus) this.frameBody(false);
     this.refresh();
+  }
+
+  /** Front view of the whole body; the atlas frames the selection, so it is lifted for the move. */
+  private frameBody(animate: boolean): void {
+    const viewer = this.viewer;
+    if (!viewer) return;
+    const selected = viewer.getState()?.selected ?? [];
+    viewer.clearSelection();
+    viewer.setView("anterior", { animate });
+    if (selected.length) viewer.select(selected, "replace");
   }
 
   private refresh(): void {
@@ -220,6 +234,7 @@ export class BodyScene {
     this.patch({
       tool: overlay.tool,
       impacts: overlay.impacts,
+      skin: overlay.skin,
       cutaway: overlay.cutaway,
       cutAxis: overlay.cutAxis,
       cutT: overlay.cutT(),

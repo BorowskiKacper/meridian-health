@@ -2,16 +2,13 @@ from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
-import pytest
-
 import app.config as config
-import app.services.sms as sms_module
+import app.services.email as email_module
 from app.db.repositories import (
     get_patient,
     get_reminder,
-    get_sms_message_by_sid,
+    get_email_message_by_provider_id,
     insert_reminder,
-    insert_sms_message,
     list_conditions_by_patient,
     list_medications_by_patient,
     list_notes_by_patient,
@@ -20,18 +17,19 @@ from app.db.repositories import (
     list_reminders_by_patient,
     list_suggestions,
 )
+from app.services.email import unsubscribe
 from app.services.reminders import send_due_reminders, update_reminder
-from app.services.sms import handle_sms_webhook
 
 JANE_ID = "11111111-1111-4111-8111-111111111111"
 JOHN_ID = "22222222-2222-4222-8222-222222222222"
 AMY_ID = "33333333-3333-4333-8333-333333333333"
 
-JANE_PHONE = "+15555550101"
-JOHN_PHONE = "+15555550102"
-AMY_PHONE = "+15555550103"
+JANE_EMAIL = "jane.doe@example.com"
+JOHN_EMAIL = "john.roe@example.com"
+AMY_EMAIL = "amy.lee@example.com"
 
-TWILIO_FROM = "whatsapp:+15550001111"
+PUBLIC_BASE = "https://clinic.example"
+UNSUBSCRIBE_SECRET = "unsubscribe-secret"
 PATIENT_IDS = (JANE_ID, JOHN_ID, AMY_ID)
 
 JANE_FORBIDDEN = ("Hypertension", "Lisinopril", "LDL", "140")
@@ -47,19 +45,16 @@ def invoke(fn, *args, session, **kwargs):
     return fn(*args, **kwargs)
 
 
-def whatsapp(phone_e164):
-    return "whatsapp:" + phone_e164
-
-
-def install_whatsapp(monkeypatch):
+def install_email(monkeypatch):
     calls = []
 
-    def send_whatsapp(from_number, to, body):
-        calls.append((from_number, to, body))
-        return "SM" + str(len(calls))
+    def send_email(to_email, body):
+        calls.append((to_email, body))
+        return "re_" + str(len(calls))
 
-    monkeypatch.setattr(sms_module, "send_whatsapp", send_whatsapp, raising=False)
-    monkeypatch.setattr(config, "TWILIO_FROM_NUMBER", TWILIO_FROM, raising=False)
+    monkeypatch.setattr(email_module, "send_email", send_email, raising=False)
+    monkeypatch.setattr(config, "EMAIL_PUBLIC_BASE_URL", PUBLIC_BASE, raising=False)
+    monkeypatch.setattr(config, "EMAIL_UNSUBSCRIBE_SECRET", UNSUBSCRIBE_SECRET, raising=False)
     return calls
 
 
@@ -112,11 +107,11 @@ def partition(result):
     assert isinstance(skipped, list)
     sent_ids = {}
     for item in sent:
-        assert set(item) == {"reminder_id", "sms_id"}
+        assert set(item) == {"reminder_id", "email_id"}
         assert isinstance(item["reminder_id"], str)
-        assert isinstance(item["sms_id"], str)
+        assert isinstance(item["email_id"], str)
         assert item["reminder_id"] not in sent_ids
-        sent_ids[item["reminder_id"]] = item["sms_id"]
+        sent_ids[item["reminder_id"]] = item["email_id"]
     skipped_ids = {}
     for item in skipped:
         assert set(item) == {"reminder_id", "reason"}
@@ -133,21 +128,26 @@ def assert_absent(reminder_id, sent_ids, skipped_ids):
     assert reminder_id not in skipped_ids
 
 
-def assert_sent(session, calls, reminder, phone_e164, forbidden, sms_id):
-    to = whatsapp(phone_e164)
-    matched = [index for index, call in enumerate(calls) if call[1] == to]
+def assert_sent(session, calls, reminder, address, forbidden, email_id):
+    matched = [index for index, call in enumerate(calls) if call[0] == address]
     assert len(matched) == 1
     index = matched[0]
-    from_number, to_number, body = calls[index]
-    assert from_number == TWILIO_FROM
-    assert to_number == to
+    to_email, body = calls[index]
+    assert to_email == address
+    link = email_module.unsubscribe_link(reminder["patient_id"])
+    assert body == (
+        "You have a clinic reminder. Please contact the office to schedule a visit.\n"
+        + link
+    )
+    assert link.startswith(PUBLIC_BASE + "/email/unsubscribe?token=")
     assert_hides_chart(body, forbidden)
-    sid = "SM" + str(index + 1)
-    row = get_sms_message_by_sid(session, sid)
-    assert row["twilio_sid"] == sid
-    assert row["to_phone"] == to
+    provider_id = "re_" + str(index + 1)
+    row = get_email_message_by_provider_id(session, provider_id)
+    assert row["provider_id"] == provider_id
+    assert row["to_email"] == address
     assert row["body"] == body
-    assert row["id"] == sms_id
+    assert row["status"] == "sent"
+    assert row["id"] == email_id
     assert isinstance(row["id"], str)
     assert row["patient_id"] == reminder["patient_id"]
     assert row["reminder_id"] == reminder["id"]
@@ -169,9 +169,8 @@ def assert_still_scheduled(session, reminder):
     assert stored["rule_id"] == reminder["rule_id"]
 
 
-def assert_no_call(calls, phone_e164):
-    banned = whatsapp(phone_e164)
-    assert all(call[1] != banned for call in calls)
+def assert_no_call(calls, address):
+    assert all(call[0] != address for call in calls)
 
 
 def assert_error(result, code):
@@ -196,7 +195,7 @@ def seeded_reminders(session):
 def test_as_of_mid_september_sends_only_amy(seeded_db, monkeypatch):
     session = seeded_db.session
     jane, john, amy = seeded_reminders(session)
-    calls = install_whatsapp(monkeypatch)
+    calls = install_email(monkeypatch)
 
     result = invoke(send_due_reminders, date(2026, 9, 15), session=session)
 
@@ -206,17 +205,17 @@ def test_as_of_mid_september_sends_only_amy(seeded_db, monkeypatch):
     assert_absent(jane["id"], sent_ids, skipped_ids)
     assert_absent(john["id"], sent_ids, skipped_ids)
     assert len(calls) == 1
-    assert_sent(session, calls, amy, AMY_PHONE, AMY_FORBIDDEN, sent_ids[amy["id"]])
+    assert_sent(session, calls, amy, AMY_EMAIL, AMY_FORBIDDEN, sent_ids[amy["id"]])
     assert_still_scheduled(session, jane)
     assert_still_scheduled(session, john)
-    assert_no_call(calls, JANE_PHONE)
-    assert_no_call(calls, JOHN_PHONE)
+    assert_no_call(calls, JANE_EMAIL)
+    assert_no_call(calls, JOHN_EMAIL)
 
 
 def test_as_of_november_sends_jane_and_amy_and_skips_john(seeded_db, monkeypatch):
     session = seeded_db.session
     jane, john, amy = seeded_reminders(session)
-    calls = install_whatsapp(monkeypatch)
+    calls = install_email(monkeypatch)
 
     result = invoke(send_due_reminders, date(2026, 11, 1), session=session)
 
@@ -224,10 +223,10 @@ def test_as_of_november_sends_jane_and_amy_and_skips_john(seeded_db, monkeypatch
     assert set(sent_ids) == {jane["id"], amy["id"]}
     assert skipped_ids == {john["id"]: "opted_out"}
     assert len(calls) == 2
-    assert_sent(session, calls, jane, JANE_PHONE, JANE_FORBIDDEN, sent_ids[jane["id"]])
-    assert_sent(session, calls, amy, AMY_PHONE, AMY_FORBIDDEN, sent_ids[amy["id"]])
+    assert_sent(session, calls, jane, JANE_EMAIL, JANE_FORBIDDEN, sent_ids[jane["id"]])
+    assert_sent(session, calls, amy, AMY_EMAIL, AMY_FORBIDDEN, sent_ids[amy["id"]])
     assert_still_scheduled(session, john)
-    assert_no_call(calls, JOHN_PHONE)
+    assert_no_call(calls, JOHN_EMAIL)
 
 
 def test_paused_due_reminder_is_neither_sent_nor_skipped(seeded_db, monkeypatch):
@@ -248,7 +247,7 @@ def test_paused_due_reminder_is_neither_sent_nor_skipped(seeded_db, monkeypatch)
     paused = get_reminder(session, paused_id)
     assert paused["status"] == "paused"
     assert paused["due_on"] == date(2026, 1, 1)
-    calls = install_whatsapp(monkeypatch)
+    calls = install_email(monkeypatch)
 
     result = invoke(send_due_reminders, date(2026, 11, 1), session=session)
 
@@ -260,9 +259,9 @@ def test_paused_due_reminder_is_neither_sent_nor_skipped(seeded_db, monkeypatch)
     assert stored["status"] == "paused"
     assert stored["due_on"] == date(2026, 1, 1)
     assert stored["name"] == "Paused screening"
-    assert_sent(session, calls, jane, JANE_PHONE, JANE_FORBIDDEN, sent_ids[jane["id"]])
-    assert_sent(session, calls, amy, AMY_PHONE, AMY_FORBIDDEN, sent_ids[amy["id"]])
-    assert_no_call(calls, JOHN_PHONE)
+    assert_sent(session, calls, jane, JANE_EMAIL, JANE_FORBIDDEN, sent_ids[jane["id"]])
+    assert_sent(session, calls, amy, AMY_EMAIL, AMY_FORBIDDEN, sent_ids[amy["id"]])
+    assert_no_call(calls, JOHN_EMAIL)
     assert len(calls) == 2
 
 
@@ -396,109 +395,127 @@ def test_update_reminder_without_due_on_updates_status_only(seeded_db):
     assert stored["patient_id"] == JANE_ID
 
 
-@pytest.mark.parametrize(
-    "body",
-    [" STOP ", "stop", "Stop"],
-    ids=["spaced", "lower", "capitalized"],
-)
-def test_stop_opts_jane_out_without_changing_the_chart(seeded_db, body):
+def test_unsubscribe_opts_jane_out_without_changing_the_chart(seeded_db, monkeypatch):
     session = seeded_db.session
+    install_email(monkeypatch)
     before = snapshot_charts(session)
+    token = email_module.unsubscribe_token(JANE_ID)
 
-    result = invoke(
-        handle_sms_webhook,
-        {
-            "MessageSid": "SMstop",
-            "MessageStatus": "received",
-            "From": whatsapp(JANE_PHONE),
-            "Body": body,
-        },
-        session=session,
-    )
+    result = invoke(unsubscribe, token, session=session)
 
-    assert result is None
+    assert result == "You are unsubscribed from clinic reminders."
     jane = get_patient(session, JANE_ID)
-    assert jane["sms_opt_in"] is False
-    assert jane["phone_e164"] == JANE_PHONE
+    assert jane["email_opt_in"] is False
+    assert jane["email"] == JANE_EMAIL
     assert jane["display_name"] == "Jane Doe"
-    assert get_patient(session, JOHN_ID)["sms_opt_in"] is False
-    assert get_patient(session, AMY_ID)["sms_opt_in"] is True
+    assert get_patient(session, JOHN_ID)["email_opt_in"] is False
+    assert get_patient(session, AMY_ID)["email_opt_in"] is True
     assert snapshot_charts(session) == before
 
 
-def test_delivery_status_updates_sms_message(seeded_db):
+def test_unsubscribe_again_stays_opted_out(seeded_db, monkeypatch):
     session = seeded_db.session
-    jane = reminder_named(session, JANE_ID, "Colorectal cancer screening")
-    sms_id = str(uuid4())
-    insert_sms_message(
-        session,
-        {
-            "id": sms_id,
-            "patient_id": JANE_ID,
-            "reminder_id": jane["id"],
-            "to_phone": whatsapp(JANE_PHONE),
-            "body": "Clinic reminder",
-            "twilio_sid": "SM999",
-            "status": "queued",
-        },
-    )
-    before_sms = get_sms_message_by_sid(session, "SM999")
-    assert before_sms["status"] == "queued"
+    install_email(monkeypatch)
+    token = email_module.unsubscribe_token(JANE_ID)
+    invoke(unsubscribe, token, session=session)
     before = snapshot_charts(session)
 
-    result = invoke(
-        handle_sms_webhook,
-        {
-            "MessageSid": "SM999",
-            "MessageStatus": "delivered",
-            "From": whatsapp(JANE_PHONE),
-            "Body": "ok",
-        },
-        session=session,
-    )
+    result = invoke(unsubscribe, token, session=session)
 
-    assert result is None
-    after_sms = get_sms_message_by_sid(session, "SM999")
-    assert after_sms["status"] == "delivered"
-    assert after_sms["id"] == sms_id
-    assert after_sms["twilio_sid"] == "SM999"
-    assert after_sms["to_phone"] == whatsapp(JANE_PHONE)
-    assert after_sms["body"] == "Clinic reminder"
-    assert after_sms["patient_id"] == JANE_ID
-    assert after_sms["reminder_id"] == jane["id"]
-    assert {**after_sms, "status": "queued"} == before_sms
+    assert result == "You are unsubscribed from clinic reminders."
+    jane = get_patient(session, JANE_ID)
+    assert jane["email_opt_in"] is False
+    assert jane["email"] == JANE_EMAIL
     assert snapshot_charts(session) == before
-    assert get_patient(session, JANE_ID)["sms_opt_in"] is True
 
 
-def test_unknown_webhook_returns_none(seeded_db):
+def test_bad_unsubscribe_token_changes_nothing(seeded_db, monkeypatch):
     session = seeded_db.session
+    install_email(monkeypatch)
     before = snapshot_charts(session)
     opt_in = {
-        patient_id: get_patient(session, patient_id)["sms_opt_in"]
+        patient_id: get_patient(session, patient_id)["email_opt_in"]
         for patient_id in PATIENT_IDS
     }
 
-    result = invoke(
-        handle_sms_webhook,
-        {
-            "MessageSid": "SMunknown",
-            "MessageStatus": "delivered",
-            "From": "whatsapp:+19999999999",
-            "Body": "hello",
-        },
+    result = invoke(unsubscribe, JANE_ID + ".not-a-valid-signature", session=session)
+    signed_garbage = invoke(
+        unsubscribe,
+        email_module.unsubscribe_token("not-a-patient"),
         session=session,
     )
 
     assert result is None
+    assert signed_garbage is None
     assert snapshot_charts(session) == before
     for patient_id, opted_in in opt_in.items():
-        assert get_patient(session, patient_id)["sms_opt_in"] is opted_in
+        assert get_patient(session, patient_id)["email_opt_in"] is opted_in
+        assert get_patient(session, patient_id)["email"] == {
+            JANE_ID: JANE_EMAIL,
+            JOHN_ID: JOHN_EMAIL,
+            AMY_ID: AMY_EMAIL,
+        }[patient_id]
+
+
+def test_failed_send_leaves_the_reminder_scheduled(seeded_db, monkeypatch):
+    session = seeded_db.session
+    amy = reminder_named(session, AMY_ID, "Follow-up labs")
+
+    def send_email(to_email, body):
+        raise RuntimeError("resend rejected the message")
+
+    monkeypatch.setattr(email_module, "send_email", send_email, raising=False)
+    monkeypatch.setattr(config, "EMAIL_PUBLIC_BASE_URL", PUBLIC_BASE, raising=False)
+    monkeypatch.setattr(config, "EMAIL_UNSUBSCRIBE_SECRET", UNSUBSCRIBE_SECRET, raising=False)
+
+    try:
+        invoke(send_due_reminders, date(2026, 9, 15), session=session)
+    except RuntimeError as exc:
+        assert str(exc) == "resend rejected the message"
+    else:
+        raise AssertionError("send_due_reminders swallowed the failed send")
+
+    assert_still_scheduled(session, amy)
+    assert get_email_message_by_provider_id(session, "re_1") is None
+
+
+def test_send_email_posts_to_resend_and_returns_the_message_id(monkeypatch):
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"id": "re_abc"}
+
+    def post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr(config, "RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(config, "EMAIL_FROM", "Clinic <reminders@example.com>")
+    monkeypatch.setattr(email_module.httpx, "post", post)
+
+    message_id = email_module.send_email("jane.doe@example.com", "Clinic sentence")
+
+    assert message_id == "re_abc"
+    assert captured["url"] == "https://api.resend.com/emails"
+    assert captured["headers"]["Authorization"] == "Bearer re_test"
+    assert captured["json"] == {
+        "from": "Clinic <reminders@example.com>",
+        "to": ["jane.doe@example.com"],
+        "subject": "Clinic reminder",
+        "text": "Clinic sentence",
+    }
 
 
 def test_reminder_services_do_not_reference_agents():
     services = Path(__file__).resolve().parents[2] / "app" / "services"
-    for name in ("reminders.py", "sms.py"):
+    for name in ("reminders.py", "email.py"):
         path = services / name
         assert path.is_file()
         assert "app.agents" not in path.read_text(encoding="utf-8")

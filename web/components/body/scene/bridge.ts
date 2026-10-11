@@ -121,3 +121,10 @@ export function meshVisible(viewer: AtlasViewer, mesh: number): boolean {
   if (!modes) return true;
   return (modes[mesh] ?? 0) !== 0;
 }
+
+/** Drawn solid, as opposed to the translucent "ghost" surroundings (atlas MODE_OPAQUE). */
+export function meshOpaque(viewer: AtlasViewer, mesh: number): boolean {
+  const modes = (viewer as unknown as { meshModes?: Uint8Array }).meshModes;
+  if (!modes) return true;
+  return modes[mesh] === 1;
+}

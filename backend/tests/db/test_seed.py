@@ -89,24 +89,24 @@ def test_seed_inserts_exactly_three_patients(seeded_db):
         display_name="Jane Doe",
         date_of_birth=date(1974, 3, 15),
         sex="female",
-        sms_opt_in=True,
-        phone_e164="+15555550101",
+        email_opt_in=True,
+        email="jane.doe@example.com",
     )
     assert_fields(
         get_patient(session, JOHN_ID),
         PATIENT_KEYS,
         id=JOHN_ID,
         display_name="John Roe",
-        sms_opt_in=False,
-        phone_e164="+15555550102",
+        email_opt_in=False,
+        email="john.roe@example.com",
     )
     assert_fields(
         get_patient(session, AMY_ID),
         PATIENT_KEYS,
         id=AMY_ID,
         display_name="Amy Lee",
-        sms_opt_in=True,
-        phone_e164="+15555550103",
+        email_opt_in=True,
+        email="amy.lee@example.com",
     )
 
 
