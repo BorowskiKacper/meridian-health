@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 
 from app.db.repositories import (
+    get_body_region,
     get_coverage_by_patient,
     list_appointments_by_patient,
     list_conditions_by_patient,
@@ -63,3 +64,25 @@ def test_panel_adds_eight_charts_and_skips_them_on_the_next_run(db, seed_fn):
 
     jane_a1c = [row for row in list_observations_by_patient(db, JANE_ID) if row["name"] == "A1c"]
     assert len(jane_a1c) == 8
+
+
+def test_panel_on_a_base_seed_inserts_the_missing_kidney_region(db, seed_fn):
+    seed_fn(db)
+    demo = _load("demo")
+    demo.ensure_reference(db)
+    demo.ensure_reference(db)
+    panel = _load("panel")
+
+    assert get_body_region(db, "kidney")["display_name"] == "Kidneys"
+    assert panel.seed_panel(db) == 8
+
+    kidney = next(
+        row
+        for row in list_conditions_by_patient(db, ROSA_ID)
+        if row["name"] == "Chronic kidney disease, stage 3a"
+    )
+    assert kidney["body_region_key"] == "kidney"
+    assert {row["name"] for row in list_reminders_by_patient(db, ROSA_ID)} == {
+        "Blood pressure check",
+        "Influenza vaccine",
+    }

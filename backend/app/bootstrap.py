@@ -32,7 +32,8 @@ def prepare_database():
 
     Returns whether the demo seed ran, and how many panel charts were added.
     The panel step always runs so a deploy can fill a database that already
-    has the original three patients.
+    has the original three patients. That path skips the demo seed, so the
+    body regions and reminder rules those charts reference are filled first.
     """
     engine = get_engine()
     Base.metadata.create_all(engine)
@@ -42,6 +43,7 @@ def prepare_database():
         if not list_patients(session):
             _seed(session)
             created = True
+        _load("demo").ensure_reference(session)
         added = _load("panel").seed_panel(session)
         session.commit()
         return created, added
