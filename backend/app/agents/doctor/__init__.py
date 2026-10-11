@@ -21,6 +21,28 @@ _IDENTIFIERS = re.compile(
     r"Dec(?:ember)?)\b\.?\s+\d{1,2}(?:st|nd|rd|th)?,\s*\d{4}\b)"
 )
 
+_SEND_WORD = re.compile(r"\b(?:send|email|e-mail|mail)\b", re.IGNORECASE)
+_REMINDER_WORD = re.compile(r"\breminders?\b", re.IGNORECASE)
+_NOW_WORD = re.compile(r"\b(?:now|instantly|immediately|right away)\b", re.IGNORECASE)
+_REFUSAL = re.compile(r"\b(?:do not|don't|dont|never)\b", re.IGNORECASE)
+_DELIBERATION = re.compile(
+    r"^\s*(?:should|when|why|what|which|how|whether)\b|\bshould\s+(?:we|i)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_to_send_reminder(text):
+    if _REFUSAL.search(text) or _DELIBERATION.search(text):
+        return False
+    if _SEND_WORD.search(text) is None:
+        return False
+    return _REMINDER_WORD.search(text) is not None or _NOW_WORD.search(text) is not None
+
+
+def _as_of_today():
+    return datetime.now(timezone.utc).date()
+
+
 def route_doctor_request(patient_id, text, channel, *, session, route=None):
     try:
         patient = get_patient(session, patient_id)
@@ -63,6 +85,11 @@ def _bound_doctor_request(patient_id, text, channel, *, session, route):
             spoken_text = _spoken_chart(suggestions)
     elif route == "clinical_question":
         answer = _research_answer(patient_id, text, session)
+    elif route == "check_screenings" and asks_to_send_reminder(text):
+        from app.services.reminders import reminder_send_message, send_patient_reminders
+
+        outcome = send_patient_reminders(patient_id, _as_of_today(), session=session)
+        answer = {"text": reminder_send_message(outcome), "citations": []}
     elif route == "check_screenings":
         review = run_reminder_agent(patient_id, "doctor_request", session=session)
         if review["suggestions"]:

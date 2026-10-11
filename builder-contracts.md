@@ -218,7 +218,7 @@ Multipart fields: `patient_id`, and exactly one of `text` or `audio`. Role `doct
 |---|---|
 | `chart_update` | `suggestions` has the new pending rows. `answer` is null. |
 | `clinical_question` | `answer` is set. `suggestions` is empty. |
-| `check_screenings` | Either new `reminder_change` suggestions, or `answer` saying screenings are up to date and `suggestions` empty. |
+| `check_screenings` | An explicit request to send a reminder emails only that patient's due scheduled reminders and returns `answer` with empty `suggestions`. Any other screening request returns either new `reminder_change` suggestions, or `answer` saying screenings are up to date and `suggestions` empty. |
 
 `spoken_text` and `audio_base64` are set only when the input was audio. `audio_base64` may be null if speech synthesis fails. The JSON still returns.
 
@@ -447,7 +447,7 @@ USPSTF is the baseline. Other sources can extend or depart from it, but only tru
 
 **Research.** Classified as `clinical_question`. Read-only. May call `get_patient_context`, `search_patient_notes`, `search_guidelines` (either corpus), and `search_medical_web`. Every clinical claim in `answer.text` has a citation in `answer.citations` and follows the Evidence rules. The answer passes `verify_claims` before it is returned. `POST /suggestions` is how a sentence becomes a `plan_item`.
 
-**Reminder agent.** Runs in two cases: the doctor request was classified `check_screenings`, or `POST /suggestions/approve` finished writing the chart. It loads rules, context, and the USPSTF baseline for each scheduled screening, and may also call `search_guidelines` with `pubmed` and `search_medical_web` to check whether this patient's history justifies departing from the baseline. If the schedule already fits, it returns no suggestions. If it does not, it proposes a `reminder_change` that follows the Evidence rules and has passed `verify_claims`. Approving a reminder change runs the agent again. That second run must return no suggestions when the schedule now matches, so approval cannot chain.
+**Reminder agent.** Runs in two cases: the doctor request was classified `check_screenings` and did not explicitly ask to send a reminder, or `POST /suggestions/approve` finished writing the chart. An explicit send in the screening window does not run the agent. It calls `send_patient_reminders` for that patient only. It loads rules, context, and the USPSTF baseline for each scheduled screening, and may also call `search_guidelines` with `pubmed` and `search_medical_web` to check whether this patient's history justifies departing from the baseline. If the schedule already fits, it returns no suggestions. If it does not, it proposes a `reminder_change` that follows the Evidence rules and has passed `verify_claims`. Approving a reminder change runs the agent again. That second run must return no suggestions when the schedule now matches, so approval cannot chain.
 
 **Approval.** The only writer of `conditions`, `medications`, `family_history`, `observations`, `notes`, and `reminder_schedule`. One transaction marks the suggestions `approved`, applies `after` (or the edited `after`), and inserts `audit_log`. A `soap_note` or `plan_item` also embeds `after.body` or `after` text into `notes`. Reject writes `audit_log` and leaves chart tables unchanged. A second approve of the same id returns `409`.
 
@@ -506,6 +506,7 @@ Internal functions the API worker calls, and the other workers implement:
 | `check_eligibility(patient_id, order_text)` | Eligibility | the eligibility response |
 | `answer_secretary(patient_id, text)` | Secretary | the secretary response |
 | `send_due_reminders(as_of)` | Reminders | `{ "sent", "skipped" }` |
+| `send_patient_reminders(patient_id, as_of)` | Reminders | `{ "sent", "skipped" }` for that patient only |
 | `update_reminder(patient_id, reminder_id, due_on, status)` | Reminders | the updated reminder row |
 | `unsubscribe(token)` | Reminders | a short confirmation, or nothing when the token is bad |
 | `get_body_state(patient_id, specialty)` | Chart reads | the body-state response |
