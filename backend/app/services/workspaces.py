@@ -88,18 +88,31 @@ def pair(session, code):
 
 
 def job_data(session, job, w):
-    data = read(session, job.id, 'result', {})
-    # Approval state is fetched from the record, never trusted from saved results.
-    response = data.get('response') or {}
-    for proposal in response.get('suggestions', []):
-        current = session.get(Suggestion, UUID(proposal['id']))
-        if current:
-            proposal['status'] = current.status
-    patient = session.get(Patient, job.patient_id) if job.patient_id else None
-    seq = session.scalar(select(WorkspaceEvent.sequence).where(WorkspaceEvent.job_id == job.id, WorkspaceEvent.kind == 'completed').limit(1))
-    return {'id': str(job.id), 'status': job.status, 'text': job.transcript, 'patient_id': str(job.patient_id) if job.patient_id else None,
-            'patient_name': patient.display_name if patient else None, 'channel': job.channel, 'created_at': job.created_at,
-            'desktop_applied': bool(seq and w.desktop_cursor >= seq), **data}
+    return jobs_data(session, [job], w)[0]
+
+
+def jobs_data(session, jobs, w):
+    """Batch poll reads instead of fetching results, patients and proposals per job."""
+    if not jobs:
+        return []
+    chunks = session.scalars(select(WorkspaceChunk).where(WorkspaceChunk.owner_id.in_([j.id for j in jobs]), WorkspaceChunk.slot.in_(['result', 'desktop_delivery'])).order_by(WorkspaceChunk.part)).all()
+    grouped = {}
+    for chunk in chunks:
+        grouped.setdefault((chunk.owner_id, chunk.slot), []).append(chunk.body)
+    decoded = {key: json.loads(zlib.decompress(base64.b64decode(''.join(parts)))) for key, parts in grouped.items()}
+    patient_ids = {j.patient_id for j in jobs if j.patient_id}
+    patients = dict(session.execute(select(Patient.id, Patient.display_name).where(Patient.id.in_(patient_ids))).all()) if patient_ids else {}
+    proposal_ids = {UUID(p['id']) for j in jobs for p in decoded.get((j.id, 'result'), {}).get('response', {}).get('suggestions', [])}
+    statuses = dict(session.execute(select(Suggestion.id, Suggestion.status).where(Suggestion.id.in_(proposal_ids))).all()) if proposal_ids else {}
+    result = []
+    for job in jobs:
+        data = decoded.get((job.id, 'result'), {})
+        for proposal in data.get('response', {}).get('suggestions', []):
+            proposal['status'] = statuses.get(UUID(proposal['id']), proposal['status'])
+        result.append({'id': str(job.id), 'status': job.status, 'text': job.transcript, 'patient_id': str(job.patient_id) if job.patient_id else None,
+                       'patient_name': patients.get(job.patient_id), 'channel': job.channel, 'created_at': job.created_at,
+                       **data, 'desktop_applied': bool(decoded.get((job.id, 'desktop_delivery'), False))})
+    return result
 
 
 def submit(session, w, submission_id, text, audio=None, patient_id=None, route=None):
@@ -121,6 +134,14 @@ def submit(session, w, submission_id, text, audio=None, patient_id=None, route=N
     if audio:
         put(session, job.id, 'audio', base64.b64encode(audio).decode())
     event(session, w, 'queued', job)
+    if not audio:
+        from app.mcp.workspace_tools import parse_navigation
+        intent = parse_navigation(text)
+        if intent is not None:
+            # No provider calls or clinical writes: navigation need not wait behind research.
+            from app.services.workspace_worker import execute
+            put(session, job.id, 'intent', intent)
+            execute(session, job)
     return job_data(session, job, w)
 
 

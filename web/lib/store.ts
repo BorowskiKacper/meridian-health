@@ -161,11 +161,11 @@ export const useStore = create<State>()((set, get) => {
     workspaceJobs: {},
     syncWorkspaceJob: async (job) => {
       if (JSON.stringify(get().workspaceJobs[job.id]) === JSON.stringify(job)) return;
-      if (job.patient_id && !get().patients[job.patient_id]) await refreshPatient(job.patient_id);
+      if (job.patient_id && !get().patients[job.patient_id] && job.status === 'completed') await refreshPatient(job.patient_id);
       const previous = get().workspaceJobs[job.id];
       const existingConversation = get().conversations.find((c) => c.messages.some((m) => m.workspaceJobId === job.id));
       let conversationId = existingConversation?.id;
-      if (job.patient_id) conversationId = conversationFor(job.patient_id);
+      if (job.patient_id && get().patients[job.patient_id]) conversationId = conversationFor(job.patient_id);
       if (!conversationId) conversationId = 'general';
       const response = job.response;
       const researchId = response?.answer && response.route === 'clinical_question' ? job.id : undefined;

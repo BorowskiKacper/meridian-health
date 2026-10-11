@@ -122,6 +122,7 @@ def start_worker(engine):
                     except Exception:
                         log.exception('Could not record workspace job failure')
             stop.wait(1 if not job_id else 0.1)
-    thread = threading.Thread(target=loop, name='workspace-jobs', daemon=True)
-    thread.start()
+    for index in range(2):
+        thread = threading.Thread(target=loop, name=f'workspace-jobs-{index}', daemon=True)
+        thread.start()
     return stop

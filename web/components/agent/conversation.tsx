@@ -47,7 +47,7 @@ export function ConversationView({ conversationId, wide = false }: { conversatio
         ) : (
           <ol className={cn(column, "space-y-7 py-6")}>
             {conversation.messages.map((message) => (
-              <li key={message.id}>
+              <li key={message.id} data-workspace-reply={message.role === 'agent' && !message.pending ? message.workspaceJobId : undefined}>
                 {message.role === "doctor" ? <DoctorMessage message={message} /> : <AgentMessage message={message} mode={requestMode} general={conversation.patientId === null} />}
               </li>
             ))}

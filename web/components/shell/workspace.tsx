@@ -15,6 +15,7 @@ export function Workspace({ hidden }: { hidden: boolean }) {
   const tabs = useStore((s) => s.tabs);
   const activeTabId = useStore((s) => s.activeTabId);
   const active = tabs.find((t) => t.id === activeTabId);
+  const ready = useStore((s) => Boolean(active && (active.kind === 'research' ? s.research[active.refId ?? ''] : s.patients[active.patientId])));
   const content = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => { if (content.current) content.current.scrollTop = 0; }, [activeTabId]);
 
@@ -27,7 +28,7 @@ export function Workspace({ hidden }: { hidden: boolean }) {
       <section className="min-h-0 flex-1">
         <div className="flex h-full flex-col overflow-hidden">
           {active && <PatientBanner tab={active} />}
-          <div ref={content} className="min-h-0 flex-1 overflow-auto">{active ? <TabContent tab={active} /> : <EmptyWorkspace />}</div>
+          <div ref={content} data-workspace-tab={active?.id} data-workspace-ready={ready} className="min-h-0 flex-1 overflow-auto">{active ? <TabContent tab={active} /> : <EmptyWorkspace />}</div>
         </div>
       </section>
     </main>

@@ -7,10 +7,14 @@ from api_support import AMY_ID, JANE_ID, bind_session
 from app.db.models import Workspace, WorkspaceJob, Note, Suggestion
 from app.services import workspaces as ws
 from app.services.workspace_worker import claim, execute
+from app.mcp.workspace_tools import parse_navigation
 
 
 @pytest.fixture
 def paired(client, seeded_db, monkeypatch):
+    import app.mcp.workspace_tools as tools
+    # Existing worker tests deliberately exercise leased asynchronous jobs.
+    monkeypatch.setattr(tools, 'parse_navigation', lambda text: None)
     from app.api.routes.workspaces import _attempts
     _attempts.clear()
     bind_session(monkeypatch, seeded_db.session)
@@ -82,6 +86,13 @@ def test_navigation_is_durable_scoped_and_acknowledged_only_after_snapshot(clien
     session.commit()
     reloaded = client.get('/workspaces/state', headers=desktop).json()
     assert reloaded['snapshot'] == snapshot
+    assert not reloaded['jobs'][0]['desktop_applied']
+    path = '/workspaces/requests/' + job['id'] + '/acknowledge'
+    assert client.post(path, headers=phone, json={'tab_id': 'vitals-amy'}).status_code == 401
+    assert client.post(path, headers=desktop, json={'tab_id': 'not-rendered'}).status_code == 409
+    assert client.post(path, headers=desktop, json={'tab_id': 'vitals-amy'}).status_code == 200
+    session.commit()
+    reloaded = client.get('/workspaces/state', headers=desktop).json()
     assert reloaded['jobs'][0]['desktop_applied']
     # Closing a tab retains the cursor, so replay cannot reopen it.
     assert client.put('/workspaces/snapshot', headers=desktop, json={**snapshot, 'tabs': [], 'activeTabId': None}).status_code == 200
@@ -90,6 +101,67 @@ def test_navigation_is_durable_scoped_and_acknowledged_only_after_snapshot(clien
     assert client.put('/workspaces/snapshot', headers=phone, json=snapshot).status_code == 401
     other = client.post('/workspaces').json()['token']
     assert client.get('/workspaces/requests/' + job['id'], headers={'Authorization': 'Bearer ' + other}).status_code == 404
+    assert client.post(path, headers={'Authorization': 'Bearer ' + other}, json={'tab_id': 'vitals-amy'}).status_code == 404
+
+
+@pytest.mark.parametrize('text,query,view', [
+    ('Open Amy Lee\u2019s vitals', 'Amy Lee', 'vitals'),
+    ('Open the labs tab for Amy Lee', 'Amy Lee', 'lab'),
+    ('Please show her medications on my laptop', None, 'medications'),
+    ('Open the blood pressure trends', None, 'vitals'),
+    ('Open Amy Lee chart', 'Amy Lee', 'overview'),
+])
+def test_read_only_navigation_parser(text, query, view):
+    assert parse_navigation(text) == {'patient_query': query, 'needs_patient': True, 'route': None, 'views': [view]}
+
+
+@pytest.mark.parametrize('text', ['Open Amy Lee vitals and change weight to 70', 'Research hypertension and open vitals', 'Change weight to 70', 'Open https://example.com', 'Open medications and labs'])
+def test_navigation_parser_never_shortcuts_mixed_or_unsupported_requests(text):
+    assert parse_navigation(text) is None
+
+
+def test_simple_navigation_bypasses_ai_and_busy_worker(client, paired, monkeypatch):
+    import app.mcp.workspace_tools as tools
+    desktop, phone, _, session = paired
+    monkeypatch.setattr(tools, 'parse_navigation', parse_navigation)
+    monkeypatch.setattr(tools, 'gemini_json', lambda *a, **k: pytest.fail('Navigation called the AI classifier'))
+    # A leased research request must not hold up a pure navigation request.
+    w = session.scalar(select(Workspace))
+    session.add(WorkspaceJob(id=uuid4(), workspace_id=w.id, patient_id=None, transcript='Research question', status='running', channel='typed', attempts=1, lease_until=ws.now() + timedelta(minutes=10), created_at=ws.now()))
+    session.commit()
+    job = submit(client, phone, 'Open Amy Lee vitals')
+    assert job['status'] == 'completed'
+    assert job['navigation'] == [{'patient_id': AMY_ID, 'view': 'vitals'}]
+    assert not job['desktop_applied']
+    missing = submit(client, phone, 'Open medications')
+    assert missing['status'] == 'needs_patient' and missing['patient_id'] is None
+
+
+def test_poll_query_count_does_not_grow_with_job_history(client, paired):
+    from sqlalchemy import event
+    _, phone, _, session = paired
+    w = session.scalar(select(Workspace))
+    def count_poll():
+        count = []
+        def executed(*args): count.append(1)
+        event.listen(session.bind, 'before_cursor_execute', executed)
+        try:
+            result = client.get('/workspaces/state', headers=phone)
+            assert result.status_code == 200
+            return len(count), result.json()
+        finally: event.remove(session.bind, 'before_cursor_execute', executed)
+    for i in range(30):
+        job = WorkspaceJob(id=uuid4(), workspace_id=w.id, patient_id=UUID(AMY_ID), transcript=f'View {i}', status='completed', channel='typed', attempts=0, lease_until=None, created_at=ws.now())
+        session.add(job)
+        ws.put(session, job.id, 'result', {'response': {'suggestions': []}, 'navigation': [{'patient_id': AMY_ID, 'view': 'vitals'}]})
+        if i == 0:
+            session.commit()
+            baseline, _ = count_poll()
+    session.commit()
+    populated, state = count_poll()
+    assert populated <= baseline + 1
+    assert len(state['jobs']) == 30
+    assert all(j['patient_name'] == 'Amy Lee' and not j['desktop_applied'] for j in state['jobs'])
 
 
 def test_missing_patient_clarification_preserves_original_request(client, paired, monkeypatch):

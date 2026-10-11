@@ -69,6 +69,21 @@ test("a workspace clarification moves into view without choosing an ambiguous pa
   assert.equal(useStore.getState().conversations[0].messages.at(-1).text, 'Which patient?');
 });
 
+test("queued mobile prompts do not wait for loading a new patient's chart", async (t) => {
+  const original = chart.reloadPatient;
+  t.after(() => { chart.reloadPatient = original; });
+  let calls = 0;
+  chart.reloadPatient = async () => { calls++; return { patient: { id: 'new-patient', name: 'Amy Lee' }, actions: [] }; };
+  useStore.setState({ patients: {}, conversations: [{ id: 'general', patientId: null, title: 'General', messages: [] }], activeConversationId: 'general', workspaceJobs: {} });
+  const job = { id: 'quick-command', status: 'queued', text: 'Open Amy Lee vitals', patient_id: 'new-patient', patient_name: 'Amy Lee', desktop_applied: false };
+  await useStore.getState().syncWorkspaceJob(job);
+  assert.equal(calls, 0);
+  assert.equal(useStore.getState().conversations[0].messages[0].text, job.text);
+  await useStore.getState().syncWorkspaceJob({ ...job, status: 'completed', response: { route: 'navigate', suggestions: [] } });
+  assert.equal(calls, 1);
+  assert.equal(useStore.getState().conversations.find((c) => c.patientId === 'new-patient').messages.length, 2);
+});
+
 test("paired desktop preserves workflow confirmation before durable submission", async (t) => {
   const workspace = require('./workspace-api.ts');
   const original = workspace.submitWorkspace;

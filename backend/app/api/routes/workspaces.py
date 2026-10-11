@@ -43,6 +43,10 @@ class Review(BaseModel):
     reason: str = Field(default='Not accurate', max_length=1000)
 
 
+class Acknowledge(BaseModel):
+    tab_id: str | None = Field(default=None, max_length=150)
+
+
 @router.post('')
 def create_workspace(request: Request):
     limited(request, 'create')
@@ -126,6 +130,13 @@ def get_job(job_id: UUID, authorization: str | None = Header(default=None)):
     with db.get_session() as session:
         w, _ = ws.authorize(session, authorization)
         return views.get_job(session, w, job_id)
+
+
+@router.post('/requests/{job_id}/acknowledge')
+def acknowledge(job_id: UUID, payload: Acknowledge, authorization: str | None = Header(default=None)):
+    with db.get_session() as session:
+        w, _ = ws.authorize(session, authorization, desktop=True)
+        return views.acknowledge(session, w, job_id, payload.tab_id)
 
 
 @router.post('/requests/{job_id}/clarify-voice')

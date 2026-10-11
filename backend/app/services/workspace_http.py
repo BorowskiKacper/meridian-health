@@ -13,7 +13,7 @@ def state(session, w, device, after):
     patient = session.get(Patient, w.patient_id) if w.patient_id else None
     return {'paired': bool(w.phone_hash), 'patient_name': patient.display_name if patient else None, 'workspace_id': str(w.id), 'cursor': events[-1].sequence if events else after,
             'events': [{'sequence': e.sequence, 'kind': e.kind, 'job_id': str(e.job_id) if e.job_id else None} for e in events],
-            'jobs': [ws.job_data(session, j, w) for j in reversed(jobs)],
+            'jobs': ws.jobs_data(session, list(reversed(jobs)), w),
             'snapshot': ws.read(session, w.id, 'snapshot') if device == 'desktop' else None}
 
 
@@ -63,6 +63,31 @@ def get_job(session, w, job_id):
     if not job or job.workspace_id != w.id:
         raise HTTPException(404, 'Request not found.')
     return ws.job_data(session, job, w)
+
+
+def acknowledge(session, w, job_id, tab_id):
+    job = session.get(WorkspaceJob, job_id)
+    if not job or job.workspace_id != w.id:
+        raise HTTPException(404, 'Request not found.')
+    if job.status != 'completed':
+        raise HTTPException(409, 'Request is not ready for display.')
+    result = ws.read(session, job.id, 'result', {})
+    navigation = result.get('navigation', [])
+    response = result.get('response', {})
+    if navigation or (response.get('answer') and response.get('route') == 'clinical_question'):
+        snapshot = ws.read(session, w.id, 'snapshot', {})
+        tab = next((t for t in snapshot.get('tabs', []) if t['id'] == tab_id), None)
+        if not tab or snapshot.get('activeTabId') != tab_id:
+            raise HTTPException(409, 'The requested view is not active on the laptop.')
+        if navigation:
+            expected = navigation[-1]
+            matches = tab.get('kind') == expected['view'] and tab.get('patientId') == expected['patient_id']
+        else:
+            matches = tab.get('kind') == 'research' and tab.get('refId') == str(job.id)
+        if not matches:
+            raise HTTPException(409, 'The active view does not match this request.')
+    ws.put(session, job.id, 'desktop_delivery', True)
+    return {'acknowledged': True}
 
 
 def clarify_voice(session, w, job_id, raw):

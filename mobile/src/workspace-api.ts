@@ -11,7 +11,7 @@ export interface WorkspaceJob {
   question?: string;
   candidates?: { id: string; display_name: string; date_of_birth: string }[];
   error?: string;
-  response?: DoctorRequest;
+  response?: Omit<DoctorRequest, 'route'> & { route: DoctorRequest['route'] | 'navigate' };
   navigation?: { patient_id: string; view: string }[];
 }
 export interface WorkspaceState { paired: boolean; cursor: number; jobs: WorkspaceJob[]; patient_name: string | null }

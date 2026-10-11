@@ -12,7 +12,9 @@ Scan the Expo development QR with an SDK 57-compatible Expo Go client, or use `n
 
 The phone has one conversation and a text/dictation composer. Patient identity is resolved from the prompt. Missing or ambiguous patients produce inline clarification rather than a permanent patient selector. After resolving a patient, follow-up prompts retain that context. General clinical questions can run without a patient.
 
-Accepted requests are durable backend jobs. Research, citations, proposals, and validated navigation commands synchronize to the desktop. “Ready for your laptop” means processing completed; “Opened on laptop” requires the desktop to apply and acknowledge the result. The laptop can reconnect later without losing accepted work. Render must be awake and reachable for processing.
+Accepted requests persist on the backend. Clear read-only commands such as “Open Amy Lee’s vitals” bypass AI classification and the research queue. Mixed requests still use the assistant and durable background jobs. Research, citations, proposals, and validated navigation commands synchronize to the desktop.
+
+“Waiting for laptop to open the view” means the command is ready, but display is unconfirmed. “Opened on laptop” requires an explicit receipt sent after the requested view renders in the foreground. Saving a tab snapshot or an event cursor cannot acknowledge delivery. Research and chart drafts have distinct status labels. The laptop can reconnect later without losing accepted work. Render must be awake and reachable for processing.
 
 Chart proposals require explicit approval, available on either device. Opening a view never approves chart changes. Native device tokens use Expo SecureStore; browser tokens use localStorage. Patient conversations and results are stored on the backend, not in persistent device storage. Pairing is device authorization, not authenticated clinician identity.
 

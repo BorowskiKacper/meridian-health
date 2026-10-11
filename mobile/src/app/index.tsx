@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, apiBaseUrl, type AudioPart } from '../api';
 import { loadDevice, saveDevice } from '../device';
 import { workspaceClient, type WorkspaceJob } from '../workspace-api';
+import { deliveryStatus } from '../workspace-status';
 import { CitationList } from '../components/CitationList';
 import { SuggestionCard } from '../components/SuggestionCard';
 
@@ -149,7 +150,7 @@ export default function Companion() {
           {job.response?.answer && <AnswerText text={job.response.answer.text} />}
           {job.response?.answer?.citations.length ? <Evidence job={job} /> : null}
           {job.response?.suggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} busy={Boolean(reviewing)} onApprove={(id) => void review(id, true)} onReject={(id, reason) => void review(id, false, reason)} />)}
-          {job.status === 'completed' && <Text style={styles.small}>{job.desktop_applied ? 'Opened on laptop' : 'Ready for your laptop'}{job.response?.suggestions.length ? ' · Chart changes require approval' : ''}</Text>}
+          {job.status === 'completed' && <Text accessibilityLiveRegion="polite" style={styles.small}>{deliveryStatus(job)}{job.response?.suggestions.length ? ' · Chart changes require approval' : ''}</Text>}
         </View>
       </View>)}
     </ScrollView>
