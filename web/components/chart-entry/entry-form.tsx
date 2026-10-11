@@ -31,10 +31,10 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   return <div className="min-w-0"><label htmlFor={id} className="block text-[13px] font-medium text-ink-soft">{label}</label>{isValidElement<{ id?: string }>(children) ? cloneElement(children, { id }) : children}</div>;
 }
 
-export function EntryForm({ patientId, title, path, initial, children, build, method = "POST", onSaved, formKey, defaultOpen = false, saveLabel = "Save to chart", saveHint }: {
+export function EntryForm({ patientId, title, path, initial, children, build, method = "POST", onSaved, onEdited, formKey, defaultOpen = false, saveLabel = "Save to chart", saveHint }: {
   patientId: string; title: string; path: string; initial: Record<string, string>;
   children: (values: Record<string, string>, change: (key: string, value: string) => void) => ReactNode;
-  build: (values: Record<string, string>) => Record<string, unknown>; method?: string; onSaved?: () => void; formKey?: string; defaultOpen?: boolean;
+  build: (values: Record<string, string>) => Record<string, unknown>; method?: string; onSaved?: () => void; onEdited?: () => void; formKey?: string; defaultOpen?: boolean;
   saveLabel?: string; saveHint?: string;
 }) {
   const patient = useStore((s) => s.patients[patientId]);
@@ -46,7 +46,7 @@ export function EntryForm({ patientId, title, path, initial, children, build, me
   const [open, setOpen] = useState(defaultOpen || Boolean(stored && !stored.saved));
   const id = useId();
   if (!patient) return null;
-  const change = (field: string, value: string) => put(key, { ...draft, values: { ...draft.values, [field]: value }, submissionId: undefined, message: "", saved: false, error: false });
+  const change = (field: string, value: string) => { onEdited?.(); put(key, { ...draft, values: { ...draft.values, [field]: value }, submissionId: undefined, message: "", saved: false, error: false }); };
   const refreshSaved = async () => {
     try {
       await refresh(patientId);

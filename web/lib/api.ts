@@ -4,6 +4,9 @@ export interface Capabilities { assistant: boolean; speech: boolean; lab_extract
 export function getCapabilities() { return api<Capabilities>("/capabilities"); }
 
 export interface VisitDraftData {
+  draft_id: string;
+  finalized_at?: string | null;
+  finalized_by?: string | null;
   visit_date: string;
   reason: string;
   assessment: string;
@@ -124,6 +127,7 @@ export interface ChartNoteRow {
   body: string;
   created_at: string;
   source_suggestion_id: string | null;
+  visit_date?: string;
 }
 
 export interface ChartReminder {

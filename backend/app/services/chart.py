@@ -250,6 +250,13 @@ def get_chart(patient_id, *, session):
     rules = {str(row["id"]): row for row in list_reminder_rules(session)}
     coverage = get_coverage_by_patient(session, patient_id)
     pending = list_suggestions(session, patient_id, "pending")
+    import json
+    from sqlalchemy import select
+    from app.db.models import AuditLog
+    finalized_notes = {}
+    for receipt in session.scalars(select(AuditLog).where(AuditLog.patient_id == patient_id, AuditLog.action == 'finalize_visit')):
+        detail = json.loads(receipt.detail)
+        finalized_notes[detail['note_id']] = {'visit_date': detail['visit_date']}
     return {
         "patient": _directory_entry(session, patient),
         "regions": [
@@ -304,6 +311,7 @@ def get_chart(patient_id, *, session):
                     "body": row["body"],
                     "created_at": _zulu(row["created_at"]),
                     "source_suggestion_id": row["source_suggestion_id"],
+                    **finalized_notes.get(str(row['id']), {}),
                 }
                 for row in list_notes_by_patient(session, patient_id)
             ),
