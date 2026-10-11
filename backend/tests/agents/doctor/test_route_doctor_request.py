@@ -4,7 +4,6 @@ import pytest
 from support import (
     DEPARTURE_REASON,
     JANE_ID,
-    TRUSTED_EVIDENCE,
     assert_context_call,
     assert_departure_reason,
     assert_deidentified_evidence,
@@ -227,31 +226,33 @@ def test_clinical_question_keeps_baseline_guideline_and_chart(seeded_db, monkeyp
     assert harness.propose_calls == []
 
 
-def test_clinical_question_without_trusted_evidence(seeded_db, monkeypatch):
+def test_clinical_question_keeps_cited_findings_when_it_recommends_action(seeded_db, monkeypatch):
     session = seeded_db.session
-    text = "Should screening start at 40?"
-    citations = [baseline_citation(), literature_citation()]
+    text = "What are the benefits and harms of this treatment?"
+    literature = literature_citation()
+    web = {
+        "source_id": "web:psyllium-harms",
+        "title": "Psyllium overview",
+        "passage": "Psyllium can cause bloating and may interfere with drug absorption.",
+        "locator": "https://medlineplus.gov/druginfo/natural/866.html",
+        "tier": "web",
+    }
+    citations = [literature, web]
+    sentence = "Published studies and a public page describe benefits and harms."
 
     def verify(payload):
+        assert payload["allow_any_tier"] is True
         assert payload["citations"] == citations
         return {
-            "supported": [
-                {
-                    "sentence": "A paper describes family history.",
-                    "citation_indexes": [1],
-                }
-            ],
-            "removed": ["Average-risk screening starts at 45."],
+            "supported": [{"sentence": sentence, "citation_indexes": [0, 1]}],
+            "removed": [],
         }
 
     model = DoctorModel(
         route="clinical_question",
         research={
             "tool_calls": evidence_tool_calls(include_notes=True),
-            "answer": {
-                "text": "Average-risk screening starts at 45. A paper describes family history.",
-                "citations": citations,
-            },
+            "answer": {"text": sentence, "citations": citations},
             "recommends_action": True,
         },
         verify=verify,
@@ -263,7 +264,8 @@ def test_clinical_question_without_trusted_evidence(seeded_db, monkeypatch):
     assert_request(session, result, text=text, channel="typed", route="clinical_question")
     assert_typed_silent(result)
     assert result["suggestions"] == []
-    assert result["answer"] == {"text": TRUSTED_EVIDENCE, "citations": []}
+    assert result["answer"]["text"] == sentence
+    assert result["answer"]["citations"] == citations
     assert payloads(model, "verify")
     assert_deidentified_evidence(harness.evidence_calls)
     assert harness.propose_calls == []
@@ -299,7 +301,6 @@ def test_clinical_question_without_recommendation_keeps_literature(seeded_db, mo
     assert result["suggestions"] == []
     assert result["answer"]["text"] == sentence
     assert result["answer"]["citations"] == [literature]
-    assert result["answer"]["text"] != TRUSTED_EVIDENCE
     assert_deidentified_evidence(harness.evidence_calls)
     assert harness.propose_calls == []
 

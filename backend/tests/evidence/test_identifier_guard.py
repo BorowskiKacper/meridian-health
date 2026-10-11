@@ -5,6 +5,7 @@ from app.evidence import (
     search_guidelines,
     search_medical_web,
     search_payer_docs,
+    search_research_web,
     web_search,
 )
 
@@ -24,6 +25,7 @@ TOOLS = [
     "search_guidelines",
     "search_medical_web",
     "search_payer_docs",
+    "search_research_web",
     "web_search",
 ]
 
@@ -38,6 +40,8 @@ def _call(tool, text):
         return search_guidelines(text, "uspstf")
     if tool == "search_medical_web":
         return search_medical_web(text)
+    if tool == "search_research_web":
+        return search_research_web(text)
     if tool == "search_payer_docs":
         return search_payer_docs(text)
     if tool == "web_search":
@@ -50,6 +54,17 @@ def _arm_allowed(seams, tool):
         seams.cortex_rows = USPSTF_ROWS
     elif tool == "search_payer_docs":
         seams.cortex_rows = PAYER_ROWS
+    elif tool == "search_research_web":
+        seams.redirects = {redirect_uri("blog"): _BLOG}
+        seams.ground_payload = {
+            "text": _WEB_TEXT,
+            "grounding_chunks": [
+                {"uri": redirect_uri("blog"), "title": "Prior Authorization Blog"}
+            ],
+            "grounding_supports": [
+                {"segment_text": _SEGMENT, "chunk_indices": [0]}
+            ],
+        }
     elif tool == "search_medical_web":
         seams.redirects = {redirect_uri("cdc"): _CDC}
         seams.ground_payload = {
@@ -85,6 +100,18 @@ def _assert_allowed(tool, text, seams, result):
         assert seams.ground_calls == []
         assert seams.redirect_calls == []
         assert_passage_result(result, with_tier(PAYER_ROWS, "payer"))
+    elif tool == "search_research_web":
+        assert seams.cortex_calls == []
+        assert seams.ground_calls == [text]
+        assert seams.redirect_calls == [redirect_uri("blog")]
+        assert [citation_view(passage) for passage in result["passages"]] == [
+            {
+                "title": "Prior Authorization Blog",
+                "passage": _SEGMENT,
+                "locator": _BLOG,
+                "tier": "web",
+            }
+        ]
     elif tool == "search_medical_web":
         assert seams.cortex_calls == []
         assert seams.ground_calls == [text]
