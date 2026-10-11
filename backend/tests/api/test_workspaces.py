@@ -176,6 +176,47 @@ def test_simple_navigation_bypasses_ai_and_busy_worker(client, paired, monkeypat
     assert missing['status'] == 'needs_patient' and missing['patient_id'] is None
 
 
+@pytest.mark.parametrize('text', ["Open John's vitals", 'Open John\u2019s vitals.', "Open John Roe's vitals", 'Open Johns vitals'])
+def test_mobile_john_vitals_demo_is_immediate_and_ignores_previous_patient(client, paired, monkeypatch, text):
+    import app.mcp.workspace_tools as tools
+    from sqlalchemy import func
+    desktop, phone, _, session = paired
+    monkeypatch.setattr(tools, 'parse_navigation', parse_navigation)
+    monkeypatch.setattr(tools, 'gemini_json', lambda *a, **k: pytest.fail('Demo navigation called a model'))
+    before = session.scalar(select(func.count()).select_from(Suggestion))
+    job = submit(client, phone, text, patient_id=AMY_ID)
+    assert job['status'] == 'completed'
+    assert job['patient_name'] == 'John Roe'
+    assert job['navigation'] == [{'patient_id': '22222222-2222-4222-8222-222222222222', 'view': 'vitals'}]
+    assert job['response']['route'] == 'navigate'
+    assert job['response']['suggestions'] == []
+    assert not job['desktop_applied']
+    assert session.scalar(select(func.count()).select_from(Suggestion)) == before
+
+
+def test_cached_navigation_does_not_capture_other_prompts():
+    from app.demo.navigation import cached_navigation
+    assert cached_navigation("Open Amy Lee's vitals") is None
+    assert cached_navigation("Open John's vitals and change his weight to 70") is None
+
+
+def test_john_vitals_demo_works_after_voice_transcription(client, paired, monkeypatch):
+    import app.mcp.workspace_tools as tools
+    desktop, phone, _, session = paired
+    monkeypatch.setattr(tools, 'parse_navigation', parse_navigation)
+    monkeypatch.setattr(tools, 'gemini_json', lambda *a, **k: pytest.fail('Dictated demo called a classifier'))
+    monkeypatch.setattr('app.speech.hook.SpeechHook.transcribe', lambda *a, **k: "Open John's vitals")
+    response = client.post('/workspaces/requests', headers=phone, data={'submission_id': str(uuid4()), 'patient_id': AMY_ID}, files={'audio': ('dictation.m4a', b'test-audio', 'audio/mp4')})
+    assert response.status_code == 202
+    job_id = claim(session)
+    execute(session, session.get(WorkspaceJob, job_id))
+    session.commit()
+    job = client.get('/workspaces/requests/' + response.json()['id'], headers=desktop).json()
+    assert job['status'] == 'completed'
+    assert job['navigation'] == [{'patient_id': '22222222-2222-4222-8222-222222222222', 'view': 'vitals'}]
+    assert not job['desktop_applied']
+
+
 def test_poll_query_count_does_not_grow_with_job_history(client, paired):
     from sqlalchemy import event
     _, phone, _, session = paired

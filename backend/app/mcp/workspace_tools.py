@@ -17,6 +17,10 @@ class Intent(BaseModel):
 
 def parse_navigation(text):
     """Recognize only complete, unambiguous read-only opening commands. Mirrored in web/lib/navigation.ts."""
+    from app.demo.navigation import cached_navigation
+    demo = cached_navigation(text)
+    if demo is not None:
+        return demo
     aliases = {
         'chart': 'overview', 'overview': 'overview', 'patient chart': 'overview',
         'information': 'overview', 'info': 'overview', 'profile': 'overview', 'record': 'overview',

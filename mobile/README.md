@@ -20,6 +20,8 @@ Chart proposals require explicit approval, available on either device. Opening a
 
 Dictation uses Expo Audio and backend transcription. Completed jobs remove uploaded audio. Speech/provider failures remain visible, and typing is available. Retry an uncertain submission with the same idempotency key.
 
+For the phone demo, send **“Open John's vitals”**. This predefined navigation command resolves John Roe, opens his vitals tab on the paired laptop, and bypasses model classification and the research queue. It works even if the previous conversation concerned another patient. Dictation still requires transcription; typing avoids that dependency. Vitals are read from the actual chart, and the phone acknowledges opening only after the laptop renders the view.
+
 Validation:
 
 ```powershell
