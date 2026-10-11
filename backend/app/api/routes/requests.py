@@ -79,34 +79,30 @@ async def create_request(request: Request):
         )
 
     audio_bytes = await audio.read() if audio_present else None
-    return await run_in_threadpool(_process_request, patient_id, text, audio_bytes, route, reviewed_transcript)
+    return await run_in_threadpool(_process_request, patient_id, text if text_present else None, audio_bytes, route, reviewed_transcript)
 
 
 def _process_request(patient_id: str, text: str | None, audio_bytes: bytes | None, route: str | None = None, reviewed_transcript: str | None = None):
     import app.api.db as api_db
     import app.agents.doctor as doctor
 
-    with api_db.get_session() as session:
-        routing = {"route": route} if route is not None else {}
-        if audio_bytes is None:
+    routing = {"route": route} if route is not None else {}
+    if audio_bytes is None:
+        with api_db.get_session() as session:
             result = doctor.route_doctor_request(
-                patient_id,
-                text,
-                "typed",
-                session=session,
-                **routing,
+                patient_id, text, "typed", session=session, **routing,
             )
             return finish(result)
 
-        from app.speech.hook import SpeechHook
+    from app.speech.hook import SpeechHook
 
-        transcript = reviewed_transcript if reviewed_transcript is not None else SpeechHook().transcribe(audio_bytes)
+    # Preserve the confirmed transcript and reject unrecognized speech before routing.
+    transcript = reviewed_transcript if reviewed_transcript is not None else SpeechHook().transcribe(audio_bytes)
+    if not isinstance(transcript, str) or not transcript.strip():
+        return error_response("validation_error", "Audio could not be transcribed.")
+    with api_db.get_session() as session:
         result = doctor.route_doctor_request(
-            patient_id,
-            transcript,
-            "voice",
-            session=session,
-            **routing,
+            patient_id, transcript, "voice", session=session, **routing,
         )
         if (
             isinstance(result, dict)
