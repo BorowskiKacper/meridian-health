@@ -245,23 +245,18 @@
 }
 
 /* Entrance motion for the diagnostics charts. Backwards fill hands transform back to inline styles afterwards. */
-@keyframes chart-rise { from { transform: scaleY(0); } }
 @keyframes chart-grow { from { transform: scaleX(0); } }
 @keyframes chart-pop { from { transform: scale(0); opacity: 0; } }
 @keyframes chart-fade { from { opacity: 0; transform: translateY(4px); } }
-@keyframes chart-sweep { from { stroke-dasharray: 0 var(--c); } }
 
-.chart-rise, .chart-grow, .chart-grow-left, .chart-stretch { transform-box: fill-box; }
-.chart-rise { transform-origin: bottom; animation: chart-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.chart-grow, .chart-stretch { transform-box: fill-box; }
 .chart-grow { transform-origin: left; animation: chart-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
-.chart-grow-left { transform-origin: right; animation: chart-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 .chart-stretch { transform-origin: center; animation: chart-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 .chart-pop { animation: chart-pop 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) backwards; }
 .chart-fade { animation: chart-fade 0.5s ease-out backwards; }
-.chart-sweep { animation: chart-sweep 0.9s cubic-bezier(0.4, 0, 0.2, 1) backwards; }
 
 @media (prefers-reduced-motion: reduce) {
-  .chart-rise, .chart-grow, .chart-grow-left, .chart-stretch, .chart-pop, .chart-fade, .chart-sweep { animation: none; }
+  .chart-grow, .chart-stretch, .chart-pop, .chart-fade { animation: none; }
 }
 
 /* Labels the scene overlay places over the 3D stage. Built imperatively, so they are styled here. */

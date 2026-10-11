@@ -7,9 +7,6 @@ import { referenceFor } from "@/lib/reference";
 import type { Trend, TrendPoint } from "@/lib/types";
 
 const PALETTE = ["#28634f", "#c08a2e", "#4f7f9e", "#8fbfa8", "#00362d", "#a0708f", "#6b8f3a", "#5e6b66"];
-const SOURCE_COLORS: Record<string, string> = { seed: "#00362d", demo_vitals: "#8fbfa8", manual_entry: "#c08a2e" };
-const RISE = "#28634f";
-const FALL = "#4f7f9e";
 
 type Series = Trend & { points: TrendPoint[]; color: string };
 type Scope = "all" | "labs";
@@ -31,12 +28,6 @@ function quantile(sorted: number[], q: number): number {
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-
-function niceMax(value: number): number {
-  if (value <= 4) return Math.max(1, Math.ceil(value));
-  const step = 10 ** Math.floor(Math.log10(value));
-  return Math.ceil(value / (step / 2)) * (step / 2);
 }
 
 export function DiagnosticAnalytics({ trends, query }: { trends: Trend[]; query: string }) {
@@ -61,13 +52,7 @@ export function DiagnosticAnalytics({ trends, query }: { trends: Trend[]; query:
     </div>
     {series.length ? <div key={`${scope}:${needle}`} className="grid gap-4 @min-[760px]:grid-cols-2">
       <SummaryTiles series={series} />
-      <ResultsOverTime series={series} />
-      <div className="grid gap-4 @min-[520px]:grid-cols-2 @min-[760px]:grid-cols-1 @min-[1100px]:grid-cols-2">
-        <SourceDonut series={series} />
-        <TestPie series={series} />
-      </div>
       <Distribution series={series} />
-      <ChangeSinceFirst series={series} />
       <LatestVsReference series={series} />
       <CoverageHeatmap series={series} />
     </div> : <p className="rounded-xl border border-dashed border-hairline-strong bg-ivory px-5 py-8 text-center text-[13px] text-ink-soft">
@@ -84,15 +69,6 @@ function Card({ title, subtitle, children, className = "" }: { title: string; su
     </figcaption>
     {children}
   </figure>;
-}
-
-function Legend({ items }: { items: { label: string; color: string; detail?: string }[] }) {
-  return <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-ink-soft">
-    {items.map((item) => <li key={item.label} className="flex items-center gap-1.5">
-      <span aria-hidden className="inline-block size-2.5 rounded-[3px]" style={{ background: item.color }} />
-      {item.label}{item.detail && <span className="numeric text-ink-faint">{item.detail}</span>}
-    </li>)}
-  </ul>;
 }
 
 function SummaryTiles({ series }: { series: Series[] }) {
@@ -115,128 +91,6 @@ function SummaryTiles({ series }: { series: Series[] }) {
       <p className="relative mt-2 truncate text-[11px] text-ink-faint">{tile.detail}</p>
     </div>)}
   </div>;
-}
-
-function ResultsOverTime({ series }: { series: Series[] }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const years = series.flatMap((s) => s.points.map((p) => new Date(p.at).getUTCFullYear()));
-  const y0 = Math.min(...years);
-  const y1 = Math.max(...years);
-  const byQuarter = y0 === y1;
-  const keyOf = (at: string) => {
-    const d = new Date(at);
-    return byQuarter ? `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}` : String(d.getUTCFullYear());
-  };
-  const bins = byQuarter ? [1, 2, 3, 4].map((q) => `Q${q} ${y0}`) : Array.from({ length: y1 - y0 + 1 }, (_, i) => String(y0 + i));
-  const counts = bins.map((bin) => series.map((s) => s.points.filter((p) => keyOf(p.at) === bin).length));
-  const totals = counts.map((row) => row.reduce((a, b) => a + b, 0));
-  const max = niceMax(Math.max(...totals));
-  const W = 520, H = 220, L = 34, R = 10, T = 14, B = 28;
-  const band = (W - L - R) / bins.length;
-  const barW = Math.min(56, band * 0.6);
-  const y = (v: number) => T + (1 - v / max) * (H - T - B);
-  const active = hover ?? totals.findLastIndex((t) => t > 0);
-
-  return <Card title="Results over time" subtitle={`Stacked column chart · results collected per ${byQuarter ? "quarter" : "year"}, by measurement`}>
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible" role="img" aria-label="Results collected over time">
-      {[0, max / 2, max].map((v) => <g key={v}>
-        <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--hairline)" strokeDasharray={v ? "3 4" : undefined} />
-        <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" className="fill-ink-faint">{fmt(v)}</text>
-      </g>)}
-      {bins.map((bin, i) => {
-        const cx = L + band * i + band / 2;
-        let base = 0;
-        return <g key={bin} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} className="cursor-default">
-          <rect x={cx - band / 2} y={T} width={band} height={H - T - B} fill={active === i ? "var(--jade-50)" : "transparent"} rx="6" />
-          {series.map((s, j) => {
-            const n = counts[i][j];
-            if (!n) return null;
-            const top = y(base + n);
-            const h = y(base) - top;
-            base += n;
-            return <rect key={s.name + s.unit} className="chart-rise" style={delay(i * 90 + j * 40)} x={cx - barW / 2} y={top} width={barW} height={Math.max(h - 1.5, 1)} rx="3" fill={s.color}>
-              <title>{`${bin} · ${s.name}: ${n} result${n === 1 ? "" : "s"}`}</title>
-            </rect>;
-          })}
-          {totals[i] > 0 && <text x={cx} y={y(totals[i]) - 6} textAnchor="middle" fontSize="11" fontWeight="600" className="chart-fade fill-jade-900" style={delay(i * 90 + 300)}>{totals[i]}</text>}
-          <text x={cx} y={H - 8} textAnchor="middle" fontSize="11" className={active === i ? "fill-jade-900 font-semibold" : "fill-ink-faint"}>{bin}</text>
-        </g>;
-      })}
-    </svg>
-    <p className="mt-1 min-h-5 text-[11px] text-ink-soft" aria-live="polite">
-      {active >= 0 && <><strong className="text-ink">{bins[active]}</strong> · {totals[active]} result{totals[active] === 1 ? "" : "s"}{totals[active] ? " — " : ""}{series.map((s, j) => counts[active][j] ? `${s.name} ${counts[active][j]}` : null).filter(Boolean).join(", ")}</>}
-    </p>
-    <Legend items={series.map((s) => ({ label: s.name, color: s.color }))} />
-  </Card>;
-}
-
-function DonutCenter({ value, label }: { value: string; label: string }) {
-  return <>
-    <text x="80" y="78" textAnchor="middle" fontSize="24" fontWeight="600" className="numeric fill-jade-900">{value}</text>
-    <text x="80" y="96" textAnchor="middle" fontSize="10" className="fill-ink-faint">{label}</text>
-  </>;
-}
-
-function SourceDonut({ series }: { series: Series[] }) {
-  const [hover, setHover] = useState<string | null>(null);
-  const tally = new Map<string, number>();
-  for (const s of series) for (const p of s.points) tally.set(p.source ?? "unknown", (tally.get(p.source ?? "unknown") ?? 0) + 1);
-  const slices = [...tally].sort((a, b) => b[1] - a[1]).map(([source, n], i) => ({ source, n, color: SOURCE_COLORS[source] ?? PALETTE[(i + 2) % PALETTE.length] }));
-  const total = slices.reduce((a, s) => a + s.n, 0);
-  const r = 58, C = 2 * Math.PI * r, gap = slices.length > 1 ? 3 : 0;
-  const starts = slices.map((_, i) => slices.slice(0, i).reduce((a, s) => a + (s.n / total) * C, 0));
-  const shown = slices.find((s) => s.source === hover);
-
-  return <Card title="Results by source" subtitle="Donut chart · where each recorded value came from">
-    <svg viewBox="0 0 160 160" className="mx-auto block w-full max-w-[200px]" role="img" aria-label="Results by source">
-      <circle cx="80" cy="80" r={r} fill="none" stroke="var(--ivory-deep)" strokeWidth="20" />
-      <g transform="rotate(-90 80 80)">
-        {slices.map((s, i) => {
-          const len = (s.n / total) * C;
-          return <circle key={s.source} cx="80" cy="80" r={r} fill="none" stroke={s.color} strokeWidth={hover === s.source ? 26 : 20}
-            strokeDasharray={`${Math.max(len - gap, 0.5)} ${C}`} strokeDashoffset={-starts[i]} className="chart-sweep cursor-pointer transition-[stroke-width] duration-200"
-            style={{ ...delay(i * 120), "--c": `${C}` } as CSSProperties} onMouseEnter={() => setHover(s.source)} onMouseLeave={() => setHover(null)}>
-            <title>{`${sourceLabel(s.source)}: ${s.n} (${Math.round((s.n / total) * 100)}%)`}</title>
-          </circle>;
-        })}
-      </g>
-      <DonutCenter value={shown ? `${Math.round((shown.n / total) * 100)}%` : String(total)} label={shown ? sourceLabel(shown.source) : "total results"} />
-    </svg>
-    <Legend items={slices.map((s) => ({ label: sourceLabel(s.source), color: s.color, detail: ` ${s.n}` }))} />
-  </Card>;
-}
-
-function slicePath(a0: number, a1: number, r: number): string {
-  const p = (a: number) => `${80 + r * Math.sin(a)},${80 - r * Math.cos(a)}`;
-  return `M80,80 L${p(a0)} A${r},${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p(a1)} Z`;
-}
-
-function TestPie({ series }: { series: Series[] }) {
-  const [hover, setHover] = useState<string | null>(null);
-  const total = series.reduce((a, s) => a + s.points.length, 0);
-  const r = 66;
-  const sweeps = series.map((s) => (s.points.length / total) * Math.PI * 2);
-  const starts = sweeps.map((_, i) => sweeps.slice(0, i).reduce((a, b) => a + b, 0));
-
-  return <Card title="Share of results by measurement" subtitle="Pie chart · proportion of all results in this view">
-    <svg viewBox="0 0 160 160" className="mx-auto block w-full max-w-[200px] overflow-visible" role="img" aria-label="Share of results by measurement">
-      {series.map((s, i) => {
-        const key = s.name + s.unit;
-        const sweep = sweeps[i];
-        const a0 = starts[i];
-        const mid = a0 + sweep / 2;
-        const lift = hover === key && series.length > 1 ? 7 : 0;
-        const style = { ...delay(i * 90), transformOrigin: "80px 80px", transformBox: "view-box", transform: `translate(${lift * Math.sin(mid)}px, ${-lift * Math.cos(mid)}px)` } as CSSProperties;
-        const shape = series.length === 1 ? <circle cx="80" cy="80" r={r} /> : <path d={slicePath(a0, a0 + sweep, r)} />;
-        return <g key={key} fill={s.color} stroke="white" strokeWidth="2" className="chart-pop cursor-pointer transition-transform duration-200" style={style}
-          onMouseEnter={() => setHover(key)} onMouseLeave={() => setHover(null)}>
-          {shape}
-          <title>{`${s.name}: ${s.points.length} of ${total} (${Math.round((s.points.length / total) * 100)}%)`}</title>
-        </g>;
-      })}
-    </svg>
-    <Legend items={series.map((s) => ({ label: s.name, color: s.color, detail: ` ${Math.round((s.points.length / total) * 100)}%` }))} />
-  </Card>;
 }
 
 function Distribution({ series }: { series: Series[] }) {
@@ -296,44 +150,6 @@ function Distribution({ series }: { series: Series[] }) {
   </Card>;
 }
 
-function ChangeSinceFirst({ series }: { series: Series[] }) {
-  const rows = series.filter((s) => s.points.length > 1).map((s) => {
-    const first = s.points[0], last = s.points[s.points.length - 1];
-    const pct = first.value === 0 ? 0 : ((last.value - first.value) / Math.abs(first.value)) * 100;
-    return { s, first, last, pct };
-  });
-  const single = series.filter((s) => s.points.length === 1);
-  const cap = Math.min(100, Math.max(5, ...rows.map((r) => Math.abs(r.pct))));
-  const W = 300, mid = W / 2;
-
-  return <Card title="Change since first result" subtitle={`Diverging bar chart · percent change from first to latest value${cap === 100 ? "; bars cap at ±100%" : ""}`}>
-    {rows.length ? <div className="space-y-2.5">
-      {rows.map(({ s, first, last, pct }, i) => {
-        const len = (Math.min(Math.abs(pct), cap) / cap) * (mid - 6);
-        const up = pct >= 0;
-        return <div key={s.name + s.unit}>
-          <div className="flex items-baseline justify-between gap-3 text-[12px]">
-            <span className="truncate font-medium text-ink">{s.name}</span>
-            <span className="numeric shrink-0 font-semibold" style={{ color: up ? RISE : FALL }}>{up ? "+" : "−"}{fmt(Math.abs(pct))}%</span>
-          </div>
-          <svg viewBox={`0 0 ${W} 18`} className="mt-1 w-full overflow-visible" role="img" aria-label={`${s.name} changed ${fmt(pct)}%`}>
-            <rect x="0" y="4" width={W} height="10" rx="5" fill="var(--ivory-deep)" />
-            <rect x={up ? mid : mid - len} y="4" width={Math.max(len, 1.5)} height="10" rx="5" fill={up ? RISE : FALL}
-              className={up ? "chart-grow" : "chart-grow-left"} style={delay(i * 90)}>
-              <title>{`${first.value} → ${last.value} ${s.unit} (${formatDate(first.at)} to ${formatDate(last.at)})`}</title>
-            </rect>
-            {Math.abs(pct) > cap && <path d={up ? `M${W - 9},5 l5,4 l-5,4` : `M9,5 l-5,4 l5,4`} fill="none" stroke="white" strokeWidth="1.6" />}
-            <line x1={mid} x2={mid} y1="0" y2="18" stroke="var(--ink-faint)" strokeWidth="1" />
-          </svg>
-          <p className="numeric mt-0.5 text-[11px] text-ink-faint">{fmt(first.value)} → {fmt(last.value)} {s.unit} · {s.points.length} results</p>
-        </div>;
-      })}
-    </div> : <p className="py-6 text-[13px] text-ink-faint">Each measurement in this view has a single result, so no change can be shown.</p>}
-    {single.length > 0 && <p className="mt-3 border-t border-hairline pt-2 text-[11px] text-ink-faint">Single result, no change shown: {single.map((s) => s.name).join(", ")}</p>}
-    <p className="mt-2 text-[11px] text-ink-faint">Direction only; neither color implies improvement or concern.</p>
-  </Card>;
-}
-
 function LatestVsReference({ series }: { series: Series[] }) {
   const rows = series.flatMap((s) => {
     const ref = referenceFor(s.name);
@@ -381,7 +197,7 @@ function CoverageHeatmap({ series }: { series: Series[] }) {
   const grid = series.map((s) => cols.map((y) => s.points.filter((p) => new Date(p.at).getUTCFullYear() === y).length));
   const max = Math.max(1, ...grid.flat());
 
-  return <Card title="Collection coverage" subtitle="Heatmap · results per measurement per year; darker cells mean more results" className="@min-[760px]:col-span-2">
+  return <Card title="Collection coverage" subtitle="Heatmap · results per measurement per year; darker cells mean more results">
     <div className="overflow-x-auto">
       <table className="w-full border-separate border-spacing-1 text-[12px]">
         <thead><tr><th scope="col" className="sr-only">Measurement</th>{cols.map((y) => <th key={y} scope="col" className="numeric px-1 pb-1 text-center text-[11px] font-medium text-ink-faint">{y}</th>)}</tr></thead>
