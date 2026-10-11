@@ -1,14 +1,12 @@
 # Visit
 
-Expo client for talking with the doctor agents. It calls the HTTP API and does not open the database or ElevenLabs.
+The phone is one assistant thread. It answers a question, or it points chart changes and the rest of the visit to the web app. There are no patient tabs.
 
-Typed text and dictation share `POST /requests`. Send `patient_id` and exactly one of `text` or `audio`, with `X-Role: doctor`. There is no Dictate/Ask toggle. The server classifies the transcript as a chart update, a clinical question, or a screening review.
+Typed text and dictation share `POST /requests`. Send `patient_id` and exactly one of `text` or `audio`, with `X-Role: doctor`. The mode chips match the web composer and are not sent. The server chooses the route.
 
-Dictation uploads the recording. ElevenLabs Scribe (`scribe_v2`) and the spoken read-back run in `backend/app/speech/hook.py`. The read-back voice is `ELEVENLABS_VOICE_ID`, or the first voice on the account. The app plays `audio_base64` when the response includes it and shows `spoken_text`. A speech failure returns 503. Typing still works.
+Dictation is the large control under the composer. The recording is uploaded as audio. ElevenLabs Scribe (`scribe_v2`) and the spoken read-back run in `backend/app/speech/hook.py`. The read-back voice is `ELEVENLABS_VOICE_ID`, or the first voice on the account. A question can play `audio_base64` and shows `spoken_text`. A chart update tells the doctor to continue on the web app. A speech failure returns 503. Typing still works.
 
-The contract has no patient-list route. Jane Doe, John Roe, and Amy Lee are the seeded demo patients from `backend/seed/seed.py`.
-
-Suggestions stay pending until `POST /suggestions/approve` or `POST /suggestions/reject`. A research answer can be saved with `POST /suggestions` (add to plan). That does not write the chart.
+`POST /requests` still requires a patient id. The phone sends the first seeded id from `backend/seed/seed.py` and does not show that patient.
 
 ## Run
 

@@ -21,7 +21,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "tsx --test src/api.test.ts src/format.test.ts",
+    "test": "tsx --test src/api.test.ts src/format.test.ts src/chat.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "private": true
