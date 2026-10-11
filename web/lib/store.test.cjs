@@ -410,9 +410,9 @@ test("vitals list always shows expected rows, as Not recorded when missing", (t)
 });
 const { demoPrompts, demoPrompt } = require('./demo-prompts.ts');
 
-test('demo chips follow patient and mode, with two General chips and none for Auto', () => {
-  assert.equal(demoPrompts(null).length, 2);
-  assert.ok(!demoPrompts(null).some((p) => p.label === 'Clinical documentation'));
+test('demo chips follow patient and mode, with three General chips and none for Auto', () => {
+  assert.equal(demoPrompts(null).length, 3);
+  assert.ok(demoPrompts(null).some((p) => p.label === 'Clinical documentation'));
   for (const digit of ['1', '2', '3']) {
     const patientId = `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`;
     assert.deepEqual(demoPrompts(patientId), []);
@@ -439,7 +439,7 @@ test('a scripted patient sentence submits without a routing preview', () => {
   } finally { useStore.setState({ sendConfirmed: original }); }
 });
 
-test('composer renders one selected patient chip, none for Auto, and both General chips, never a checking status', () => {
+test('composer renders one selected patient chip, none for Auto, and three General chips, never a checking status', () => {
   const Module = require('node:module');
   const path = require('node:path');
   const React = require('react');
@@ -469,7 +469,7 @@ test('composer renders one selected patient chip, none for Auto, and both Genera
       assert.match(html, new RegExp(demoPrompts(patient, route)[0].label));
     }
     const general = render(null);
-    assert.equal((general.match(/<button[^>]* title=/g) || []).length, 2);
+    assert.equal((general.match(/<button[^>]* title=/g) || []).length, 3);
     assert.doesNotMatch(render(patient, undefined, { status: 'checking', text: 'Clinical question' }), /Checking which workflow/);
     assert.doesNotMatch(general, /aria-label="Request workflow"/);
   } finally {
