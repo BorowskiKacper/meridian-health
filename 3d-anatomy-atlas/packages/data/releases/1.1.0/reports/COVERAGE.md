@@ -7,7 +7,7 @@ Presence of an organ does not imply that all of its internal components are mode
 
 | System | Structures | With geometry | Gaps | Triangles (standard) | Triangles (economy) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| regions | 291 | 256 | 0 | 104,698 | 52,956 |
+| regions | 291 | 256 | 1 | 104,753 | 51,641 |
 | muscular | 779 | 683 | 0 | 1,339,851 | 366,746 |
 | skeletal | 309 | 277 | 0 | 247,772 | 75,895 |
 | joints | 476 | 413 | 0 | 159,752 | 64,663 |
@@ -19,9 +19,9 @@ Presence of an organ does not imply that all of its internal components are mode
 
 ## Totals
 
-- Structures: 4484 (with geometry: 3761, declared gaps: 137)
+- Structures: 4484 (with geometry: 3761, declared gaps: 138)
 - Chunks: 61
-- Triangles: standard 3,042,890, economy 852,516
+- Triangles: standard 3,042,945, economy 851,201
 - Size: standard 56.3 MB, economy 21.4 MB, metadata 2.26 MB
 
 ## Names
@@ -50,10 +50,11 @@ only. Where there is no Ukrainian name, the English name is shown and labelled a
 
 ## Declared gaps
 
-137 structures are listed without geometry:
+138 structures are listed without geometry:
 
 - brainder-cortex: 128 (nervous.inferior_frontal_sulcus_l, nervous.inferior_frontal_sulcus_r, nervous.orbital_part_of_inferior_frontal_gyrus_r, nervous.lat_fis_ant_horizont_l, nervous.lat_fis_ant_horizont_r, nervous.lat_fis_ant_vertical_l, nervous.lat_fis_ant_vertical_r, nervous.middle_frontal_gyrus_l, …)
 - uw-white-matter: 9 (nervous.white_matter_of_telencephalon_l, nervous.anterior_commissure, nervous.corpus_callosum, nervous.hippocampal_commissure, nervous.fornix_l, nervous.fornix_r, nervous.stria_terminalis_l, nervous.stria_terminalis_r, …)
+- excluded: 1 (regions.pubic_hairs)
 
 ## Not imported from the source
 
@@ -88,3 +89,4 @@ structure shows a note, and the validation checks the seams.
 - Structures follow the source hierarchy; label groups without geometry and text labels of sub-regions are not imported.
 - Economy geometry is derived from the standard level; both levels keep every selectable structure.
 - Standard simplification: max error 0.2 mm (≤ 0.4% of the structure size); economy: 0.7 mm (≤ 2%).
+- Hackathon mannequin: external genital and pubic-hair geometry replaced by a smooth neutral skin surface; internal anatomy unchanged.

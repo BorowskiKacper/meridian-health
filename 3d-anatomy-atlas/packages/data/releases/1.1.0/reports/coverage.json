@@ -7,9 +7,9 @@
       "id": "regions",
       "structures": 291,
       "withGeometry": 256,
-      "gaps": 0,
-      "trianglesStandard": 104698,
-      "trianglesEconomy": 52956
+      "gaps": 1,
+      "trianglesStandard": 104753,
+      "trianglesEconomy": 51641
     },
     {
       "id": "muscular",
@@ -79,16 +79,16 @@
   "totals": {
     "structures": 4484,
     "withGeometry": 3761,
-    "gaps": 137,
+    "gaps": 138,
     "groupsWithoutGeometry": 9,
     "chunks": 61,
     "triangles": {
-      "standard": 3042890,
-      "economy": 852516
+      "standard": 3042945,
+      "economy": 851201
     },
     "bytes": {
-      "standard": 56288328,
-      "economy": 21385564,
+      "standard": 56268592,
+      "economy": 21354712,
       "metadata": 2260607
     }
   },
@@ -805,6 +805,10 @@
       "id": "nervous.white_matter_of_telencephalon_r",
       "reason": "licence",
       "asset": "uw-white-matter"
+    },
+    {
+      "id": "regions.pubic_hairs",
+      "reason": "excluded"
     }
   ],
   "excludedAssets": [
@@ -855,7 +859,8 @@
     "Source: https://github.com/Z-Anatomy/Models-of-human-anatomy at e38ea5e6c7e22d229a975f3fde563a5aca52099e; Blender 4.0.2; subdivision capped at level 1.",
     "Structures follow the source hierarchy; label groups without geometry and text labels of sub-regions are not imported.",
     "Economy geometry is derived from the standard level; both levels keep every selectable structure.",
-    "Standard simplification: max error 0.2 mm (≤ 0.4% of the structure size); economy: 0.7 mm (≤ 2%)."
+    "Standard simplification: max error 0.2 mm (≤ 0.4% of the structure size); economy: 0.7 mm (≤ 2%).",
+    "Hackathon mannequin: external genital and pubic-hair geometry replaced by a smooth neutral skin surface; internal anatomy unchanged."
   ],
   "corrections": [
     {
