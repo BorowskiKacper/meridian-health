@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 from starlette.datastructures import UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.api.errors import error_response, finish
 
@@ -22,10 +23,20 @@ async def create_request(request: Request):
             "Send exactly one of text or audio.",
         )
 
+    audio_bytes = await audio.read() if audio_present else None
+    return await run_in_threadpool(
+        _process_request,
+        patient_id,
+        text if text_present else None,
+        audio_bytes,
+    )
+
+
+def _process_request(patient_id: str, text: str | None, audio_bytes: bytes | None):
     import app.api.db as api_db
     import app.agents.doctor as doctor
 
-    if text_present:
+    if audio_bytes is None:
         with api_db.get_session() as session:
             result = doctor.route_doctor_request(
                 patient_id,
@@ -35,9 +46,10 @@ async def create_request(request: Request):
             )
             return finish(result)
 
-    audio_bytes = await audio.read()
     from app.speech.hook import SpeechHook
 
+    # A blank transcript is a validation error. Provider failures raise
+    # IntegrationError and become 503 before the chart route runs.
     transcript = SpeechHook().transcribe(audio_bytes)
     if not isinstance(transcript, str) or not transcript.strip():
         return error_response(

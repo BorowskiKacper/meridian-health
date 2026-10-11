@@ -14,8 +14,8 @@ const stix = STIX_Two_Text({
 });
 
 export const metadata: Metadata = {
-  title: "EMR workspace",
-  description: "Synthetic EMR demo. The agent proposes; the doctor approves.",
+  title: "Meridian | Clinical workspace",
+  description: "Meridian synthetic EMR demo. The agent proposes; the doctor approves.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

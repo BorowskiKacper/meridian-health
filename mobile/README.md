@@ -4,7 +4,7 @@ The phone is one assistant thread. It answers a question, or it points chart cha
 
 Typed text and dictation share `POST /requests`. Send `patient_id` and exactly one of `text` or `audio`, with `X-Role: doctor`. The mode chips match the web composer and are not sent. The server chooses the route.
 
-Dictation is the large control under the composer. The recording is uploaded as audio. ElevenLabs runs in `backend/app/speech/hook.py` when `ELEVENLABS_API_KEY` is set. A question can play `audio_base64`. A chart update tells the doctor to continue on the web app. Without a key, a voice request returns `validation_error` (`Audio could not be transcribed.`) and typing still works.
+Dictation is the large control under the composer. The recording is uploaded as audio. ElevenLabs Scribe (`scribe_v2`) and the spoken read-back run in `backend/app/speech/hook.py`. The read-back voice is `ELEVENLABS_VOICE_ID`, or the first voice on the account. A question can play `audio_base64` and shows `spoken_text`. A chart update tells the doctor to continue on the web app. A speech failure returns 503. Typing still works.
 
 `POST /requests` still requires a patient id. The phone sends the first seeded id from `backend/seed/seed.py` and does not show that patient.
 

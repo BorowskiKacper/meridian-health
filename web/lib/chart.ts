@@ -1,5 +1,5 @@
 import { placeOnAtlas } from "./atlas";
-import { formatMonth, labPanel, minuteAt, NOW_MINUTE } from "./data";
+import { formatMonth, minuteAt, NOW_MINUTE } from "./data";
 import { isConcerning } from "./reference";
 import type { ChartPatient, ChartSeries, PatientChart, SuggestionRow } from "./api";
 import { getChart, searchPatients, listSuggestions } from "./api";
@@ -122,6 +122,8 @@ export function patientFromChart(chart: PatientChart): Patient {
     findings,
     chartRegions: chart.regions.map((region) => ({ key: region.region_key, label: region.display_name })),
     notes,
+    encounters: chart.encounters.map((row) => ({ id: row.id, type: row.encounter_type, at: row.occurred_at, summary: row.summary })),
+    appointments: chart.appointments.map((row) => ({ id: row.id, at: row.starts_at, endsAt: row.ends_at, reason: row.reason, status: row.status })),
     reminders: chart.reminders.map(reminderFromRow),
     nextAppointment: upcoming ? { at: upcoming.starts_at, reason: upcoming.reason } : undefined,
     coverage: chart.coverage
@@ -158,16 +160,6 @@ export function suggestionAction(row: SuggestionRow, link?: { conversationId: st
     citations: row.citations.map((citation) => citation.title || citation.source_id || "").filter(Boolean),
     payload: { kind: "chart_change", change: { type: "add_note", text: row.reason } },
   };
-}
-
-export function labReportFile(patientName: string): File {
-  const lines = [
-    labPanel.lab,
-    labPanel.collected,
-    `${labPanel.title} · Patient: ${patientName}`,
-    ...labPanel.rows.map((row) => [row.test, row.value, row.unit, row.range, row.flag].join("\t")),
-  ];
-  return new File([lines.join("\n")], "lab-report.txt", { type: "text/plain" });
 }
 
 export function todayIso(): string {
@@ -231,7 +223,7 @@ function findingFromRegion(
   series: ChartSeries[],
   span: { start: number; end: number },
 ): Finding | null {
-  if (!problems.length && !medications.length && !series.length) return null;
+  if (region.region_key === "general" || (!problems.length && !medications.length && !series.length)) return null;
   const placement = placeOnAtlas(region.mesh_name, region.region_key);
   const trends: Trend[] = series.map(trendFromSeries);
   const latest: Observation[] = trends.flatMap((trend) => {

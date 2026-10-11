@@ -132,6 +132,58 @@ def save_suggestion(session, **overrides):
     return insert_suggestion(session, suggestion_row(**overrides))
 
 
+def test_new_lab_result_is_persisted_only_after_approval(seeded_db, monkeypatch):
+    db = seeded_db
+    from app.db.repositories import list_observations_by_patient
+    install_seams(monkeypatch)
+    original = list_observations_by_patient(db.session, JANE_ID)
+    pending = save_suggestion(db.session, kind="observation", target_table="observations", before={}, after={"name": "Creatinine", "value": 0.9, "unit": "mg/dL", "observed_at": "2026-09-01T00:00:00Z"}, source="lab_report")
+    assert len(list_observations_by_patient(db.session, JANE_ID)) == len(original)
+    result = approve_suggestions([pending["id"]], None, session=db.session)
+    assert "error" not in result
+    added = [r for r in list_observations_by_patient(db.session, JANE_ID) if r["id"] not in {r["id"] for r in original}]
+    assert len(added) == 1
+    assert added[0]["value"] == 0.9
+    assert added[0]["source"] == "lab_report"
+    assert added[0]["body_region_key"] == "general"
+
+
+def test_approval_rejects_a_target_in_another_patient_chart(seeded_db, monkeypatch):
+    db = seeded_db
+    install_seams(monkeypatch)
+    target = active_hypertension(db.session)
+    pending = save_suggestion(db.session, patient_id=AMY_ID, target_id=target["id"])
+    result = approve_suggestions([pending["id"]], None, session=db.session)
+    assert_error(result, "invalid_state")
+    assert condition_by_id(db.session, target["id"])["status"] == "active"
+    assert get_suggestion(db.session, pending["id"])["status"] == "pending"
+
+
+def test_approval_rejects_stale_before_values(seeded_db, monkeypatch):
+    db = seeded_db
+    from app.db.repositories import update_condition
+    install_seams(monkeypatch)
+    target = active_hypertension(db.session)
+    pending = save_suggestion(db.session, target_id=target["id"])
+    update_condition(db.session, target["id"], {"status": "resolved"})
+    result = approve_suggestions([pending["id"]], None, session=db.session)
+    assert_error(result, "invalid_state")
+    assert condition_by_id(db.session, target["id"])["status"] == "resolved"
+
+
+def test_invalid_measurement_date_blocks_the_entire_batch(seeded_db, monkeypatch):
+    session = seeded_db.session
+    recording = install_seams(monkeypatch)
+    target = active_hypertension(session)
+    valid = save_suggestion(session, target_id=target["id"])
+    invalid = save_suggestion(session, kind="observation", target_table="observations", before={}, after={"name": "Creatinine", "value": 0.9, "unit": "mg/dL", "observed_at": "not-a-date"})
+    result = approve_suggestions([valid["id"], invalid["id"]], None, session=session)
+    assert_error(result, "validation_error")
+    assert condition_by_id(session, target["id"])["status"] == "active"
+    assert get_suggestion(session, valid["id"])["status"] == "pending"
+    assert not recording.reminder_calls
+
+
 def active_hypertension(session):
     matches = [
         row

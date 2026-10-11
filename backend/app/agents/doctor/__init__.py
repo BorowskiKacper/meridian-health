@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from app.agents.doctor.verify import verify_claims
 from app.db.repositories import insert_request, list_reminder_rules
+from app.db.repositories import get_patient
 
 # Same identifier shapes the evidence guard rejects. Ages and bare years stay.
 _IDENTIFIERS = re.compile(
@@ -24,6 +25,15 @@ _TRUSTED_EVIDENCE = "Trusted evidence was not found."
 
 def route_doctor_request(patient_id, text, channel, *, session):
     import app.agents.doctor.model as model
+
+    try:
+        patient = get_patient(session, patient_id)
+    except ValueError:
+        patient = None
+    if patient is None:
+        return {"error": {"code": "not_found", "message": "Patient was not found."}}
+    if not isinstance(text, str) or not text.strip():
+        return {"error": {"code": "validation_error", "message": "A nonempty request or recognized transcript is required."}}
 
     classified = model.complete("classify", {"text": text})
     route = classified["route"]
@@ -54,6 +64,8 @@ def route_doctor_request(patient_id, text, channel, *, session):
             suggestions = review["suggestions"]
         else:
             answer = {"text": review["answer"], "citations": []}
+    if channel == "voice" and spoken_text is None and answer:
+        spoken_text = answer["text"]
     return {
         "request_id": stored["id"],
         "transcript": text,

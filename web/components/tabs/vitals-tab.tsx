@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { bloodPressure, isVital, weightTrend } from "@/lib/clinical";
+import { bloodPressure, isVital, recordedPoints, sourceLabel, weightTrend } from "@/lib/clinical";
 import { Page, PageHeader } from "@/components/system/primitives";
 import { ObservationChart } from "@/components/charts/observation-chart";
 import { VitalsEntry } from "@/components/chart-entry/entry-form";
@@ -18,7 +18,13 @@ export function VitalsTab({ patientId }: { patientId: string }) {
   const weight = weightTrend(series);
   const rest = series.filter((t) => !bp.includes(t) && t !== weight);
   const otherVitals = rest.filter(isVital);
-  const labs = rest.filter((t) => !isVital(t));
+  const measurements = series.filter(isVital).flatMap((t) => recordedPoints(t).map((p) => ({ ...p, name: t.name, unit: t.unit }))).sort((a, b) => b.at.localeCompare(a.at));
+  const diastolic = new Map(recordedPoints(bp[1] ?? { name: "", unit: "", points: [] }).map((p) => [`${p.at}:${p.source ?? ""}`, p.value]));
+  const pairs = recordedPoints(bp[0] ?? { name: "", unit: "", points: [] }).flatMap((p) => {
+    const d = diastolic.get(`${p.at}:${p.source ?? ""}`);
+    return d === undefined ? [] : [{ systolic: p.value, diastolic: d }];
+  });
+  const mean = pairs.length ? `${(pairs.reduce((n, p) => n + p.systolic, 0) / pairs.length).toFixed(1)}/${(pairs.reduce((n, p) => n + p.diastolic, 0) / pairs.length).toFixed(1)}` : null;
   const empty = period === "all" ? "No measurements recorded for this patient." : "No measurements in this period. Choose All recorded to see earlier data.";
   return <Page wide>
     <PageHeader eyebrow="Measurements" title="Vitals & trends">
@@ -31,18 +37,18 @@ export function VitalsTab({ patientId }: { patientId: string }) {
           <option value="all">All recorded</option><option value="12">Last 12 months</option><option value="6">Last 6 months</option>
         </select>
       </label>
-      <span className="text-[12px] text-ink-faint">{series.reduce((n, t) => n + t.points.length, 0)} recorded measurements</span>
+      <span className="text-[12px] text-ink-faint">{measurements.length} recorded vital measurements</span>
     </div>
+    {mean && <div className="mt-5 flex flex-wrap justify-between gap-3 rounded-md border border-hairline bg-ivory p-4"><div><p className="text-[12px] text-ink-soft">Average recorded blood pressure · selected period</p><p className="mt-1 text-[11px] text-ink-faint">{pairs.length} paired readings at matching times and sources · arithmetic mean</p></div><p className="numeric text-[18px] font-semibold">{mean} <span className="text-[12px] font-normal text-ink-soft">mmHg</span></p></div>}
     <section className="mt-6"><h2 className="mb-4 font-sans text-[15px] font-semibold">Vital signs & body measurements</h2>
       <div className="grid gap-4 @min-[700px]:grid-cols-2">
-        <ObservationChart title="Blood pressure" series={bp} emptyText={empty} />
-        <ObservationChart title="Weight" series={weight ? [weight] : []} emptyText={empty} />
-        {otherVitals.map((t) => <ObservationChart key={`${t.name}-${t.unit}`} title={t.name} series={[t]} emptyText={empty} />)}
+        {bp.some((t) => t.points.length) && <ObservationChart title="Blood pressure" series={bp} compact emptyText={empty} />}
+        {weight?.points.length ? <ObservationChart title="Weight" series={[weight]} compact emptyText={empty} /> : null}
+        {otherVitals.filter((t) => t.points.length).map((t) => <ObservationChart key={`${t.name}-${t.unit}`} title={t.name} series={[t]} compact emptyText={empty} />)}
       </div>
+      {!measurements.length && <p className="border-y border-hairline py-5 text-sm text-ink-soft">{empty}</p>}
     </section>
-    <section className="mt-8"><h2 className="mb-2 font-sans text-[15px] font-semibold">Lab & other clinical measurements</h2>
-      <p className="mb-4 text-[12px] text-ink-faint">Source-specific reference intervals and individualized targets are not supplied with these records.</p>
-      {labs.length ? <div className="grid gap-4 @min-[700px]:grid-cols-2">{labs.map((t) => <ObservationChart key={`${t.name}-${t.unit}`} title={t.name} series={[t]} emptyText={empty} />)}</div> : <p className="text-sm text-ink-faint">No other measurements recorded.</p>}
-    </section>
+    <details className="mt-7"><summary className="cursor-pointer text-[13px] font-medium text-jade-700">Vitals flowsheet · exact values & sources</summary><div className="mt-4 overflow-x-auto" role="region" aria-label="Vitals flowsheet" tabIndex={0}><table className="clinical-table min-w-[520px]"><thead><tr>{["Measured at (local)", "Vital sign", "Value", "Source"].map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead><tbody>{measurements.map((p, i) => <tr key={p.id || `${p.at}-${i}`}><td><time dateTime={p.at}>{new Date(p.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time></td><td>{p.name}</td><td className="numeric">{p.value} {p.unit}</td><td>{sourceLabel(p.source)}</td></tr>)}</tbody></table></div></details>
+    <p className="mt-6 text-[12px] text-ink-faint">Diagnostic results have their own chart section. Wearable feeds are not connected; all values here are recorded chart measurements.</p>
   </Page>;
 }
