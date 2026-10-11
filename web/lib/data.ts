@@ -27,7 +27,7 @@ export const bodyContext = [
 export const tabLabel: Record<TabKind, string> = {
   overview: "Overview",
   visit: "Visit draft",
-  vitals: "Vitals & trends",
+  vitals: "Vitals",
   problems: "Problems",
   medications: "Medications",
   allergies: "Allergies",
@@ -107,6 +107,8 @@ export function patientHue(patientId: string): string {
   for (const char of patientId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return PATIENT_HUES[hash % PATIENT_HUES.length]!;
 }
+
+export const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 export function initials(name: string): string {
   return name

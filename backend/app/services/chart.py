@@ -182,6 +182,12 @@ def _allergies(session, patient_id):
     return rows
 
 
+def _unsubscribe_token(patient_id):
+    import app.services.email as email
+
+    return email.unsubscribe_token(patient_id)
+
+
 def _directory_entry(session, patient):
     return {
         "id": str(patient["id"]),
@@ -189,8 +195,9 @@ def _directory_entry(session, patient):
         "date_of_birth": _date_string(patient["date_of_birth"]),
         "age": _age(patient["date_of_birth"]),
         "sex": patient["sex"],
-        "sms_opt_in": bool(patient["sms_opt_in"]),
-        "phone_e164": patient["phone_e164"],
+        "email_opt_in": bool(patient["email_opt_in"]),
+        "email": patient["email"],
+        "unsubscribe_token": _unsubscribe_token(patient["id"]),
         "family_history": _family(session, patient["id"]),
         "allergies": _allergies(session, patient["id"]),
     }

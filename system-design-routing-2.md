@@ -29,7 +29,7 @@ Vendors in this build:
 
 - **Gemini:** `gemini-3.6-flash` for classification, agents, lab-photo vision, eligibility summaries and Google Search grounding. Note embeddings use `gemini-embedding-001` at 768 dimensions.
 - **Files:** lab photos are uploaded to the private S3 bucket named by `S3_BUCKET` in `S3_REGION`. `documents.storage_key` is the object key.
-- **Twilio:** reminders go out over WhatsApp only. A STOP reply on WhatsApp opts the patient out.
+- **Resend:** reminders go out by email through the `clinic-reminder` template. Variables are the patient name, reminder name, due date, and unsubscribe link. A valid link sets `email_opt_in` to false. A bad token changes nothing. The demo job sends every due reminder. An explicit "send the reminder now" in the screening window sends only that patient's due reminders. A screening question still only drafts a change.
 - **ElevenLabs:** sits behind one speech hook on `POST /requests`. In this build the hook makes no network call.
 - **Patient-data tools are MCP.** Every time an agent reads or proposes something in Tiger, it goes through the EMR MCP server. Those calls are the **thick arrows**.
 
@@ -61,7 +61,7 @@ flowchart LR
     sugg["GET /suggestions<br/>POST /suggestions - add to plan<br/>POST /suggestions/approve, /reject"]
     rem["PUT /patients/id/reminders/rid<br/>doctor edits a reminder"]
     runrem["POST /demo/run-reminders<br/>demo button"]
-    twhook["POST /webhooks/twilio<br/>delivery status, STOP replies<br/>WhatsApp"]
+    unsub["GET /email/unsubscribe<br/>signed token, no role header"]
     elig["POST /patients/id/eligibility<br/>shared: doctor + secretary, mock coverage"]
     appt["GET, POST, PUT /appointments<br/>appointment book"]
     secreq["POST /secretary/requests<br/>typed chat"]
@@ -110,7 +110,7 @@ flowchart LR
 
   Gemini["Gemini API<br/>gemini-3.6-flash"]:::ext
   EL["ElevenLabs<br/>Scribe STT + TTS<br/>behind the speech hook"]:::ext
-  Twilio["Twilio<br/>WhatsApp"]:::ext
+  Resend["Resend<br/>email"]:::ext
   Seed["Seed script<br/>multiple simulated patients<br/>+ mock insurance coverage<br/>+ appointments"]:::ext
   GSearch["Google Search<br/>via Gemini grounding"]:::ext
   MedFilter["Medical allowlist filter<br/>resolve redirects, keep<br/>USPSTF, CDC, NIH, societies..."]
@@ -182,16 +182,15 @@ flowchart LR
   D3q -->|"yes: embed, store in Tiger"| Gemini
   sugg -->|"after every approved change:<br/>re-check reminder timing"| screen
 
-  %% Reminders + WhatsApp
+  %% Reminders + email
   rem --> Tiger
   runrem --> Tiger
   runrem --> D4box
   D4box --> D4
-  D4q -->|"yes"| Twilio
-  Twilio -->|"WhatsApp, no health details"| Pt
-  Pt -->|"replies"| Twilio
-  Twilio --> twhook
-  twhook --> Tiger
+  D4q -->|"yes"| Resend
+  Resend -->|"email: template filled from the reminder"| Pt
+  Pt -->|"opens unsubscribe link"| unsub
+  unsub --> Tiger
 
   %% Seed, run once before the demo
   Seed -->|"load"| Tiger
@@ -256,7 +255,7 @@ USPSTF is the baseline, not the limit. The doctor's agents can reach past it to 
 - **Second check.** Before a research answer or reminder change goes to the doctor, a second Gemini call checks every sentence against the passage it cites and removes what the passage does not support. If too little trusted evidence survives, the agent says so instead of guessing.
 - **The doctor still decides.** None of this writes to the chart. Approval does.
 
-The plain endpoints never use MCP: body view, photo upload, approvals, reminders, appointments, WhatsApp sending and webhooks call the database or vendor API directly.
+The plain endpoints never use MCP: body view, photo upload, approvals, reminders, appointments, email sending, and the unsubscribe link call the database or vendor API directly.
 
 `propose_change` can only insert into `ai_suggestions`. Lab-photo suggestions and "add to plan" suggestions are inserted by plain code, not MCP, and are checked against the same allowlist. The only thing that writes to the chart is `POST /suggestions/approve`, after the doctor clicks it. The one exception is a doctor editing a reminder by hand (`PUT /reminders`), which changes only `reminder_schedule`.
 

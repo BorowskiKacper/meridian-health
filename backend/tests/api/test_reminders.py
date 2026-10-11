@@ -1,18 +1,17 @@
 from app.db.repositories import list_reminders_by_patient
 from api_support import AMY_ID, JANE_ID, UNKNOWN_ID, assert_error, bind_session, call
 
-TWILIO_FROM = "whatsapp:+15550001111"
 
-
-def _install_sms(monkeypatch):
+def _install_email(monkeypatch):
     calls = []
 
-    def send_whatsapp(from_number, to, body):
-        calls.append((from_number, to, body))
-        return "SM1"
+    def send_email(to_email, variables):
+        calls.append((to_email, variables))
+        return "re_1"
 
-    monkeypatch.setattr("app.services.sms.send_whatsapp", send_whatsapp)
-    monkeypatch.setattr("app.config.TWILIO_FROM_NUMBER", TWILIO_FROM)
+    monkeypatch.setattr("app.services.email.send_email", send_email)
+    monkeypatch.setattr("app.config.EMAIL_PUBLIC_BASE_URL", "https://clinic.example")
+    monkeypatch.setattr("app.config.EMAIL_UNSUBSCRIBE_SECRET", "unsubscribe-secret")
     return calls
 
 
@@ -100,7 +99,7 @@ def test_update_reminder_rejects_unknown_status(seeded_db, monkeypatch, client):
 
 def test_run_reminders_sends_only_amy(seeded_db, monkeypatch, client):
     bind_session(monkeypatch, seeded_db.session)
-    _install_sms(monkeypatch)
+    _install_email(monkeypatch)
     amy = _reminder_named(seeded_db.session, AMY_ID, "Follow-up labs")
 
     response = call(
@@ -116,5 +115,5 @@ def test_run_reminders_sends_only_amy(seeded_db, monkeypatch, client):
     assert len(body["sent"]) == 1
     sent = body["sent"][0]
     assert sent["reminder_id"] == amy["id"]
-    assert isinstance(sent["sms_id"], str)
-    assert sent["sms_id"]
+    assert isinstance(sent["email_id"], str)
+    assert sent["email_id"]

@@ -58,7 +58,7 @@ def _save(patient_id, payload, action, write, *, session):
 def record_vitals(patient_id: UUID, payload: Vitals, *, session):
 
     def write(session, content):
-        for key, name, unit in [('systolic', 'Systolic blood pressure', 'mmHg'), ('diastolic', 'Diastolic blood pressure', 'mmHg'), ('weight_kg', 'Body weight', 'kg'), ('pulse', 'Heart rate', 'beats/min')]:
+        for key, name, unit in [('systolic', 'Systolic blood pressure', 'mmHg'), ('diastolic', 'Diastolic blood pressure', 'mmHg'), ('weight_kg', 'Body weight', 'kg'), ('pulse', 'Heart rate', 'beats/min'), ('respiratory_rate', 'Respiratory rate', 'breaths/min'), ('temperature_f', 'Body temperature', '°F')]:
             if content[key] is not None:
                 session.add(Observation(id=uuid5(payload.submission_id, key), patient_id=patient_id, name=name, value=content[key], unit=unit, observed_at=payload.observed_at, source='manual_entry', document_id=None, body_region_key='heart'))
     return _save(patient_id, payload, 'manual_vitals', write, session=session)

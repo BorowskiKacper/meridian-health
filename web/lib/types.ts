@@ -132,8 +132,9 @@ export interface Patient {
   pendingCount: number;
   /** Oldest and newest instant on the chart, ms since epoch. The slider maps 0..100 onto this. */
   span: { start: number; end: number };
-  smsOptIn: boolean;
-  phone?: string;
+  emailOptIn: boolean;
+  email?: string;
+  unsubscribeToken?: string;
   specialties: Specialty[];
 }
 
@@ -203,6 +204,12 @@ export interface ResearchResult {
   basis: string;
   citations: Citation[];
   sections?: { title: string; text: string; source_ids: string[] }[];
+  /** Server request id for patient research; null when it was never returned. */
+  requestId?: string | null;
+  /** Citations in the API shape, sent unchanged when adding the answer to the plan. */
+  apiCitations?: import("./api").CitationRow[];
+  /** In-memory state of "Add to plan" for this result. */
+  plan?: { status: "saving" | "added" | "error"; message?: string };
 }
 
 export interface Message {
@@ -230,7 +237,7 @@ export interface Conversation {
 export interface AuditRow {
   id: string;
   patientId: string;
-  action: "Approved" | "Rejected" | "Discarded" | "SMS" | "Opt-out";
+  action: "Approved" | "Rejected" | "Discarded" | "Email" | "Opt-out";
   detail: string;
 }
 

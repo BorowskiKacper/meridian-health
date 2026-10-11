@@ -1,27 +1,16 @@
-from fastapi import APIRouter, Form
-from starlette.responses import Response
+from fastapi import APIRouter
+from starlette.responses import PlainTextResponse
 
 router = APIRouter()
 
 
-@router.post("/webhooks/twilio")
-def twilio_webhook(
-    MessageSid: str = Form(...),
-    MessageStatus: str = Form(...),
-    From: str = Form(...),
-    Body: str = Form(...),
-):
+@router.get("/email/unsubscribe")
+def email_unsubscribe(token: str = ""):
     import app.api.db as api_db
-    import app.services.sms as sms
+    import app.services.email as email
 
     with api_db.get_session() as session:
-        sms.handle_sms_webhook(
-            {
-                "MessageSid": MessageSid,
-                "MessageStatus": MessageStatus,
-                "From": From,
-                "Body": Body,
-            },
-            session=session,
-        )
-        return Response(content=b"", status_code=200)
+        message = email.unsubscribe(token, session=session)
+        if message is None:
+            return PlainTextResponse("This unsubscribe link is not valid.", status_code=400)
+        return PlainTextResponse(message)

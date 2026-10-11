@@ -1,4 +1,7 @@
-from app.agents.doctor import route_doctor_request
+from datetime import date
+
+from app.agents.doctor import asks_to_send_reminder, route_doctor_request
+from app.db.repositories import list_reminders_by_patient
 import pytest
 
 from support import (
@@ -390,3 +393,79 @@ def test_check_screenings_departure_proposes_reminder_change(seeded_db, monkeypa
     assert_deidentified_evidence(harness.evidence_calls)
     assert_context_call(harness)
     assert_proposed(harness, "reminder_change")
+
+
+@pytest.mark.parametrize(
+    "text,sends",
+    [
+        ("Send the reminder now.", True),
+        ("Please email her the follow-up reminder.", True),
+        ("Can you send it instantly?", True),
+        ("Should we send a reminder sooner?", False),
+        ("When should I send the reminder?", False),
+        ("Do not send the reminder.", False),
+        ("Are her screenings up to date?", False),
+    ],
+)
+def test_explicit_send_phrases(text, sends):
+    assert asks_to_send_reminder(text) is sends
+
+
+def test_screening_send_emails_only_the_open_patient(seeded_db, monkeypatch):
+    import app.services.email as email_module
+
+    session = seeded_db.session
+    calls = []
+
+    def send_email(to_email, variables):
+        calls.append((to_email, variables))
+        return "re_screen"
+
+    monkeypatch.setattr(email_module, "send_email", send_email)
+    monkeypatch.setattr("app.agents.doctor._as_of_today", lambda: date(2026, 10, 15))
+    monkeypatch.setattr("app.config.EMAIL_PUBLIC_BASE_URL", "https://clinic.example")
+    monkeypatch.setattr("app.config.EMAIL_UNSUBSCRIBE_SECRET", "unsubscribe-secret")
+    model = DoctorModel(reminders={"up_to_date": True, "answer": "Should not run.", "suggestions": []})
+    install(monkeypatch, model)
+
+    result = invoke(
+        route_doctor_request,
+        JANE_ID,
+        "Send the colorectal reminder now.",
+        "typed",
+        session=session,
+        route="check_screenings",
+    )
+
+    assert result["route"] == "check_screenings"
+    assert result["suggestions"] == []
+    assert result["answer"] == {"text": "Sent the reminder email.", "citations": []}
+    assert [call[0] for call in calls] == ["jane.doe@example.com"]
+    jane = next(row for row in list_reminders_by_patient(session, JANE_ID) if row["name"] == "Colorectal cancer screening")
+    assert jane["status"] == "sent"
+    amy = next(row for row in list_reminders_by_patient(session, "33333333-3333-4333-8333-333333333333"))
+    assert amy["status"] == "scheduled"
+    assert payloads(model, "reminders") == []
+    assert payloads(model, "classify") == []
+
+
+def test_screening_question_about_sending_does_not_email(seeded_db, monkeypatch):
+    import app.services.email as email_module
+
+    session = seeded_db.session
+
+    def send_email(to_email, variables):
+        raise AssertionError("send_email was called")
+
+    monkeypatch.setattr(email_module, "send_email", send_email)
+    text = "Should we send a reminder sooner?"
+    model = DoctorModel(
+        reminders={"up_to_date": True, "answer": "Screenings are up to date.", "suggestions": [], "tool_calls": []},
+    )
+    install(monkeypatch, model)
+
+    result = invoke(route_doctor_request, JANE_ID, text, "typed", session=session, route="check_screenings")
+
+    assert result["suggestions"] == []
+    assert result["answer"]["text"] == "Screenings are up to date."
+    assert payloads(model, "reminders")

@@ -22,7 +22,7 @@ def test_search_is_bounded_and_literal(client, seeded_db, monkeypatch):
     bind_session(monkeypatch, seeded_db.session)
     session = seeded_db.session
     for i in range(25):
-        session.add(Patient(id=uuid4(), display_name=f"Test Directory {i:02}", date_of_birth=date(1980, 1, 1), sex="unknown", sms_opt_in=False, phone_e164=""))
+        session.add(Patient(id=uuid4(), display_name=f"Test Directory {i:02}", date_of_birth=date(1980, 1, 1), sex="unknown", email_opt_in=False, email=f"directory{i:02}@example.com"))
     session.flush()
     result = client.get("/patients/search", params={"q": "test directory", "limit": 20}).json()
     assert len(result["patients"]) == 20

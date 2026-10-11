@@ -25,7 +25,7 @@ from app.db.models import (
     Reminder,
     ReminderRule,
     Request,
-    SmsMessage,
+    EmailMessage,
     SpecialtyFocus,
     Suggestion,
 )
@@ -379,16 +379,16 @@ def list_audit_logs_by_patient(session: Session, patient_id):
     return _by_patient(session, AuditLog, patient_id)
 
 
-def insert_sms_message(session: Session, row):
-    return _insert(session, SmsMessage, row)
+def insert_email_message(session: Session, row):
+    return _insert(session, EmailMessage, row)
 
 
-def update_sms_message(session: Session, row_id, fields):
-    return _update(session, SmsMessage, row_id, fields)
+def update_email_message(session: Session, row_id, fields):
+    return _update(session, EmailMessage, row_id, fields)
 
 
-def get_sms_message_by_sid(session: Session, twilio_sid):
-    return _first_where(session, SmsMessage, SmsMessage.twilio_sid == twilio_sid)
+def get_email_message_by_provider_id(session: Session, provider_id):
+    return _first_where(session, EmailMessage, EmailMessage.provider_id == provider_id)
 
 
 def insert_coverage(session: Session, row):

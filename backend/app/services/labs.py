@@ -8,6 +8,7 @@ from app.db.repositories import insert_document, insert_suggestion, get_patient
 from app.schemas import Suggestion
 from pydantic import AwareDatetime, BaseModel, Field
 from app.integrations import gemini_json, IntegrationError
+from app.privacy.names import bind_patient_name
 from google.genai import types
 
 _FLAGGED = frozenset({"low_confidence", "out_of_range"})
@@ -110,7 +111,8 @@ def extract_lab_report(patient_id, content, media_type, *, session):
         },
     )
 
-    analytes = extract_analytes(content, media_type)
+    with bind_patient_name(patient.get("display_name")):
+        analytes = extract_analytes(content, media_type)
     suggestions = []
     for analyte in analytes:
         suggestion = Suggestion.model_validate(_suggestion_payload(patient_id, analyte))

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { formatDate } from "@/lib/data";
+import { formatDate, firstName } from "@/lib/data";
 import { checkEligibility, type EligibilityResult } from "@/lib/api";
 import { Page, PageHeader } from "@/components/system/primitives";
 import { entryButton, entryInput } from "@/components/chart-entry/entry-form";
@@ -16,7 +16,7 @@ export function HistoryTab({ patientId }: { patientId: string }) {
   if (!patient) return null;
   const procedures = patient.encounters.filter((e) => /procedure|surgery|operation/i.test(e.type));
   return <Page wide>
-    <PageHeader eyebrow="Longitudinal record" title="History & coverage">Family history, recorded procedures, appointments, and coverage context.</PageHeader>
+    <PageHeader title={`${firstName(patient.name)}’s History & coverage`}>Family history, recorded procedures, appointments, and coverage context.</PageHeader>
     <div className="mt-8 grid gap-8 @min-[700px]:grid-cols-2">
       <section><h2 className="font-sans text-[15px] font-semibold">Family history</h2><ul className="mt-4 divide-y divide-hairline border-y border-hairline">{patient.family.map((f) => <li key={f} className="py-4 text-[13px] leading-relaxed">{f}</li>)}</ul>{!patient.family.length && <p className="mt-4 text-sm text-ink-soft">No family history recorded.</p>}</section>
       <section><h2 className="font-sans text-[15px] font-semibold">Recorded procedures</h2>{procedures.length ? <ul className="mt-4 divide-y divide-hairline border-y border-hairline">{procedures.map((e) => <li key={e.id} className="py-4 text-[13px]"><time className="text-ink-faint" dateTime={e.at}>{formatDate(e.at)}</time><p className="mt-2 leading-relaxed">{e.summary}</p></li>)}</ul> : <p className="mt-4 text-sm text-ink-soft">No procedure encounters recorded. A complete surgical history is not available.</p>}</section>

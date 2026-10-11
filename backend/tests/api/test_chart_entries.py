@@ -15,14 +15,14 @@ def submission(**fields):
 def test_vitals_persist_and_retry_does_not_duplicate(client, seeded_db, monkeypatch):
     session = seeded_db.session
     bind_session(monkeypatch, session)
-    data = submission(observed_at="2025-10-10T10:15:00-04:00", systolic=120, diastolic=76, weight_kg=66.2, pulse=74)
+    data = submission(observed_at="2025-10-10T10:15:00-04:00", systolic=120, diastolic=76, weight_kg=66.2, pulse=74, respiratory_rate=16, temperature_f=98.6)
     path = f"/patients/{AMY_ID}/vitals"
     assert client.post(path, json=data).status_code == 200
     session.commit()
     session.expire_all()
     assert client.post(path, json=data).status_code == 200
     rows = session.scalars(select(Observation).where(Observation.patient_id == UUID(AMY_ID), Observation.source == "manual_entry")).all()
-    assert len(rows) == 4
+    assert len(rows) == 6
     assert all(r.observed_at.astimezone(timezone.utc).isoformat() == "2025-10-10T14:15:00+00:00" for r in rows)
     chart = client.get(f"/patients/{AMY_ID}/chart").json()
     weight = next(s for s in chart["series"] if s["name"] == "Body weight")

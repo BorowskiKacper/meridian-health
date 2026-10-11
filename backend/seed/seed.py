@@ -112,8 +112,8 @@ def _seed_jane(session, screening_rule_id):
             "display_name": "Jane Doe",
             "date_of_birth": date(1974, 3, 15),
             "sex": "female",
-            "sms_opt_in": True,
-            "phone_e164": "+15555550101",
+            "email_opt_in": True,
+            "email": "jane.doe@example.com",
         },
     )
     _seed_allergy(session, JANE_ID, "Penicillin", "drug", "Hives", "moderate", date(2009, 6, 12))
@@ -242,8 +242,8 @@ def _seed_john(session):
             "display_name": "John Roe",
             "date_of_birth": date(1968, 11, 2),
             "sex": "male",
-            "sms_opt_in": False,
-            "phone_e164": "+15555550102",
+            "email_opt_in": False,
+            "email": "john.roe@example.com",
         },
     )
     _seed_allergy(
@@ -361,8 +361,8 @@ def _seed_amy(session):
             "display_name": "Amy Lee",
             "date_of_birth": date(1988, 5, 2),
             "sex": "female",
-            "sms_opt_in": True,
-            "phone_e164": "+15555550103",
+            "email_opt_in": True,
+            "email": "amy.lee@example.com",
         },
     )
     _seed_allergy(

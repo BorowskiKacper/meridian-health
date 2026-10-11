@@ -3,6 +3,7 @@
 import { useShallow } from "zustand/react/shallow";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { firstName } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { ActionCard } from "@/components/agent/action-card";
 import { Page, PageHeader, Section } from "@/components/system/primitives";
@@ -23,8 +24,7 @@ export function QueueTab({ patientId }: { patientId: string }) {
   return (
     <Page>
       <PageHeader
-        eyebrow={patient.name}
-        title="Review proposed changes"
+        title={`${firstName(patient.name)}’s Approvals`}
         actions={
           reviewed.length > 0 && (
             <Button disabled={busy} className="rounded-md px-4" onClick={async () => { if (await approveSelected(reviewed)) setSelected([]); }}>

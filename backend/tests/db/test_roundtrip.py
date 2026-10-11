@@ -10,7 +10,7 @@ from app.db.repositories import (
     get_patient,
     get_reminder,
     get_request,
-    get_sms_message_by_sid,
+    get_email_message_by_provider_id,
     get_suggestion,
     insert_appointment,
     insert_audit_log,
@@ -28,7 +28,7 @@ from app.db.repositories import (
     insert_reminder,
     insert_reminder_rule,
     insert_request,
-    insert_sms_message,
+    insert_email_message,
     insert_specialty_focus,
     insert_suggestion,
     list_appointments_by_patient,
@@ -60,7 +60,7 @@ from app.db.repositories import (
     update_observation,
     update_patient,
     update_reminder,
-    update_sms_message,
+    update_email_message,
     update_suggestion,
 )
 from expect import assert_contract
@@ -82,7 +82,7 @@ from rows import (
     reminder_row,
     reminder_rule_row,
     request_row,
-    sms_message_row,
+    email_message_row,
     specialty_focus_row,
     suggestion_row,
 )
@@ -129,13 +129,13 @@ def insert_saved_suggestion(db, patient_id, **overrides):
     return row
 
 
-def test_patient_round_trip_and_sms_opt_in_update(db):
+def test_patient_round_trip_and_email_opt_in_update(db):
     row = patient_row()
     assert_contract(insert_patient(db, row), row)
     assert_contract(get_patient(db, row["id"]), row)
 
-    expected = {**row, "sms_opt_in": False}
-    assert_contract(update_patient(db, row["id"], {"sms_opt_in": False}), expected)
+    expected = {**row, "email_opt_in": False}
+    assert_contract(update_patient(db, row["id"], {"email_opt_in": False}), expected)
     assert_contract(get_patient(db, row["id"]), expected)
     assert sole(list_patients(db), expected)
 
@@ -336,19 +336,19 @@ def test_audit_log_round_trip(db):
     assert sole(list_audit_logs_by_patient(db, owner["id"]), row)
 
 
-def test_sms_message_round_trip_and_update(db):
+def test_email_message_round_trip_and_update(db):
     owner = insert_owner(db)
     rule = reminder_rule_row(name="Blood pressure check")
     assert_contract(insert_reminder_rule(db, rule), rule)
     reminder = reminder_row(owner["id"], rule["id"], name="Blood pressure check")
     assert_contract(insert_reminder(db, reminder), reminder)
-    row = sms_message_row(owner["id"], reminder["id"], to_phone=owner["phone_e164"])
-    assert_contract(insert_sms_message(db, row), row)
-    assert_contract(get_sms_message_by_sid(db, row["twilio_sid"]), row)
+    row = email_message_row(owner["id"], reminder["id"], to_email=owner["email"])
+    assert_contract(insert_email_message(db, row), row)
+    assert_contract(get_email_message_by_provider_id(db, row["provider_id"]), row)
 
     expected = {**row, "status": "sent"}
-    assert_contract(update_sms_message(db, row["id"], {"status": "sent"}), expected)
-    assert_contract(get_sms_message_by_sid(db, row["twilio_sid"]), expected)
+    assert_contract(update_email_message(db, row["id"], {"status": "sent"}), expected)
+    assert_contract(get_email_message_by_provider_id(db, row["provider_id"]), expected)
 
 
 def test_coverage_round_trip(db):

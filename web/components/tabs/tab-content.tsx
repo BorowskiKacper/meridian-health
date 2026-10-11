@@ -33,7 +33,7 @@ export function TabContent({ tab }: { tab: WorkTab }) {
     case "region":
       return <RegionTab patientId={tab.patientId} findingId={tab.refId!} />;
     case "timeline":
-      return <TimelineTab patientId={tab.patientId} />;
+      return <TimelineTab key={tab.id} patientId={tab.patientId} notesOnly={tab.refId === "notes"} />;
     case "queue":
       return <QueueTab patientId={tab.patientId} />;
     case "research":

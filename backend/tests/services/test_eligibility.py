@@ -198,8 +198,8 @@ def test_patient_without_coverage_is_not_found(seeded_db, monkeypatch):
             "display_name": "Casey Noplan",
             "date_of_birth": date(1988, 7, 4),
             "sex": "female",
-            "sms_opt_in": False,
-            "phone_e164": "+15555550188",
+            "email_opt_in": False,
+            "email": "casey.noplan@example.com",
         },
     )
     prompts, payer_texts = install_fakes(

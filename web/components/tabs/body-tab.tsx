@@ -43,7 +43,6 @@ export function BodyTab({ patientId }: { patientId: string }) {
   return (
     <Page wide>
       <PageHeader
-        eyebrow="Optional spatial view"
         title="Anatomy explorer"
         actions={
           <button

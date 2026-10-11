@@ -69,6 +69,17 @@ export function ResearchResult({ result, compact = false }: { result: Result; co
       <h3 className="mb-1 text-[12px] font-semibold text-jade-800">Sources</h3>
       {sources.map((citation, index) => <Source key={citation.id ?? index} citation={citation} patientId={result.patientId} />)}
     </div>}
+    {patientId && result.answer.trim() && <AddToPlan result={result} />}
     {compact && patientId && <button type="button" onClick={() => openTab("research", patientId, result.id)} className="mt-5 inline-flex items-center gap-1 text-[12px] font-medium text-jade-700">Expand research <ArrowUpRight className="size-3.5" /></button>}
+  </div>;
+}
+
+function AddToPlan({ result }: { result: Result }) {
+  const addToPlan = useStore((s) => s.addToPlan);
+  const plan = result.plan;
+  if (plan?.status === "added") return <p role="status" className="mt-5 text-[13px] text-jade-700">{plan.message}</p>;
+  return <div className="mt-5">
+    <button type="button" disabled={plan?.status === "saving"} onClick={() => void addToPlan(result.id)} className="rounded-md border border-hairline-strong px-3 py-2 text-[13px] font-medium text-jade-700 hover:bg-jade-50 disabled:opacity-50">{plan?.status === "saving" ? "Adding…" : "Add to plan"}</button>
+    {plan?.status === "error" && <p role="alert" className="mt-2 text-[13px] text-critical">{plan.message}</p>}
   </div>;
 }

@@ -41,7 +41,7 @@ export function PatientBanner({ tab, compact = false }: { tab: WorkTab; compact?
         <button type="button" onClick={() => openTab("overview", patient.id)} className={chartSectionClass}>Overview</button>
         <button type="button" onClick={() => openTab("problems", patient.id)} className={chartSectionClass}>Problems <span className="numeric font-semibold">{problems}</span></button>
         <button type="button" onClick={() => openTab("medications", patient.id)} className={chartSectionClass}>Medications <span className="numeric font-semibold">{meds}</span></button>
-        <button type="button" onClick={() => openTab("vitals", patient.id)} className={chartSectionClass}>Vitals & trends</button>
+        <button type="button" onClick={() => openTab("vitals", patient.id)} className={chartSectionClass}>Vitals</button>
         <button type="button" onClick={() => openTab("lab", patient.id)} className={chartSectionClass}>Diagnostics</button>
         <button type="button" onClick={() => openTab("visit", patient.id)} className={chartSectionClass}>Visit draft</button>
         <button type="button" onClick={() => openTab("reminders", patient.id)} className={chartSectionClass}>Follow-up</button>

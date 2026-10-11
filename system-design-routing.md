@@ -5,7 +5,7 @@ Hackathon build only: no scaling, caching or queues. Each database is shown as a
 Changes from draft-1:
 
 - **No Dictate/Ask toggle.** There's one mic, and typed web chat goes to the same place. Every request works like Ask did: Gemini figures out what the doctor wants and routes it. Nothing writes to the chart directly. Chart updates become suggestions the doctor approves.
-- **No autonomous AI.** Agents run only when the doctor asks. The nightly reminder-agent job is gone, and an approval no longer triggers the reminder agent on its own. SMS sending is still scheduled because it's plain code, not AI.
+- **No autonomous AI.** Agents run only when the doctor asks. The nightly reminder-agent job is gone, and an approval no longer triggers the reminder agent on its own. Email sending is still scheduled because it's plain code, not AI.
 - **Agent tools are MCP.** Every time an agent reads or proposes something, it goes through an MCP server. Those calls are the **thick arrows**.
 
 How to read it:
@@ -34,7 +34,7 @@ flowchart LR
     sugg["GET /suggestions<br/>POST /suggestions - add to plan<br/>POST /suggestions/approve, /reject"]
     rem["PUT /patients/id/reminders/rid<br/>doctor edits a reminder"]
     runrem["POST /demo/run-reminders<br/>APScheduler or demo button"]
-    twhook["POST /webhooks/twilio<br/>delivery status, STOP replies"]
+    unsub["GET /email/unsubscribe<br/>signed token opts the patient out"]
     elig["POST /patients/id/eligibility<br/>stretch"]
 
     D1box["D1: Voice or typed?"]:::decision
@@ -78,7 +78,7 @@ flowchart LR
 
   Gemini["Gemini API"]:::ext
   EL["ElevenLabs<br/>Scribe STT + TTS"]:::ext
-  Twilio["Twilio SMS"]:::ext
+  Resend["Resend<br/>email"]:::ext
   Stedi["Stedi test mode"]:::ext
 
   %% Clients
@@ -138,16 +138,15 @@ flowchart LR
   D3box --> D3
   D3q -->|"yes: embed, store in Tiger"| Gemini
 
-  %% Reminders + SMS
+  %% Reminders + email
   rem --> Tiger
   runrem --> Tiger
   runrem --> D4box
   D4box --> D4
-  D4q -->|"yes"| Twilio
-  Twilio -->|"SMS, no health details"| Pt
-  Pt -->|"replies"| Twilio
-  Twilio --> twhook
-  twhook --> Tiger
+  D4q -->|"yes"| Resend
+  Resend -->|"email: template filled from the reminder"| Pt
+  Pt -->|"opens unsubscribe link"| unsub
+  unsub --> Tiger
 
   %% Insurance stretch
   elig --> Tiger
@@ -169,6 +168,6 @@ flowchart LR
 | Screening agent | Snowflake managed MCP | `search_guidelines` | Snowflake |
 | Eligibility endpoint (stretch) | Snowflake managed MCP | `search_guidelines` (payer policies) | Snowflake |
 
-The plain endpoints never use MCP: body view, photo upload, approvals, reminders, SMS and webhooks call the database or vendor API directly.
+The plain endpoints never use MCP: body view, photo upload, approvals, reminders, email, and the unsubscribe link call the database or vendor API directly.
 
 `propose_change` can only insert into `ai_suggestions`. The only thing that writes to the chart is `POST /suggestions/approve`, after the doctor clicks it.

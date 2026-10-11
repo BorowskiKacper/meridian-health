@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDate, kindLabel } from "@/lib/data";
+import { formatDate, kindLabel, firstName } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import type { ChartNote } from "@/lib/types";
 import { Page, PageHeader, SeverityDot } from "@/components/system/primitives";
@@ -12,7 +12,7 @@ const kindText: Record<ChartNote["kind"], string> = {
   medication: "Medication",
 };
 
-export function TimelineTab({ patientId }: { patientId: string }) {
+export function TimelineTab({ patientId, notesOnly = false }: { patientId: string; notesOnly?: boolean }) {
   const patient = useStore((s) => s.patients[patientId]);
   const openTab = useStore((s) => s.openTab);
   if (!patient) return null;
@@ -29,7 +29,7 @@ export function TimelineTab({ patientId }: { patientId: string }) {
       findingId: f.id,
     }));
 
-  const entries = [...patient.notes].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const entries = patient.notes.filter((n) => !notesOnly || n.kind === "note").sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   const years = entries.reduce<Record<string, ChartNote[]>>((acc, entry) => {
     const year = new Date(entry.at).getUTCFullYear().toString();
     (acc[year] ??= []).push(entry);
@@ -38,11 +38,11 @@ export function TimelineTab({ patientId }: { patientId: string }) {
 
   return (
     <Page>
-      <PageHeader eyebrow={patient.name} title="Timeline">
-        Encounters, medication starts and notes, newest first.
+      <PageHeader title={`${firstName(patient.name)}’s ${notesOnly ? "Notes" : "Timeline"}`}>
+        {notesOnly ? "Clinical notes, newest first." : "Encounters, medication starts and notes, newest first."}
       </PageHeader>
 
-      {findings.length > 0 && (
+      {!notesOnly && findings.length > 0 && (
         <details className="mt-8 border-t border-hairline pt-4">
           <summary className="w-fit cursor-pointer text-[13px] font-medium text-jade-700">Related chart regions · {findings.length}</summary>
           <ol className="mt-4 divide-y divide-hairline border-t border-hairline">

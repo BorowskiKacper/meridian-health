@@ -340,12 +340,15 @@ def approve_suggestions(ids, edits, *, session):
                 return _error("invalid_state", "The target record does not belong to this patient.")
             if not _matches_snapshot(table, target, suggestion.get("before", {})):
                 return _error("invalid_state", "The record changed after this proposal was drafted. Review a new proposal.")
+    from app.privacy.names import bind_patient_name, display_name_for
+
     approved = []
-    for suggestion, after in planned:
-        _apply_chart(session, suggestion, after)
-        updated = update_suggestion(session, suggestion["id"], {"status": "approved"})
-        _audit(session, suggestion, "approved", "Approved suggestion.")
-        approved.append(updated)
+    with bind_patient_name(display_name_for(session, next(iter(patient_ids)))):
+        for suggestion, after in planned:
+            _apply_chart(session, suggestion, after)
+            updated = update_suggestion(session, suggestion["id"], {"status": "approved"})
+            _audit(session, suggestion, "approved", "Approved suggestion.")
+            approved.append(updated)
     session.flush()
     return {
         "approved": approved,

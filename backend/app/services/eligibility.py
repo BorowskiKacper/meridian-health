@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 import app.evidence as evidence
+from app.privacy.names import bind_patient_name, restore_prompt, scrub_prompt
 from app.db.repositories import (
     get_coverage_by_patient,
     get_patient,
@@ -24,6 +25,7 @@ def ask_model(prompt):
 
     from app import config
 
+    prompt, alias = scrub_prompt(prompt)
     client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"timeout": 90000, "retry_options": {"attempts": 1}})
     response = client.models.generate_content(
         model=config.GEMINI_MODEL,
@@ -45,7 +47,7 @@ def ask_model(prompt):
             },
         ),
     )
-    payload = json.loads(response.text or "{}")
+    payload = json.loads(restore_prompt(response.text or "{}", alias) or "{}")
     note = payload.get("prior_auth_note") or ""
     return {
         "summary": payload.get("summary") or "",
@@ -106,6 +108,11 @@ def check_eligibility(patient_id, order_text, *, session):
     if coverage is None:
         return _not_found("Coverage was not found.")
 
+    with bind_patient_name(patient.get("display_name")):
+        return _check_bound(patient_id, coverage, order_text, session)
+
+
+def _check_bound(patient_id, coverage, order_text, session):
     stored_order = _stored_order_text(order_text)
     decision = ask_model(_prompt(coverage, stored_order))
     summary = decision["summary"]

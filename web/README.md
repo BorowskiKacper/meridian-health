@@ -103,7 +103,7 @@ credentials belong on the backend, not in browser environment variables.
 
 ## Checks
 
-The chart opens on a structured overview. Vitals & trends, medications, problems
+The chart opens on a structured overview. Vitals, medications, problems
 and allergies are accessible from the patient banner; anatomy is an optional view.
 The local hackathon database also contains explicitly synthetic weight, pulse
 and missing blood-pressure samples. To add these to another seeded demo database:

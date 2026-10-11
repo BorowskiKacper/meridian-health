@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { firstName } from "@/lib/data";
 import { bloodPressure, isVital, recordedPoints, sourceLabel, weightTrend } from "@/lib/clinical";
 import { Page, PageHeader } from "@/components/system/primitives";
 import { ObservationChart } from "@/components/charts/observation-chart";
-import { VitalsEntry } from "@/components/chart-entry/entry-form";
+import { VitalsDialog } from "@/components/chart-entry/vitals-dialog";
 
 export function VitalsTab({ patientId }: { patientId: string }) {
   const patient = useStore((s) => s.patients[patientId]);
@@ -27,10 +28,10 @@ export function VitalsTab({ patientId }: { patientId: string }) {
   const mean = pairs.length ? `${(pairs.reduce((n, p) => n + p.systolic, 0) / pairs.length).toFixed(1)}/${(pairs.reduce((n, p) => n + p.diastolic, 0) / pairs.length).toFixed(1)}` : null;
   const empty = period === "all" ? "No measurements recorded for this patient." : "No measurements in this period. Choose All recorded to see earlier data.";
   return <Page wide>
-    <PageHeader eyebrow="Measurements" title="Vitals & trends">
+    <PageHeader title={`${firstName(patient.name)}’s Vitals`}>
       Recorded values and collection dates. Select any point for its source, or expand the table to review exact results.
     </PageHeader>
-    <VitalsEntry patientId={patientId} />
+    <div className="mt-5 flex justify-end"><VitalsDialog patientId={patientId} /></div>
     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3">
       <label className="flex items-center gap-3 text-[13px] text-ink-soft">Date range
         <select value={period} onChange={(e) => setPeriod(e.target.value)} className="rounded-md border border-hairline-strong bg-white px-3 py-2 text-ink">

@@ -14,8 +14,8 @@ def test_list_patients_includes_the_seeded_chart(seeded_db, monkeypatch, client)
     jane = next(item for item in body["patients"] if item["id"] == JANE_ID)
     assert jane["display_name"] == "Jane Doe"
     assert jane["sex"] == "female"
-    assert jane["sms_opt_in"] is True
-    assert jane["phone_e164"] == "+15555550101"
+    assert jane["email_opt_in"] is True
+    assert jane["email"] == "jane.doe@example.com"
     assert {
         "relationship": "father",
         "condition": "colorectal cancer",

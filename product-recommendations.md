@@ -1006,6 +1006,19 @@ checks, autonomous medication adjustments, broad risk prediction, billing,
 full FHIR integration and production deployment. The hackathon's strongest
 claim is a clear, verifiable visit workflow demonstrated with synthetic data.
 
+### 11.8 UI design evidence (for the demo talk, not shown in the app)
+
+- **Last visit note first, Assessment & Plan prominent.** Brown PJ, Marquard JL,
+  et al. "What Do Physicians Read (and Ignore) in Electronic Progress Notes?"
+  *Applied Clinical Informatics* 2014;5(2):430–444.
+  DOI 10.4338/ACI-2014-01-RA-0003, PMID 25024759. Physicians concentrated on
+  the Impression and Plan and skimmed or skipped much of the rest. The
+  Overview therefore opens with the previous visit's note, above vitals and
+  lists, instead of burying it in a timeline.
+- **Vitals right after the note, with change since last measurement.** This
+  follows visit workflow (vitals are captured first). TODO: add a sourced
+  citation before quoting one in the talk.
+
 ## 12. Manual chart work: implementation and next priorities
 
 Implemented locally on October 10, 2026. The chart now supports a practical

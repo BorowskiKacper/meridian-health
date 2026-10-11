@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.agents.doctor.verify import verify_claims
 from app.db.repositories import insert_request, list_reminder_rules
 from app.db.repositories import get_patient
+from app.privacy.names import bind_patient_name, display_name_for, submit_in_context
 
 # Same identifier shapes the evidence guard rejects. Ages and bare years stay.
 _IDENTIFIERS = re.compile(
@@ -20,9 +21,29 @@ _IDENTIFIERS = re.compile(
     r"Dec(?:ember)?)\b\.?\s+\d{1,2}(?:st|nd|rd|th)?,\s*\d{4}\b)"
 )
 
-def route_doctor_request(patient_id, text, channel, *, session, route=None):
-    import app.agents.doctor.model as model
+_SEND_WORD = re.compile(r"\b(?:send|email|e-mail|mail)\b", re.IGNORECASE)
+_REMINDER_WORD = re.compile(r"\breminders?\b", re.IGNORECASE)
+_NOW_WORD = re.compile(r"\b(?:now|instantly|immediately|right away)\b", re.IGNORECASE)
+_REFUSAL = re.compile(r"\b(?:do not|don't|dont|never)\b", re.IGNORECASE)
+_DELIBERATION = re.compile(
+    r"^\s*(?:should|when|why|what|which|how|whether)\b|\bshould\s+(?:we|i)\b",
+    re.IGNORECASE,
+)
 
+
+def asks_to_send_reminder(text):
+    if _REFUSAL.search(text) or _DELIBERATION.search(text):
+        return False
+    if _SEND_WORD.search(text) is None:
+        return False
+    return _REMINDER_WORD.search(text) is not None or _NOW_WORD.search(text) is not None
+
+
+def _as_of_today():
+    return datetime.now(timezone.utc).date()
+
+
+def route_doctor_request(patient_id, text, channel, *, session, route=None):
     try:
         patient = get_patient(session, patient_id)
     except ValueError:
@@ -31,6 +52,13 @@ def route_doctor_request(patient_id, text, channel, *, session, route=None):
         return {"error": {"code": "not_found", "message": "Patient was not found."}}
     if not isinstance(text, str) or not text.strip():
         return {"error": {"code": "validation_error", "message": "A nonempty request or recognized transcript is required."}}
+
+    with bind_patient_name(patient.get("display_name")):
+        return _bound_doctor_request(patient_id, text, channel, session=session, route=route)
+
+
+def _bound_doctor_request(patient_id, text, channel, *, session, route):
+    import app.agents.doctor.model as model
 
     if route is not None and route not in {"chart_update", "clinical_question", "check_screenings"}:
         return {"error": {"code": "validation_error", "message": "Unknown request route."}}
@@ -57,6 +85,11 @@ def route_doctor_request(patient_id, text, channel, *, session, route=None):
             spoken_text = _spoken_chart(suggestions)
     elif route == "clinical_question":
         answer = _research_answer(patient_id, text, session)
+    elif route == "check_screenings" and asks_to_send_reminder(text):
+        from app.services.reminders import reminder_send_message, send_patient_reminders
+
+        outcome = send_patient_reminders(patient_id, _as_of_today(), session=session)
+        answer = {"text": reminder_send_message(outcome), "citations": []}
     elif route == "check_screenings":
         review = run_reminder_agent(patient_id, "doctor_request", session=session)
         if review["suggestions"]:
@@ -80,6 +113,11 @@ def run_reminder_agent(patient_id, trigger, *, session):
     import app.agents.doctor.model as model
     import app.mcp.tools as tools
 
+    with bind_patient_name(display_name_for(session, patient_id)):
+        return _bound_reminder_agent(patient_id, trigger, session, model, tools)
+
+
+def _bound_reminder_agent(patient_id, trigger, session, model, tools):
     context = tools.get_patient_context(patient_id, session=session)
     rules = list_reminder_rules(session)
     decision = model.complete(
@@ -155,7 +193,17 @@ def _research_answer(patient_id, text, session):
     if sections:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=4) as pool:
-            checked = list(pool.map(lambda section: verify_claims(section["text"], citations, allow_any_tier=True), sections))
+            futures = [
+                submit_in_context(
+                    pool,
+                    verify_claims,
+                    section["text"],
+                    citations,
+                    allow_any_tier=True,
+                )
+                for section in sections
+            ]
+            checked = [future.result() for future in futures]
         used = {}
         for section, result in zip(sections, checked):
             if not result["text"]:

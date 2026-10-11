@@ -8,6 +8,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from app import config
+from app.privacy.names import restore_prompt, scrub_data, scrub_prompt
 
 
 class IntegrationError(RuntimeError):
@@ -19,12 +20,19 @@ class IntegrationError(RuntimeError):
 def gemini_json(instruction, payload, schema: type[BaseModel], *, parts=None):
     if not config.GEMINI_API_KEY:
         raise IntegrationError("Gemini", "Gemini is not configured on the server.")
-    content = json.dumps(payload, default=str)
+    data, alias = scrub_data(payload)
+    content = json.dumps(data, default=str)
+    content, alias = scrub_prompt(content, alias)
+    outgoing = []
+    for part in parts or []:
+        if isinstance(part, str):
+            part, alias = scrub_prompt(part, alias)
+        outgoing.append(part)
     try:
         with genai.Client(api_key=config.GEMINI_API_KEY, http_options={"timeout": 90000, "retry_options": {"attempts": 1}}) as client:
             response = client.models.generate_content(
                 model=config.GEMINI_MODEL,
-                contents=[*(parts or []), content],
+                contents=[*outgoing, content],
                 config=types.GenerateContentConfig(
                     system_instruction=instruction,
                     response_mime_type="application/json",
@@ -32,7 +40,8 @@ def gemini_json(instruction, payload, schema: type[BaseModel], *, parts=None):
                     temperature=0,
                 ),
             )
-            return schema.model_validate_json(response.text or "")
+            raw = restore_prompt(response.text or "", alias)
+            return schema.model_validate_json(raw)
     except Exception:
         raise IntegrationError("Gemini", "Gemini could not complete this request. Try again; no chart changes were committed.") from None
 
@@ -40,6 +49,8 @@ def gemini_json(instruction, payload, schema: type[BaseModel], *, parts=None):
 def embed_text(text):
     if not config.GEMINI_API_KEY:
         raise IntegrationError("Gemini", "Gemini embeddings are not configured on the server.")
+    if isinstance(text, str):
+        text, _alias = scrub_prompt(text)
     try:
         with genai.Client(api_key=config.GEMINI_API_KEY, http_options={"timeout": 30000, "retry_options": {"attempts": 1}}) as client:
             response = client.models.embed_content(

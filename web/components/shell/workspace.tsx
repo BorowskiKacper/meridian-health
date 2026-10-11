@@ -102,7 +102,7 @@ function TabTitle({ tab }: { tab: WorkTab }) {
   const patient = useStore((s) => s.patients[tab.patientId]);
   const finding = patient?.findings.find((f) => f.id === tab.refId);
   const title =
-    tab.kind === "region" && finding ? finding.title : tabLabel[tab.kind];
+    tab.kind === "region" && finding ? finding.title : tab.kind === "timeline" && tab.refId === "notes" ? "Notes" : tabLabel[tab.kind];
   const surname = patient?.name.split(" ").at(-1);
   return (
     <>

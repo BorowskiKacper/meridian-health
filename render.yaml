@@ -24,12 +24,16 @@ services:
         sync: false
       - key: SNOWFLAKE_SCHEMA
         sync: false
-      - key: TWILIO_ACCOUNT_SID
+      - key: RESEND_API_KEY
         sync: false
-      - key: TWILIO_AUTH_TOKEN
+      - key: EMAIL_FROM
         sync: false
-      - key: TWILIO_FROM_NUMBER
+      - key: EMAIL_PUBLIC_BASE_URL
         sync: false
+      - key: EMAIL_UNSUBSCRIBE_SECRET
+        sync: false
+      - key: EMAIL_TEMPLATE_ID
+        value: clinic-reminder
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID
