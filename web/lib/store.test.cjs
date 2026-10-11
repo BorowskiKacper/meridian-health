@@ -256,3 +256,21 @@ test("general questions and empty answers never offer add to plan", async () => 
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(ResearchResult, { result: useStore.getState().research.g })), /Add to plan/);
   assert.match(renderToStaticMarkup(React.createElement(ResearchResult, { result: { ...useStore.getState().research.g, patientId: "patient" } })), /Add to plan/);
 });
+
+test("vitals list always shows expected rows, as Not recorded when missing", (t) => {
+  const Module = require("node:module");
+  const path = require("node:path");
+  const original = Module._resolveFilename;
+  Module._resolveFilename = function (specifier, ...args) {
+    return original.call(this, specifier.startsWith("@/") ? path.resolve(specifier.slice(2)) : specifier, ...args);
+  };
+  t.after(() => { Module._resolveFilename = original; });
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { MeasurementList } = require("../components/charts/measurement-list.tsx");
+  const series = [{ name: "Heart rate", unit: "beats/min", points: [{ at: "2025-01-01T00:00:00Z", value: 70 }, { at: "2025-06-01T00:00:00Z", value: 76 }] }];
+  const html = renderToStaticMarkup(React.createElement(MeasurementList, { series, showChange: true, expected: [{ name: "Heart rate", match: /^heart rate$/i }, { name: "Respiratory rate", match: /^respiratory rate$/i }] }));
+  assert.match(html, /Respiratory rate.*Not recorded/);
+  assert.doesNotMatch(html, /Heart rate<\/span><span[^>]*>Not recorded/);
+  assert.match(html, /\+6/);
+});

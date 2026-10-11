@@ -39,7 +39,7 @@ export function PatientBanner({ tab, compact = false }: { tab: WorkTab; compact?
         <button type="button" onClick={() => openTab("overview", patient.id)} className="hover:text-jade-700">Overview</button>
         <button type="button" onClick={() => openTab("problems", patient.id)} className="hover:text-jade-700">Problems <span className="numeric font-semibold">{problems}</span></button>
         <button type="button" onClick={() => openTab("medications", patient.id)} className="hover:text-jade-700">Medications <span className="numeric font-semibold">{meds}</span></button>
-        <button type="button" onClick={() => openTab("vitals", patient.id)} className="hover:text-jade-700">Vitals & trends</button>
+        <button type="button" onClick={() => openTab("vitals", patient.id)} className="hover:text-jade-700">Vitals</button>
         <button type="button" onClick={() => openTab("lab", patient.id)} className="hover:text-jade-700">Diagnostics</button>
         <button type="button" onClick={() => openTab("visit", patient.id)} className="hover:text-jade-700">Visit draft</button>
         <button type="button" onClick={() => openTab("reminders", patient.id)} className="hover:text-jade-700">Follow-up</button>

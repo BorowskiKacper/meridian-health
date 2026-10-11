@@ -10,14 +10,15 @@ import { ObservationChart } from "./observation-chart";
 /** Latest minus previous recorded value, coloured green when it rose and red when it fell. */
 function Change({ trend }: { trend: Trend }) {
   const [previous, latest] = trend.points.slice(-2);
-  if (!previous || !latest) return null;
+  // A blood-pressure half with no earlier reading still needs a placeholder, or "/+4" reads as broken.
+  if (!previous || !latest) return <span className="text-ink-faint">–</span>;
   const delta = Math.round((latest.value - previous.value) * 10) / 10;
   return <span className={delta > 0 ? "text-jade-700" : delta < 0 ? "text-critical" : "text-ink-soft"}>{delta > 0 ? "+" : ""}{delta}</span>;
 }
 
 const CHANGE_SHOWN = /blood pressure|weight|heart rate|^pulse$/i;
 
-export function MeasurementList({ series, markers = [], limit, showChange = false }: { series: Trend[]; markers?: { at: string; label: string }[]; limit?: number; showChange?: boolean }) {
+export function MeasurementList({ series, markers = [], limit, showChange = false, expected = [] }: { series: Trend[]; markers?: { at: string; label: string }[]; limit?: number; showChange?: boolean; /** Rows always listed, as "Not recorded" when no series matches. */ expected?: { name: string; match: RegExp }[] }) {
   const recorded = series.map((trend) => ({ ...trend, points: recordedPoints(trend) })).filter((trend) => trend.points.length);
   const bp = bloodPressure(recorded);
   // Pair only readings collected at the same time with the same recorded unit.
@@ -27,6 +28,7 @@ export function MeasurementList({ series, markers = [], limit, showChange = fals
     return [{ name: trend.name, series: [trend] }];
   });
   const shown = limit ? groups.slice(0, limit) : groups;
+  const missing = expected.filter((row) => !recorded.some((trend) => row.match.test(trend.name)));
   return <div className="divide-y divide-hairline border-y border-hairline">
     {shown.map((group) => {
       const latest = group.series[0]!.points.at(-1)!;
@@ -42,6 +44,7 @@ export function MeasurementList({ series, markers = [], limit, showChange = fals
         <div className="pb-5"><ObservationChart title={group.name} series={group.series} markers={markers} compact hideLatest /></div>
       </details>;
     })}
-    {!shown.length && <p className="py-5 text-[13px] text-ink-soft">No measurements recorded.</p>}
+    {missing.map((row) => <div key={row.name} className="flex flex-wrap items-center gap-x-5 gap-y-2 py-4 pr-[1.125rem]"><span className="min-w-0 flex-1 basis-40 text-[13px] font-medium text-ink">{row.name}</span><span className="text-[13px] text-ink-faint">Not recorded</span></div>)}
+    {!shown.length && !missing.length && <p className="py-5 text-[13px] text-ink-soft">No measurements recorded.</p>}
   </div>;
 }

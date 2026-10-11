@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { formatDate } from "@/lib/data";
+import { formatDate, firstName } from "@/lib/data";
 import { allergySummary } from "@/lib/clinical";
 import { Page, PageHeader } from "@/components/system/primitives";
 import { ListEntry } from "@/components/chart-entry/list-entry";
@@ -29,7 +29,7 @@ export function ChartListsTab({ patientId, kind }: { patientId: string; kind: "p
   }}>{editingId === record.id ? "Close editor" : "category" in record && record.category === "nkda" ? "Resolve record" : "Edit record"}</button>;
 
   return <Page>
-    <PageHeader eyebrow={patient.name} title={title}>
+    <PageHeader eyebrow={patient.name} title={`${firstName(patient.name)}’s ${title}`}>
       {kind === "allergies" ? "Substances, reported reactions and recorded severity." : kind === "medications" ? "Recorded medication history and patient-reported use." : "Documented problems, status and onset dates."}
     </PageHeader>
     <ListEntry patientId={patientId} kind={kind} />

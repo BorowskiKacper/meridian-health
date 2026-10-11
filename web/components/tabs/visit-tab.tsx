@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getEntryState, type VisitDraftData } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import { firstName } from "@/lib/data";
 import { Page, PageHeader } from "@/components/system/primitives";
 import { EntryForm, Field, entryInput, localDate } from "@/components/chart-entry/entry-form";
 import { MeasurementList } from "@/components/charts/measurement-list";
@@ -20,7 +21,7 @@ export function VisitTab({ patientId }: { patientId: string }) {
   }, [patientId]);
   if (!patient) return null;
   return <Page wide>
-    <PageHeader eyebrow="Today’s visit · unsigned" title="Visit draft">Capture the visit while keeping the recorded chart and proposed changes separate.</PageHeader>
+    <PageHeader eyebrow="Today’s visit · unsigned" title={`${firstName(patient.name)}’s Visit draft`}>Capture the visit while keeping the recorded chart and proposed changes separate.</PageHeader>
     <details className="mt-6 rounded-lg border border-hairline bg-ivory p-4"><summary className="cursor-pointer text-[13px] font-semibold text-jade-700">Chart context for this visit</summary><div className="mt-4 grid gap-6 @min-[700px]:grid-cols-2"><div><button type="button" className="text-[13px] font-medium text-jade-700 hover:underline" onClick={() => openTab("problems", patientId)}>Current problem list →</button><p className="mt-2 text-[13px] leading-relaxed text-ink-soft">{patient.problems.filter((p) => p.status !== "resolved").map((p) => p.name).join(" · ") || "No active problems recorded."}</p></div><div><button type="button" className="text-[13px] font-medium text-jade-700 hover:underline" onClick={() => openTab("medications", patientId)}>Review medications →</button><p className="mt-2 text-[13px] leading-relaxed text-ink-soft">{patient.medications.filter((m) => m.status === "active").map((m) => `${m.name} ${m.dose} ${m.frequency}`).join(" · ") || "No active medications recorded."}</p></div></div><p className="mt-5 mb-3 text-[12px] text-ink-faint">Latest recorded vitals · verify collection dates before using them for today’s visit.</p><MeasurementList series={patient.trends.filter(isVital)} /><button type="button" className="mt-3 text-[13px] text-jade-700 hover:underline" onClick={() => openTab("vitals", patientId)}>Record today’s vitals →</button></details>
     {error ? <p className="mt-5 text-critical" role="alert">{error}</p> : draft === undefined ? <p className="mt-5 text-ink-soft">Loading saved draft…</p> : <>
       <p className="mt-5 text-[13px] text-ink-soft">{draft?.saved_at ? `Unsigned draft · last saved ${new Date(draft.saved_at).toLocaleString()}` : "No visit draft saved for this patient."}</p>
