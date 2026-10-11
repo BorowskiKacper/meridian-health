@@ -48,8 +48,8 @@ def invoke(fn, *args, session, **kwargs):
 def install_email(monkeypatch):
     calls = []
 
-    def send_email(to_email, body):
-        calls.append((to_email, body))
+    def send_email(to_email, variables):
+        calls.append((to_email, variables))
         return "re_" + str(len(calls))
 
     monkeypatch.setattr(email_module, "send_email", send_email, raising=False)
@@ -132,12 +132,15 @@ def assert_sent(session, calls, reminder, address, forbidden, email_id):
     matched = [index for index, call in enumerate(calls) if call[0] == address]
     assert len(matched) == 1
     index = matched[0]
-    to_email, body = calls[index]
+    to_email, variables = calls[index]
     assert to_email == address
+    patient = get_patient(session, reminder["patient_id"])
     link = email_module.unsubscribe_link(reminder["patient_id"])
-    assert body == (
-        "You have a clinic reminder. Please contact the office to schedule a visit.\n"
-        + link
+    assert variables == email_module.template_variables(
+        patient["display_name"], reminder["name"], reminder["due_on"], link
+    )
+    body = email_module.reminder_text(
+        patient["display_name"], reminder["name"], reminder["due_on"], link
     )
     assert link.startswith(PUBLIC_BASE + "/email/unsubscribe?token=")
     assert_hides_chart(body, forbidden)
@@ -461,7 +464,7 @@ def test_failed_send_leaves_the_reminder_scheduled(seeded_db, monkeypatch):
     session = seeded_db.session
     amy = reminder_named(session, AMY_ID, "Follow-up labs")
 
-    def send_email(to_email, body):
+    def send_email(to_email, variables):
         raise RuntimeError("resend rejected the message")
 
     monkeypatch.setattr(email_module, "send_email", send_email, raising=False)
@@ -498,9 +501,16 @@ def test_send_email_posts_to_resend_and_returns_the_message_id(monkeypatch):
 
     monkeypatch.setattr(config, "RESEND_API_KEY", "re_test")
     monkeypatch.setattr(config, "EMAIL_FROM", "Clinic <reminders@example.com>")
+    monkeypatch.setattr(config, "EMAIL_TEMPLATE_ID", "clinic-reminder")
     monkeypatch.setattr(email_module.httpx, "post", post)
+    variables = {
+        "PATIENT_NAME": "Jane Doe",
+        "REMINDER_NAME": "Follow-up labs",
+        "DUE_ON": "September 1, 2026",
+        "UNSUBSCRIBE_URL": "https://clinic.example/email/unsubscribe?token=abc",
+    }
 
-    message_id = email_module.send_email("jane.doe@example.com", "Clinic sentence")
+    message_id = email_module.send_email("jane.doe@example.com", variables)
 
     assert message_id == "re_abc"
     assert captured["url"] == "https://api.resend.com/emails"
@@ -508,8 +518,7 @@ def test_send_email_posts_to_resend_and_returns_the_message_id(monkeypatch):
     assert captured["json"] == {
         "from": "Clinic <reminders@example.com>",
         "to": ["jane.doe@example.com"],
-        "subject": "Clinic reminder",
-        "text": "Clinic sentence",
+        "template": {"id": "clinic-reminder", "variables": variables},
     }
 
 

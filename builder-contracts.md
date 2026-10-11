@@ -26,7 +26,7 @@ Workers implement only the paths they own. Shared shapes live in `backend/app/sc
 - Gemini model is `gemini-3.6-flash` for classification, agents, vision, summaries, and Google Search grounding. It is one constant, `GEMINI_MODEL`, in `backend/app/config.py`.
 - Note embeddings use `gemini-embedding-001` with `output_dimensionality=768`, stored as `vector(768)`. The column is nullable. Seeded notes have no embedding because seed calls no vendor. `search_patient_notes` uses Postgres full-text search, not vector search.
 - Uploaded lab photos are stored as objects in the private S3 bucket named by `S3_BUCKET` (`S3_REGION`). `documents.storage_key` is the object key.
-- Reminders are sent by email through Resend. `send_email` POSTs `https://api.resend.com/emails` with `RESEND_API_KEY`, `EMAIL_FROM`, the patient address, subject `Clinic reminder`, and a text body. The body is one clinic sentence plus an absolute unsubscribe link built from `EMAIL_PUBLIC_BASE_URL`. The link is `GET /email/unsubscribe?token=`. The token is `{patient_id}.{hmac_sha256}` where `hmac_sha256` is the hex HMAC-SHA256 of the patient id signed with `EMAIL_UNSUBSCRIBE_SECRET`. There is no WhatsApp or SMS fallback and no delivery webhook.
+- Reminders are sent by email through Resend. `send_email` POSTs `https://api.resend.com/emails` with `RESEND_API_KEY`, `EMAIL_FROM`, the patient address, and the published template named by `EMAIL_TEMPLATE_ID` (default alias `clinic-reminder`). Template variables are `PATIENT_NAME`, `REMINDER_NAME`, `DUE_ON`, and `UNSUBSCRIBE_URL`. The stored message text names the patient, the reminder, and the due date, then adds an absolute unsubscribe link built from `EMAIL_PUBLIC_BASE_URL`. The link is `GET /email/unsubscribe?token=`. The token is `{patient_id}.{hmac_sha256}` where `hmac_sha256` is the hex HMAC-SHA256 of the patient id signed with `EMAIL_UNSUBSCRIBE_SECRET`. The message has no diagnosis, medication, or lab. There is no WhatsApp or SMS fallback and no delivery webhook.
 - Snowflake is called over REST with a programmatic access token (`Authorization: Bearer <SNOWFLAKE_PAT>`). Cortex Search service names are `USPSTF_SEARCH`, `PUBMED_SEARCH`, and `PAYER_DOCS_SEARCH`.
 
 ## Workers
@@ -453,7 +453,7 @@ USPSTF is the baseline. Other sources can extend or depart from it, but only tru
 
 **Manual reminder edit.** Updates `due_on` or `status` only. Does not call the reminder agent.
 
-**Email reminders.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `email_opt_in = true`. The message body is one clinic sentence and has no diagnosis, medication, or lab; the only addition is the unsubscribe link. Stores `provider_id` with `status` `sent` and marks the reminder `sent`. A valid unsubscribe link sets `email_opt_in` false and does not change the chart.
+**Email reminders.** Selects reminders with `due_on <= as_of`, `status = scheduled`, and `email_opt_in = true`. The Resend template is filled with the patient name, reminder name, due date, and unsubscribe link. It has no diagnosis, medication, or lab. Stores `provider_id` with `status` `sent` and marks the reminder `sent`. A valid unsubscribe link sets `email_opt_in` false and does not change the chart.
 
 **Lab photo.** Uploads the file to the private S3 bucket, records it in `documents`, extracts analytes, inserts observation suggestions. Low confidence and out-of-range values set `validation_flags`. Nothing is written to `observations` until approval.
 

@@ -49,6 +49,7 @@ _ENV_NAMES = (
     "EMAIL_FROM",
     "EMAIL_PUBLIC_BASE_URL",
     "EMAIL_UNSUBSCRIBE_SECRET",
+    "EMAIL_TEMPLATE_ID",
     "ELEVENLABS_API_KEY",
     "ELEVENLABS_VOICE_ID",
     "S3_BUCKET",
@@ -65,3 +66,6 @@ def _setting(name):
 
 for _name in _ENV_NAMES:
     globals()[_name] = _setting(_name)
+
+if not EMAIL_TEMPLATE_ID.strip():
+    EMAIL_TEMPLATE_ID = "clinic-reminder"

@@ -11,9 +11,6 @@ from app.db.repositories import (
 )
 
 _REMINDER_STATUSES = frozenset({"scheduled", "paused", "sent", "done"})
-_CLINIC_REMINDER = (
-    "You have a clinic reminder. Please contact the office to schedule a visit."
-)
 
 
 def _as_date(value):
@@ -50,8 +47,15 @@ def send_due_reminders(as_of, *, session):
                 skipped.append({"reminder_id": reminder_id, "reason": "opted_out"})
                 continue
             to_email = patient["email"]
-            body = _CLINIC_REMINDER + "\n" + email.unsubscribe_link(patient["id"])
-            provider_id = email.send_email(to_email, body)
+            link = email.unsubscribe_link(patient["id"])
+            due_on = reminder["due_on"]
+            body = email.reminder_text(
+                patient["display_name"], reminder["name"], due_on, link
+            )
+            variables = email.template_variables(
+                patient["display_name"], reminder["name"], due_on, link
+            )
+            provider_id = email.send_email(to_email, variables)
             email_id = str(uuid4())
             insert_email_message(
                 session,

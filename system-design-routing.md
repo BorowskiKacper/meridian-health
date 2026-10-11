@@ -144,7 +144,7 @@ flowchart LR
   runrem --> D4box
   D4box --> D4
   D4q -->|"yes"| Resend
-  Resend -->|"email: clinic sentence and unsubscribe link"| Pt
+  Resend -->|"email: template filled from the reminder"| Pt
   Pt -->|"opens unsubscribe link"| unsub
   unsub --> Tiger
 
